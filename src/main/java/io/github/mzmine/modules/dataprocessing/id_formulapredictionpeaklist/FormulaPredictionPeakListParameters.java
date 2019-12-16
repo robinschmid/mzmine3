@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2018 The MZmine 2 Development Team
+ * Copyright 2006-2020 The MZmine Development Team
  * 
  * This file is part of MZmine 2.
  * 
@@ -18,6 +18,7 @@
 package io.github.mzmine.modules.dataprocessing.id_formulapredictionpeaklist;
 
 import io.github.mzmine.datamodel.IonizationType;
+import io.github.mzmine.modules.dataprocessing.id_formula_sort.FormulaSortParameters;
 import io.github.mzmine.modules.dataprocessing.id_formulaprediction.elements.ElementsParameter;
 import io.github.mzmine.modules.dataprocessing.id_formulaprediction.restrictions.elements.ElementalHeuristicParameters;
 import io.github.mzmine.modules.dataprocessing.id_formulaprediction.restrictions.rdbe.RDBERestrictionParameters;
@@ -34,6 +35,10 @@ import io.github.mzmine.parameters.parametertypes.tolerances.MZToleranceParamete
 public class FormulaPredictionPeakListParameters extends SimpleParameterSet {
 
   public static final PeakListsParameter PEAK_LISTS = new PeakListsParameter();
+
+  public static final OptionalModuleParameter<FormulaSortParameters> sorting =
+      new OptionalModuleParameter<>("Sorting", "Apply sorting to all resulting lists",
+          new FormulaSortParameters(true));
 
   public static final IntegerParameter charge = new IntegerParameter("Charge", "Charge");
 
@@ -68,7 +73,8 @@ public class FormulaPredictionPeakListParameters extends SimpleParameterSet {
       new OptionalModuleParameter("MS/MS filter", "Check MS/MS data", new MSMSScoreParameters());
 
   public FormulaPredictionPeakListParameters() {
-    super(new Parameter[] {charge, ionization, PEAK_LISTS, mzTolerance, maxBestFormulasPerPeak,
-        elements, elementalRatios, rdbeRestrictions, isotopeFilter, msmsFilter});
+    super(new Parameter[] {charge, ionization, PEAK_LISTS, sorting, mzTolerance,
+        maxBestFormulasPerPeak, elements, elementalRatios, rdbeRestrictions, isotopeFilter,
+        msmsFilter});
   }
 }

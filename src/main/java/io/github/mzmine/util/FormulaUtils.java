@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2018 The MZmine 2 Development Team
+ * Copyright 2006-2020 The MZmine Development Team
  * 
  * This file is part of MZmine 2.
  * 
@@ -36,7 +36,6 @@ import org.openscience.cdk.interfaces.IIsotope;
 import org.openscience.cdk.interfaces.IMolecularFormula;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
-
 import io.github.mzmine.datamodel.IonizationType;
 import io.github.mzmine.datamodel.identities.MolecularFormulaIdentity;
 import io.github.mzmine.datamodel.identities.iontype.IonType;
@@ -56,15 +55,15 @@ public class FormulaUtils {
    * @param weightIsotopeScore
    * @param weightMSMSscore
    */
-  public static void sortFormulaList(List<MolecularFormulaIdentity> list, double neutralMass,
-      double ppmMax, double weightIsotopeScore, double weightMSMSscore) {
+  public static void sortFormulaList(List<MolecularFormulaIdentity> list, double ppmMax,
+      double weightIsotopeScore, double weightMSMSscore) {
     if (list == null)
       return;
     list.sort(new Comparator<MolecularFormulaIdentity>() {
       @Override
       public int compare(MolecularFormulaIdentity a, MolecularFormulaIdentity b) {
-        double scoreA = a.getScore(neutralMass, ppmMax, weightIsotopeScore, weightMSMSscore);
-        double scoreB = b.getScore(neutralMass, ppmMax, weightIsotopeScore, weightMSMSscore);
+        double scoreA = a.getScore(ppmMax, weightIsotopeScore, weightMSMSscore);
+        double scoreB = b.getScore(ppmMax, weightIsotopeScore, weightMSMSscore);
         // best to position 0 (therefore change A B)
         return Double.compare(scoreB, scoreA);
       }
@@ -204,7 +203,6 @@ public class FormulaUtils {
     return formatFormula(parsedFormula);
   }
 
-
   /**
    * Modifies the formula according to the ionization type
    */
@@ -231,7 +229,10 @@ public class FormulaUtils {
    * @return true / false
    */
   public static boolean checkMolecularFormula(String formula) {
-    if (formula.matches(".*[äöüÄÖÜß°§$%&/()=?ß²³´`+*~'#;:<>|]")) { // check for this first
+    if (formula.matches(".*[äöüÄÖÜß°§$%&/()=?ß²³´`+*~'#;:<>|]")) { // check
+                                                                   // for
+                                                                   // this
+                                                                   // first
       logger.info("Formula contains illegal characters.");
       return false;
     }
@@ -244,7 +245,8 @@ public class FormulaUtils {
 
     for (IIsotope iso : molFormula.isotopes()) {
       if ((iso.getAtomicNumber() == null) || (iso.getAtomicNumber() == 0)) {
-        // iso.getAtomicNumber() != null has to be checked, e.g. for some reason an element with
+        // iso.getAtomicNumber() != null has to be checked, e.g. for
+        // some reason an element with
         // Symbol "R" and number 0 exists in the CDK
         valid = false;
       }
@@ -256,7 +258,6 @@ public class FormulaUtils {
     }
     return true;
   }
-
 
   /**
    * Creates a formula with the major isotopes (important to use this method for exact mass
@@ -275,7 +276,8 @@ public class FormulaUtils {
       if (f == null)
         return null;
       // replace isotopes
-      // needed, as MolecularFormulaManipulator method returns isotopes without exact mass info
+      // needed, as MolecularFormulaManipulator method returns isotopes
+      // without exact mass info
       try {
         return replaceAllIsotopesWithoutExactMass(f);
       } catch (Exception e) {
@@ -357,7 +359,6 @@ public class FormulaUtils {
     return result;
   }
 
-
   /**
    * Compare to IIsotope. The method doesn't compare instance but if they have the same symbol,
    * natural abundance and exact mass. TODO
@@ -369,17 +370,18 @@ public class FormulaUtils {
   private static boolean equalIsotopes(IIsotope isotopeOne, IIsotope isotopeTwo) {
     if (!isotopeOne.getSymbol().equals(isotopeTwo.getSymbol()))
       return false;
-    // exactMass and naturalAbundance is null when using createMajorIsotopeMolFormula
+    // exactMass and naturalAbundance is null when using
+    // createMajorIsotopeMolFormula
     // // XXX: floating point comparision!
-    // if (!Objects.equals(isotopeOne.getNaturalAbundance(), isotopeTwo.getNaturalAbundance()))
+    // if (!Objects.equals(isotopeOne.getNaturalAbundance(),
+    // isotopeTwo.getNaturalAbundance()))
     // return false;
-    // if (!Objects.equals(isotopeOne.getExactMass(), isotopeTwo.getExactMass()))
+    // if (!Objects.equals(isotopeOne.getExactMass(),
+    // isotopeTwo.getExactMass()))
     // return false;
-
 
     return true;
   }
-
 
   public static long getFormulaSize(String formula) {
     long size = 1;
@@ -413,7 +415,6 @@ public class FormulaUtils {
       logger.warning("Unable to initialise Isotopes.");
       e.printStackTrace();
     }
-
 
     return size;
   }
