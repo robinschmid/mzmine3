@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2015 The MZmine 2 Development Team
+ * Copyright 2006-2020 The MZmine Development Team
  * 
  * This file is part of MZmine 2.
  * 
@@ -68,6 +68,7 @@ import io.github.mzmine.modules.dataprocessing.id_adductsearch.AdductSearchModul
 import io.github.mzmine.modules.dataprocessing.id_camera.CameraSearchModule;
 import io.github.mzmine.modules.dataprocessing.id_complexsearch.ComplexSearchModule;
 import io.github.mzmine.modules.dataprocessing.id_customdbsearch.CustomDBSearchModule;
+import io.github.mzmine.modules.dataprocessing.id_formula_sort.FormulaSortModule;
 import io.github.mzmine.modules.dataprocessing.id_formulaprediction.FormulaPredictionModule;
 import io.github.mzmine.modules.dataprocessing.id_formulapredictionpeaklist.FormulaPredictionPeakListModule;
 import io.github.mzmine.modules.dataprocessing.id_fragmentsearch.FragmentSearchModule;
@@ -212,7 +213,6 @@ public class MZmineModulesList {
       IsotopePatternCalculator.class, //
       IsotopePeakScannerModule.class, //
 
-
       // Feature detection
       SmoothingModule.class, //
       DeconvolutionModule.class, //
@@ -230,7 +230,6 @@ public class MZmineModulesList {
       PeakFilterModule.class, //
       PeaklistClearAnnotationsModule.class, //
       NeutralLossFilterModule.class, //
-
 
       // Normalization
       RTCalibrationModule.class, //
@@ -261,6 +260,7 @@ public class MZmineModulesList {
       CameraSearchModule.class, //
       NistMsSearchModule.class, //
       FormulaPredictionPeakListModule.class, //
+      FormulaSortModule.class, // sort formulas
       Ms2SearchModule.class, //
       SiriusProcessingModule.class, //
       GNPSResultsImportModule.class, //
@@ -290,7 +290,8 @@ public class MZmineModulesList {
       IsotopePatternPreviewModule.class, //
       KovatsIndexExtractionModule.class, //
 
-      // all other regular MZmineModule (not MZmineRunnableModule) NOT LISTED IN MENU
+      // all other regular MZmineModule (not MZmineRunnableModule) NOT
+      // LISTED IN MENU
       SpectraIdentificationSpectralDatabaseModule.class, //
       LibrarySubmitModule.class, //
       CustomDBSpectraSearchModule.class, //
@@ -308,8 +309,9 @@ public class MZmineModulesList {
       DPPIsotopeGrouperModule.class,//
 
       // not ready for prime time:
-      // DPPAnyElementIsotopeGrouperModule.class basically working, but only for specific elements
+      // DPPAnyElementIsotopeGrouperModule.class basically working, but
+      // only for specific elements
       // at the moment
-//       PeakListBlankSubtractionModule.class
+      // PeakListBlankSubtractionModule.class
   };
 }

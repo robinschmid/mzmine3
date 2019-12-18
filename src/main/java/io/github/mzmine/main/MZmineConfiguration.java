@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2018 The MZmine 2 Development Team
+ * Copyright 2006-2020 The MZmine Development Team
  * 
  * This file is part of MZmine 2.
  * 
@@ -18,70 +18,70 @@
 
 package io.github.mzmine.main;
 
+import java.io.File;
+import java.io.IOException;
+import java.text.NumberFormat;
+import java.util.List;
 import javax.annotation.Nonnull;
-
 import io.github.mzmine.gui.preferences.MZminePreferences;
 import io.github.mzmine.modules.MZmineModule;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.parameters.parametertypes.filenames.FileNameListSilentParameter;
 import io.github.mzmine.util.StringCrypter;
-import io.github.mzmine.util.ColorPalettes.Vision;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.text.NumberFormat;
-import java.util.List;
+import io.github.mzmine.util.color.Vision;
 
 /**
  * MZmine configuration interface
  */
 public interface MZmineConfiguration {
 
-  public static final File CONFIG_FILE = new File(System.getProperty("user.home"),".mzmine.conf");
+    public static final File CONFIG_FILE = new File(
+            System.getProperty("user.home"), ".mzmine.conf");
 
-  public ParameterSet getModuleParameters(Class<? extends MZmineModule> module);
+    public ParameterSet getModuleParameters(
+            Class<? extends MZmineModule> module);
 
-  public void setModuleParameters(Class<? extends MZmineModule> module, ParameterSet parameters);
+    public void setModuleParameters(Class<? extends MZmineModule> module,
+            ParameterSet parameters);
 
-  public MZminePreferences getPreferences();
+    public MZminePreferences getPreferences();
 
-  /**
-   * List of last loaded projects
-   * 
-   * @return
-   */
-  @Nonnull
-  public List<File> getLastProjects();
+    /**
+     * List of last loaded projects
+     * 
+     * @return
+     */
+    @Nonnull
+    public List<File> getLastProjects();
 
-  /**
-   * List of last loaded projects
-   * 
-   * @return
-   */
-  @Nonnull
-  public FileNameListSilentParameter getLastProjectsParameter();
+    /**
+     * List of last loaded projects
+     * 
+     * @return
+     */
+    @Nonnull
+    public FileNameListSilentParameter getLastProjectsParameter();
 
-  public NumberFormat getMZFormat();
+    public NumberFormat getMZFormat();
 
-  public NumberFormat getRTFormat();
+    public NumberFormat getRTFormat();
 
-  public NumberFormat getIntensityFormat();
+    public NumberFormat getIntensityFormat();
 
-  public void loadConfiguration(File file) throws IOException;
+    public void loadConfiguration(File file) throws IOException;
 
-  public void saveConfiguration(File file) throws IOException;
+    public void saveConfiguration(File file) throws IOException;
 
-  public String getRexecPath();
+    public String getRexecPath();
 
-  public Boolean getSendStatistics();
+    public Boolean getSendStatistics();
 
-  /**
-   * For color blindness or "normal vision"
-   * 
-   * @return
-   */
-  public Vision getColorVision();
+    /**
+     * For color blindness or "normal vision"
+     * 
+     * @return
+     */
+    public Vision getColorVision();
 
-  public StringCrypter getEncrypter();
+    public StringCrypter getEncrypter();
 }

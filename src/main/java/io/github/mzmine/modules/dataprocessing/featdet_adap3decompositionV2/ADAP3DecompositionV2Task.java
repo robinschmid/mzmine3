@@ -1,39 +1,50 @@
 /*
  * Copyright (C) 2016 Du-Lab Team <dulab.binf@gmail.com>
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This program is free software; you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+ * even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * You should have received a copy of the GNU General Public License along with this program; if
+ * not, write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
  */
 package io.github.mzmine.modules.dataprocessing.featdet_adap3decompositionV2;
 
-import com.google.common.collect.Range;
-import dulab.adap.datamodel.*;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
+import javax.annotation.Nonnull;
+import com.google.common.collect.Range;
+import dulab.adap.datamodel.BetterComponent;
+import dulab.adap.datamodel.BetterPeak;
+import dulab.adap.datamodel.Chromatogram;
 import dulab.adap.workflow.decomposition.Decomposition;
 import dulab.adap.workflow.decomposition.RetTimeClusterer;
-import io.github.mzmine.datamodel.*;
-import io.github.mzmine.datamodel.impl.*;
+import io.github.mzmine.datamodel.DataPoint;
+import io.github.mzmine.datamodel.Feature;
+import io.github.mzmine.datamodel.FeatureStatus;
+import io.github.mzmine.datamodel.IsotopePattern;
+import io.github.mzmine.datamodel.MZmineProject;
+import io.github.mzmine.datamodel.PeakList;
+import io.github.mzmine.datamodel.PeakListRow;
+import io.github.mzmine.datamodel.RawDataFile;
+import io.github.mzmine.datamodel.impl.SimpleDataPoint;
+import io.github.mzmine.datamodel.impl.SimpleFeature;
+import io.github.mzmine.datamodel.impl.SimpleIsotopePattern;
+import io.github.mzmine.datamodel.impl.SimplePeakList;
+import io.github.mzmine.datamodel.impl.SimplePeakListAppliedMethod;
+import io.github.mzmine.datamodel.impl.SimplePeakListRow;
 import io.github.mzmine.modules.tools.qualityparameters.QualityParameters;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.taskcontrol.AbstractTask;
 import io.github.mzmine.taskcontrol.TaskStatus;
-
-import javax.annotation.Nonnull;
 
 /**
  * @author aleksandrsmirnov
@@ -41,7 +52,8 @@ import javax.annotation.Nonnull;
 public class ADAP3DecompositionV2Task extends AbstractTask {
 
     // Logger.
-    private static final Logger LOG = Logger.getLogger(ADAP3DecompositionV2Task.class.getName());
+    private static final Logger LOG = Logger
+            .getLogger(ADAP3DecompositionV2Task.class.getName());
 
     private final ADAP3DecompositionV2Utils utils = new ADAP3DecompositionV2Utils();
 
@@ -54,8 +66,8 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
     // User parameters
     private final ParameterSet parameters;
 
-    ADAP3DecompositionV2Task(final MZmineProject project, final ChromatogramPeakPair lists,
-                             final ParameterSet parameterSet) {
+    ADAP3DecompositionV2Task(final MZmineProject project,
+            final ChromatogramPeakPair lists, final ParameterSet parameterSet) {
         // Initialize.
         this.project = project;
         parameters = parameterSet;
@@ -86,7 +98,8 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
             if (originalLists.chromatograms.getNumberOfRawDataFiles() > 1
                     && originalLists.peaks.getNumberOfRawDataFiles() > 1) {
                 setStatus(TaskStatus.ERROR);
-                setErrorMessage("Peak Decomposition can only be performed on feature lists with a single raw data file");
+                setErrorMessage(
+                        "Peak Decomposition can only be performed on feature lists with a single raw data file");
             } else {
 
                 try {
@@ -99,16 +112,20 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
                         project.addPeakList(newPeakList);
 
                         // Add quality parameters to peaks
-                        QualityParameters.calculateQualityParameters(newPeakList);
+                        QualityParameters
+                                .calculateQualityParameters(newPeakList);
 
                         // Remove the original peaklist if requested.
-                        if (parameters.getParameter(ADAP3DecompositionV2Parameters.AUTO_REMOVE).getValue()) {
+                        if (parameters.getParameter(
+                                ADAP3DecompositionV2Parameters.AUTO_REMOVE)
+                                .getValue()) {
                             project.removePeakList(originalLists.chromatograms);
                             project.removePeakList(originalLists.peaks);
                         }
 
                         setStatus(TaskStatus.FINISHED);
-                        LOG.info("Finished peak decomposition on " + originalLists);
+                        LOG.info("Finished peak decomposition on "
+                                + originalLists);
                     }
 
                 } catch (IllegalArgumentException e) {
@@ -116,8 +133,7 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
                             + e.getMessage();
                     e.printStackTrace();
                 } catch (IllegalStateException e) {
-                    errorMsg = "Peak decompostion error:\n"
-                            + e.getMessage();
+                    errorMsg = "Peak decompostion error:\n" + e.getMessage();
                     e.printStackTrace();
                 } catch (Exception e) {
                     errorMsg = "'Unknown error' during peak decomposition. \n"
@@ -145,16 +161,20 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
 
         // Create new feature list.
         final PeakList resolvedPeakList = new SimplePeakList(lists.peaks + " "
-                + parameters.getParameter(ADAP3DecompositionV2Parameters.SUFFIX).getValue(), dataFile);
+                + parameters.getParameter(ADAP3DecompositionV2Parameters.SUFFIX)
+                        .getValue(),
+                dataFile);
 
         // Load previous applied methods.
-        for (final PeakList.PeakListAppliedMethod method : lists.peaks.getAppliedMethods()) {
+        for (final PeakList.PeakListAppliedMethod method : lists.peaks
+                .getAppliedMethods()) {
             resolvedPeakList.addDescriptionOfAppliedTask(method);
         }
 
         // Add task description to feature list.
-        resolvedPeakList.addDescriptionOfAppliedTask(new SimplePeakListAppliedMethod(
-                "Peak deconvolution by ADAP-3", parameters));
+        resolvedPeakList.addDescriptionOfAppliedTask(
+                new SimplePeakListAppliedMethod("Peak deconvolution by ADAP-3",
+                        parameters));
 
         // Collect peak information
         List<BetterPeak> chromatograms = utils.getPeaks(lists.chromatograms);
@@ -169,7 +189,9 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
         int rowID = 0;
 
         for (final BetterComponent component : components) {
-            if (component.spectrum.length == 0 || component.getIntensity() < 1e-12) continue;
+            if (component.spectrum.length == 0
+                    || component.getIntensity() < 1e-12)
+                continue;
 
             // Create a reference peak
             Feature refPeak = getFeature(dataFile, component);
@@ -183,12 +205,12 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
                     dataPoints.add(new SimpleDataPoint(mz, intensity));
             }
 
-            if (dataPoints.size() < 5) continue;
+            if (dataPoints.size() < 5)
+                continue;
 
             refPeak.setIsotopePattern(new SimpleIsotopePattern(
                     dataPoints.toArray(new DataPoint[dataPoints.size()]),
-                    IsotopePattern.IsotopePatternStatus.PREDICTED,
-                    "Spectrum"));
+                    IsotopePattern.IsotopePatternStatus.PREDICTED, "Spectrum"));
 
             PeakListRow row = new SimplePeakListRow(++rowID);
 
@@ -206,7 +228,8 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
         // Sort new peak rows by retention time
         // ------------------------------------
 
-        newPeakListRows.sort(Comparator.comparingDouble(PeakListRow::getAverageRT));
+        newPeakListRows
+                .sort(Comparator.comparingDouble(PeakListRow::getAverageRT));
 
         for (PeakListRow row : newPeakListRows)
             resolvedPeakList.addRow(row);
@@ -214,32 +237,45 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
         return resolvedPeakList;
     }
 
-
     /**
      * Performs ADAP Peak Decomposition
      *
-     * @param chromatograms list of {@link BetterPeak} representing chromatograms
-     * @param ranges        arrays of {@link RetTimeClusterer.Item} containing ranges of detected peaks
+     * @param chromatograms
+     *            list of {@link BetterPeak} representing chromatograms
+     * @param ranges
+     *            arrays of {@link RetTimeClusterer.Item} containing ranges of
+     *            detected peaks
      * @return Collection of dulab.adap.Component objects
      */
 
-    private List<BetterComponent> getComponents(List<BetterPeak> chromatograms, List<BetterPeak> peaks) {
+    private List<BetterComponent> getComponents(List<BetterPeak> chromatograms,
+            List<BetterPeak> peaks) {
         // -----------------------------
         // ADAP Decomposition Parameters
         // -----------------------------
 
         Decomposition.Parameters params = new Decomposition.Parameters();
 
-        params.prefWindowWidth = parameters.getParameter(ADAP3DecompositionV2Parameters.PREF_WINDOW_WIDTH).getValue();
-        params.retTimeTolerance = parameters.getParameter(ADAP3DecompositionV2Parameters.RET_TIME_TOLERANCE).getValue();
-        params.minClusterSize = parameters.getParameter(ADAP3DecompositionV2Parameters.MIN_CLUSTER_SIZE).getValue();
-        params.adjustApexRetTimes = parameters.getParameter(ADAP3DecompositionV2Parameters.ADJUST_APEX_RET_TIME).getValue();
+        params.prefWindowWidth = parameters
+                .getParameter(ADAP3DecompositionV2Parameters.PREF_WINDOW_WIDTH)
+                .getValue();
+        params.retTimeTolerance = parameters
+                .getParameter(ADAP3DecompositionV2Parameters.RET_TIME_TOLERANCE)
+                .getValue();
+        params.minClusterSize = parameters
+                .getParameter(ADAP3DecompositionV2Parameters.MIN_CLUSTER_SIZE)
+                .getValue();
+        params.adjustApexRetTimes = parameters
+                .getParameter(
+                        ADAP3DecompositionV2Parameters.ADJUST_APEX_RET_TIME)
+                .getValue();
 
         return decomposition.run(params, chromatograms, peaks);
     }
 
     @Nonnull
-    private Feature getFeature(@Nonnull RawDataFile file, @Nonnull BetterPeak peak) {
+    private Feature getFeature(@Nonnull RawDataFile file,
+            @Nonnull BetterPeak peak) {
         Chromatogram chromatogram = peak.chromatogram;
 
         // Retrieve scan numbers
@@ -269,9 +305,10 @@ public class ADAP3DecompositionV2Task extends AbstractTask {
         for (double intensity : chromatogram.ys)
             dataPoints[count++] = new SimpleDataPoint(peak.getMZ(), intensity);
 
-        return new SimpleFeature(file, peak.getMZ(), peak.getRetTime(), peak.getIntensity(), area,
-                scanNumbers, dataPoints, Feature.FeatureStatus.MANUAL, representativeScan,
-                representativeScan, new int[]{},
+        return new SimpleFeature(file, peak.getMZ(), peak.getRetTime(),
+                peak.getIntensity(), area, scanNumbers, dataPoints,
+                FeatureStatus.MANUAL, representativeScan, representativeScan,
+                new int[] {},
                 Range.closed(peak.getFirstRetTime(), peak.getLastRetTime()),
                 Range.closed(peak.getMZ() - 0.01, peak.getMZ() + 0.01),
                 Range.closed(0.0, peak.getIntensity()));
