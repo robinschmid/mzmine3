@@ -172,7 +172,6 @@ public final class MZmineCore {
     return desktop;
   }
 
-  @Nonnull
   public static void setDesktop(Desktop desktop) {
     assert desktop != null;
     MZmineCore.desktop = desktop;
