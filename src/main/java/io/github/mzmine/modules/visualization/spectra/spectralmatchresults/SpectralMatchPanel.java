@@ -18,8 +18,25 @@
 
 package io.github.mzmine.modules.visualization.spectra.spectralmatchresults;
 
-import io.github.mzmine.modules.visualization.molstructure.Structure2DComponent;
+import io.github.mzmine.gui.chartbasics.gui.swing.EChartPanel;
+import io.github.mzmine.gui.chartbasics.gui.wrapper.ChartViewWrapper;
+import io.github.mzmine.gui.chartbasics.listener.AxisRangeChangedListener;
+import io.github.mzmine.gui.framework.CustomTextPane;
+import io.github.mzmine.gui.framework.ScrollablePanel;
+import io.github.mzmine.main.MZmineCore;
 import io.github.mzmine.modules.visualization.molstructure.Structure2DComponentAWT;
+import io.github.mzmine.modules.visualization.spectra.simplespectra.mirrorspectra.MirrorScanWindow;
+import io.github.mzmine.parameters.ParameterSet;
+import io.github.mzmine.parameters.parametertypes.filenames.FileNameParameter;
+import io.github.mzmine.util.color.ColorScaleUtil;
+import io.github.mzmine.util.color.SimpleColorPalette;
+import io.github.mzmine.util.components.MultiLineLabel;
+import io.github.mzmine.util.files.FileAndPathUtil;
+import io.github.mzmine.util.spectraldb.entry.DBEntryField;
+import io.github.mzmine.util.spectraldb.entry.SpectralDBEntry;
+import io.github.mzmine.util.spectraldb.entry.SpectralDBPeakIdentity;
+import io.github.mzmine.util.swing.IconUtil;
+import io.github.mzmine.util.swing.SwingExportUtil;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -41,6 +58,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
+import net.miginfocom.swing.MigLayout;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.plot.CombinedDomainXYPlot;
@@ -53,24 +71,6 @@ import org.openscience.cdk.inchi.InChIGeneratorFactory;
 import org.openscience.cdk.inchi.InChIToStructure;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.smiles.SmilesParser;
-import io.github.mzmine.gui.chartbasics.gui.swing.EChartPanel;
-import io.github.mzmine.gui.chartbasics.gui.wrapper.ChartViewWrapper;
-import io.github.mzmine.gui.chartbasics.listener.AxisRangeChangedListener;
-import io.github.mzmine.gui.framework.CustomTextPane;
-import io.github.mzmine.gui.framework.ScrollablePanel;
-import io.github.mzmine.main.MZmineCore;
-import io.github.mzmine.modules.visualization.spectra.simplespectra.mirrorspectra.MirrorScanWindow;
-import io.github.mzmine.parameters.ParameterSet;
-import io.github.mzmine.parameters.parametertypes.filenames.FileNameParameter;
-import io.github.mzmine.util.color.ColorScaleUtil;
-import io.github.mzmine.util.components.MultiLineLabel;
-import io.github.mzmine.util.files.FileAndPathUtil;
-import io.github.mzmine.util.spectraldb.entry.DBEntryField;
-import io.github.mzmine.util.spectraldb.entry.SpectralDBEntry;
-import io.github.mzmine.util.spectraldb.entry.SpectralDBPeakIdentity;
-import io.github.mzmine.util.swing.IconUtil;
-import io.github.mzmine.util.swing.SwingExportUtil;
-import net.miginfocom.swing.MigLayout;
 
 public class SpectralMatchPanel extends JPanel {
   private final Logger logger = Logger.getLogger(this.getClass().getName());
@@ -94,8 +94,8 @@ public class SpectralMatchPanel extends JPanel {
   public static final double MAX_COS_COLOR_VALUE = 1.0;
   // min color is a darker red
   // max color is a darker green
-  public static final Color MAX_COS_COLOR = new Color(0x388E3C);
-  public static final Color MIN_COS_COLOR = new Color(0xE30B0B);
+  public static Color MAX_COS_COLOR = new Color(0x388E3C);
+  public static Color MIN_COS_COLOR = new Color(0xE30B0B);
 
   private Font headerFont = new Font("Dialog", Font.BOLD, 16);
   private Font titleFont = new Font("Dialog", Font.BOLD, 18);
@@ -122,6 +122,11 @@ public class SpectralMatchPanel extends JPanel {
     metaDataPanel.setLayout(new BoxLayout(metaDataPanel, BoxLayout.Y_AXIS));
 
     metaDataPanel.setBackground(Color.WHITE);
+
+    SimpleColorPalette palette = MZmineCore.getConfiguration().getDefaultColorPalette();
+
+    MAX_COS_COLOR = palette.getPositiveColorAWT();
+    MIN_COS_COLOR = palette.getNegativeColorAWT();
 
     // add title
     MigLayout l = new MigLayout("aligny center, wrap, insets 0 10 0 30", "[grow][]", "[grow]");
