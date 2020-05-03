@@ -18,6 +18,24 @@
 
 package io.github.mzmine.modules.visualization.spectra.spectralmatchresults;
 
+import java.io.File;
+import java.text.DecimalFormat;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
+import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.axis.ValueAxis;
+import org.jfree.chart.plot.CombinedDomainXYPlot;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.data.Range;
+import org.openscience.cdk.DefaultChemObjectBuilder;
+import org.openscience.cdk.exception.CDKException;
+import org.openscience.cdk.exception.InvalidSmilesException;
+import org.openscience.cdk.inchi.InChIGeneratorFactory;
+import org.openscience.cdk.inchi.InChIToStructure;
+import org.openscience.cdk.interfaces.IAtomContainer;
+import org.openscience.cdk.smiles.SmilesParser;
 import io.github.mzmine.gui.chartbasics.chartthemes.EStandardChartTheme;
 import io.github.mzmine.gui.chartbasics.gui.javafx.EChartViewer;
 import io.github.mzmine.gui.chartbasics.gui.wrapper.ChartViewWrapper;
@@ -34,10 +52,6 @@ import io.github.mzmine.util.javafx.FxIconUtil;
 import io.github.mzmine.util.spectraldb.entry.DBEntryField;
 import io.github.mzmine.util.spectraldb.entry.SpectralDBEntry;
 import io.github.mzmine.util.spectraldb.entry.SpectralDBPeakIdentity;
-import java.io.File;
-import java.text.DecimalFormat;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -65,36 +79,22 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.FileChooser;
-import javax.swing.JFrame;
-import javax.swing.SwingUtilities;
-import org.jfree.chart.axis.NumberAxis;
-import org.jfree.chart.axis.ValueAxis;
-import org.jfree.chart.plot.CombinedDomainXYPlot;
-import org.jfree.chart.plot.XYPlot;
-import org.jfree.data.Range;
-import org.openscience.cdk.DefaultChemObjectBuilder;
-import org.openscience.cdk.exception.CDKException;
-import org.openscience.cdk.exception.InvalidSmilesException;
-import org.openscience.cdk.inchi.InChIGeneratorFactory;
-import org.openscience.cdk.inchi.InChIToStructure;
-import org.openscience.cdk.interfaces.IAtomContainer;
-import org.openscience.cdk.smiles.SmilesParser;
 
 public class SpectralMatchPanelFX extends GridPane {
 
   private final Logger logger = Logger.getLogger(this.getClass().getName());
 
   private static final int ICON_WIDTH = 50;
-  protected static final Image iconAll = FxIconUtil
-      .loadImageFromResources("icons/exp_graph_all.png");
-  protected static final Image iconPdf = FxIconUtil
-      .loadImageFromResources("icons/exp_graph_pdf.png");
-  protected static final Image iconEps = FxIconUtil
-      .loadImageFromResources("icons/exp_graph_eps.png");
-  protected static final Image iconEmf = FxIconUtil
-      .loadImageFromResources("icons/exp_graph_emf.png");
-  protected static final Image iconSvg = FxIconUtil
-      .loadImageFromResources("icons/exp_graph_svg.png");
+  protected static final Image iconAll =
+      FxIconUtil.loadImageFromResources("icons/exp_graph_all.png");
+  protected static final Image iconPdf =
+      FxIconUtil.loadImageFromResources("icons/exp_graph_pdf.png");
+  protected static final Image iconEps =
+      FxIconUtil.loadImageFromResources("icons/exp_graph_eps.png");
+  protected static final Image iconEmf =
+      FxIconUtil.loadImageFromResources("icons/exp_graph_emf.png");
+  protected static final Image iconSvg =
+      FxIconUtil.loadImageFromResources("icons/exp_graph_svg.png");
 
   private static final DecimalFormat COS_FORM = new DecimalFormat("0.000");
 
@@ -152,13 +152,13 @@ public class SpectralMatchPanelFX extends GridPane {
 
     mirrorChart = MirrorSpectrumUtil.createPlotFromSpectralDBPeakIdentity(hit);
     MZmineCore.getConfiguration().getDefaultChartTheme().apply(mirrorChart.getChart());
+    ((CombinedDomainXYPlot) mirrorChart.getChart().getPlot()).setGap(-9);
 
     coupleZoomYListener();
 
     // put into main
     ColumnConstraints ccSpectrum = new ColumnConstraints(400, -1, Region.USE_COMPUTED_SIZE,
-        Priority.ALWAYS, HPos.CENTER,
-        true);
+        Priority.ALWAYS, HPos.CENTER, true);
     ColumnConstraints ccMetadata = new ColumnConstraints(META_WIDTH + 30, META_WIDTH + 30,
         Region.USE_COMPUTED_SIZE, Priority.NEVER, HPos.LEFT, false);
 
@@ -169,9 +169,8 @@ public class SpectralMatchPanelFX extends GridPane {
     getColumnConstraints().add(0, ccSpectrum);
     getColumnConstraints().add(1, ccMetadata);
 
-    setBorder(
-        new Border(new BorderStroke(Color.BLACK, BorderStrokeStyle.SOLID, CornerRadii.EMPTY,
-            BorderWidths.DEFAULT)));
+    setBorder(new Border(new BorderStroke(Color.BLACK, BorderStrokeStyle.SOLID, CornerRadii.EMPTY,
+        BorderWidths.DEFAULT)));
   }
 
   private GridPane createTitlePane() {
@@ -180,9 +179,10 @@ public class SpectralMatchPanelFX extends GridPane {
 
     // create Top panel
     double simScore = hit.getSimilarity().getScore();
-    Color gradientCol = FxColorUtil.awtColorToFX(ColorScaleUtil
-        .getColor(FxColorUtil.fxColorToAWT(MIN_COS_COLOR), FxColorUtil.fxColorToAWT(MAX_COS_COLOR),
-            MIN_COS_COLOR_VALUE, MAX_COS_COLOR_VALUE, simScore));
+    Color gradientCol =
+        FxColorUtil.awtColorToFX(ColorScaleUtil.getColor(FxColorUtil.fxColorToAWT(MIN_COS_COLOR),
+            FxColorUtil.fxColorToAWT(MAX_COS_COLOR), MIN_COS_COLOR_VALUE, MAX_COS_COLOR_VALUE,
+            simScore));
     pnTitle.setBackground(
         new Background(new BackgroundFill(gradientCol, CornerRadii.EMPTY, Insets.EMPTY)));
 
@@ -197,10 +197,10 @@ public class SpectralMatchPanelFX extends GridPane {
 
     pnTitle.add(lblHit, 0, 0);
     pnTitle.add(lblScore, 1, 0);
-    ColumnConstraints ccTitle0 = new ColumnConstraints(150, -1, -1, Priority.ALWAYS, HPos.LEFT,
-        true);
-    ColumnConstraints ccTitle1 = new ColumnConstraints(150, 150, 150, Priority.NEVER, HPos.LEFT,
-        false);
+    ColumnConstraints ccTitle0 =
+        new ColumnConstraints(150, -1, -1, Priority.ALWAYS, HPos.LEFT, true);
+    ColumnConstraints ccTitle1 =
+        new ColumnConstraints(150, 150, 150, Priority.NEVER, HPos.LEFT, false);
     pnTitle.getColumnConstraints().add(0, ccTitle0);
     pnTitle.getColumnConstraints().add(1, ccTitle1);
 
@@ -267,8 +267,8 @@ public class SpectralMatchPanelFX extends GridPane {
 
     GridPane g1 = new GridPane();
     g1.getStyleClass().add("region");
-    BorderPane pnCompounds = extractMetaData("Compound information", hit.getEntry(),
-        DBEntryField.COMPOUND_FIELDS);
+    BorderPane pnCompounds =
+        extractMetaData("Compound information", hit.getEntry(), DBEntryField.COMPOUND_FIELDS);
     BorderPane panelInstrument =
         extractMetaData("Instrument information", hit.getEntry(), DBEntryField.INSTRUMENT_FIELDS);
     g1.add(pnCompounds, 0, 0);
@@ -522,39 +522,5 @@ public class SpectralMatchPanelFX extends GridPane {
   }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

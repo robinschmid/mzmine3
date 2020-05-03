@@ -18,6 +18,16 @@
 
 package io.github.mzmine.util;
 
+import java.awt.Color;
+import java.util.Arrays;
+import java.util.logging.Logger;
+import org.jfree.chart.LegendItem;
+import org.jfree.chart.LegendItemCollection;
+import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.plot.CombinedDomainXYPlot;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.title.LegendTitle;
+import org.jfree.chart.ui.RectangleEdge;
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.datamodel.Scan;
 import io.github.mzmine.gui.chartbasics.chartthemes.EStandardChartTheme;
@@ -30,23 +40,13 @@ import io.github.mzmine.util.color.SimpleColorPalette;
 import io.github.mzmine.util.spectraldb.entry.DBEntryField;
 import io.github.mzmine.util.spectraldb.entry.DataPointsTag;
 import io.github.mzmine.util.spectraldb.entry.SpectralDBPeakIdentity;
-import java.awt.Color;
-import java.util.Arrays;
-import java.util.logging.Logger;
-import org.jfree.chart.LegendItem;
-import org.jfree.chart.LegendItemCollection;
-import org.jfree.chart.axis.NumberAxis;
-import org.jfree.chart.plot.CombinedDomainXYPlot;
-import org.jfree.chart.plot.XYPlot;
-import org.jfree.chart.title.LegendTitle;
-import org.jfree.chart.ui.RectangleEdge;
 
 public class MirrorSpectrumUtil {
 
   private static final Logger logger = Logger.getLogger(MirrorSpectrumUtil.class.getName());
 
   public static final DataPointsTag[] tags =
-      new DataPointsTag[]{DataPointsTag.ORIGINAL, DataPointsTag.FILTERED, DataPointsTag.ALIGNED};
+      new DataPointsTag[] {DataPointsTag.ORIGINAL, DataPointsTag.FILTERED, DataPointsTag.ALIGNED};
 
   public static EChartViewer createPlotFromSpectralDBPeakIdentity(SpectralDBPeakIdentity db) {
 
@@ -76,7 +76,7 @@ public class MirrorSpectrumUtil {
     // get colors for vision
     SimpleColorPalette palette = MZmineCore.getConfiguration().getDefaultColorPalette();
     // colors for the different DataPointsTags:
-    final Color[] colors = new Color[]{Color.black, // black = filtered
+    final Color[] colors = new Color[] {Color.black, // black = filtered
         palette.getNegativeColorAWT(), // unaligned
         palette.getPositiveColorAWT() // aligned
     };
@@ -92,10 +92,10 @@ public class MirrorSpectrumUtil {
     EChartViewer mirrorSpecrumPlot = SpectrumChartFactory.createMirrorChartViewer(
         "Query: " + scan.getScanDefinition(), precursorMZA, rtA, null, "Library: " + db.getName(),
         precursorMZB == null ? 0 : precursorMZB, rtB, null, false, true);
-//    mirrorSpecrumPlot.setMaximumDrawWidth(4200); // TODO?
-//    mirrorSpecrumPlot.setMaximumDrawHeight(2500);
+    // mirrorSpecrumPlot.setMaximumDrawWidth(4200); // TODO?
+    // mirrorSpecrumPlot.setMaximumDrawHeight(2500);
 
-//     add data
+    // add data
     DataPoint[][] query = new DataPoint[tags.length][];
     DataPoint[][] library = new DataPoint[tags.length][];
     for (int i = 0; i < tags.length; i++) {
@@ -155,6 +155,7 @@ public class MirrorSpectrumUtil {
 
     EStandardChartTheme theme = MZmineCore.getConfiguration().getDefaultChartTheme();
     theme.apply(mirrorSpecrumPlot.getChart());
+    ((CombinedDomainXYPlot) mirrorSpecrumPlot.getChart().getPlot()).setGap(-9);
 
     return mirrorSpecrumPlot;
   }
@@ -164,7 +165,7 @@ public class MirrorSpectrumUtil {
     // get colors for vision
     SimpleColorPalette palette = MZmineCore.getConfiguration().getDefaultColorPalette();
     // colors for the different DataPointsTags:
-    final Color[] colors = new Color[]{Color.black, // black = filtered
+    final Color[] colors = new Color[] {Color.black, // black = filtered
         palette.getNegativeColorAWT(), // unaligned
         palette.getPositiveColorAWT() // aligned
     };

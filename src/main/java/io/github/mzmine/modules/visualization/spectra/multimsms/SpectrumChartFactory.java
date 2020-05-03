@@ -17,7 +17,6 @@
  */
 package io.github.mzmine.modules.visualization.spectra.multimsms;
 
-import io.github.mzmine.gui.chartbasics.gui.javafx.EChartViewer;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.text.DecimalFormat;
@@ -34,12 +33,12 @@ import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.ui.RectangleInsets;
-
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.datamodel.Feature;
 import io.github.mzmine.datamodel.PeakListRow;
 import io.github.mzmine.datamodel.RawDataFile;
 import io.github.mzmine.datamodel.Scan;
+import io.github.mzmine.gui.chartbasics.gui.javafx.EChartViewer;
 import io.github.mzmine.gui.chartbasics.gui.swing.EChartPanel;
 import io.github.mzmine.main.MZmineCore;
 import io.github.mzmine.modules.visualization.spectra.multimsms.pseudospectra.PseudoSpectraItemLabelGenerator;
@@ -141,9 +140,8 @@ public class SpectrumChartFactory {
   public static EChartPanel createMirrorChartPanel(String labelA, double precursorMZA, double rtA,
       DataPoint[] dpsA, String labelB, double precursorMZB, double rtB, DataPoint[] dpsB,
       boolean showTitle, boolean showLegend) {
-    return new EChartPanel(
-        SpectrumChartFactory.createMirrorChart(labelA, precursorMZA, rtA, dpsA, labelB,
-            precursorMZB, rtB, dpsB, showTitle, showLegend));
+    return new EChartPanel(SpectrumChartFactory.createMirrorChart(labelA, precursorMZA, rtA, dpsA,
+        labelB, precursorMZB, rtB, dpsB, showTitle, showLegend));
   }
 
   public static EChartViewer createMirrorChartViewer(Scan scan, Scan mirror, String labelA,
@@ -152,18 +150,20 @@ public class SpectrumChartFactory {
       return null;
     }
 
-    return new EChartViewer(
-        createMirrorChart(labelA, scan.getPrecursorMZ(), scan.getRetentionTime(),
-            scan.getDataPoints(), labelB, mirror.getPrecursorMZ(), mirror.getRetentionTime(),
-            mirror.getDataPoints(), showTitle, showLegend));
+    EChartViewer c = new EChartViewer(createMirrorChart(labelA, scan.getPrecursorMZ(),
+        scan.getRetentionTime(), scan.getDataPoints(), labelB, mirror.getPrecursorMZ(),
+        mirror.getRetentionTime(), mirror.getDataPoints(), showTitle, showLegend));
+    ((CombinedDomainXYPlot) c.getChart().getPlot()).setGap(-9);
+    return c;
   }
 
   public static EChartViewer createMirrorChartViewer(String labelA, double precursorMZA, double rtA,
       DataPoint[] dpsA, String labelB, double precursorMZB, double rtB, DataPoint[] dpsB,
       boolean showTitle, boolean showLegend) {
-    return new EChartViewer(
-        SpectrumChartFactory.createMirrorChart(labelA, precursorMZA, rtA, dpsA, labelB,
-            precursorMZB, rtB, dpsB, showTitle, showLegend));
+    EChartViewer c = new EChartViewer(SpectrumChartFactory.createMirrorChart(labelA, precursorMZA,
+        rtA, dpsA, labelB, precursorMZB, rtB, dpsB, showTitle, showLegend));
+    ((CombinedDomainXYPlot) c.getChart().getPlot()).setGap(-9);
+    return c;
   }
 
   private static JFreeChart createMirrorChart(String labelA, double precursorMZA, double rtA,
@@ -235,7 +235,7 @@ public class SpectrumChartFactory {
     chart.getTitle().setVisible(showTitle);
     chart.getLegend().setVisible(showLegend);
 
-//    return new EChartPanel(chart);
+    // return new EChartPanel(chart);
     return chart;
   }
 
