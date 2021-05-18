@@ -31,16 +31,11 @@ public enum UnitFormat {
 
 
   public String format(String label, String unit) {
-    switch(this) {
-      case SQUARE_BRACKET:
-        return label + " [" + unit + "]";
-      case ROUND_BRACKED:
-        return label + " (" + unit + ")";
-      case DIVIDE:
-        return  label + " / " + unit;
-      default:
-        return  label + " / " + unit;
-    }
+    return switch(this) {
+      case SQUARE_BRACKET -> label + " [" + unit + "]";
+      case ROUND_BRACKED -> label + " (" + unit + ")";
+      case DIVIDE -> label + " / " + unit;
+    };
   }
 
   @Override

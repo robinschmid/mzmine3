@@ -12,24 +12,17 @@
  * Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along with MZmine; if not,
- * write to the Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301
- * USA
+ * write to the Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-package io.github.mzmine.util.exceptions;
+package io.github.mzmine.datamodel.data_access;
 
-import io.github.mzmine.datamodel.Scan;
-import io.github.mzmine.util.scans.ScanUtils;
-
-public class MissingMassListException extends RuntimeException {
-  private static final long serialVersionUID = 1L;
-
-  public MissingMassListException(Scan scan) {
-    this("", scan);
-  }
-
-  public MissingMassListException(String message, Scan scan) {
-    super("Missing mass list in scan " + ScanUtils.scanToString(scan, true) + ". " + message);
-  }
+/**
+ * @param filteredIndex scan index after filtering
+ * @param originalIndex scan index in original data file
+ * @param numDataPoints number of signals in scan
+ * @author Robin Schmid (https://github.com/robinschmid)
+ */
+public record ScanDataAccessInfo(int filteredIndex, int originalIndex, int numDataPoints) {
 
 }

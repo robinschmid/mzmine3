@@ -429,6 +429,8 @@
       userData="io.github.mzmine.modules.visualization.chromatogram.ChromatogramVisualizerModule"/>
     <MenuItem text="Raw data overview" onAction="#runModule"
       userData="io.github.mzmine.modules.visualization.rawdataoverview.RawDataOverviewModule"/>
+    <MenuItem text="2D map (time-m/z)" onAction="#runModule"
+      userData="io.github.mzmine.modules.visualization.rt_mz_map.RtMzMapModule"/>
     <MenuItem text="2D plot" onAction="#runModule"
       userData="io.github.mzmine.modules.visualization.twod.TwoDVisualizerModule"/>
     <MenuItem text="3D plot" onAction="#runModule"

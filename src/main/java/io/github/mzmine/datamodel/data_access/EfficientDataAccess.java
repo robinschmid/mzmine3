@@ -19,10 +19,13 @@ package io.github.mzmine.datamodel.data_access;
 
 import io.github.mzmine.datamodel.IMSRawDataFile;
 import io.github.mzmine.datamodel.MassList;
+import io.github.mzmine.datamodel.MassSpectrum;
 import io.github.mzmine.datamodel.RawDataFile;
+import io.github.mzmine.datamodel.Scan;
 import io.github.mzmine.datamodel.featuredata.IonMobilogramTimeSeries;
 import io.github.mzmine.datamodel.features.FeatureList;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
+import io.github.mzmine.util.exceptions.MissingMassListException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -126,7 +129,24 @@ public class EfficientDataAccess {
    * Use processed centroid data ({@link MassList}
    */
   public enum ScanDataType {
-    RAW, CENTROID
+    RAW, CENTROID;
+
+    public int getNumberOfDataPoints(@Nonnull Scan scan) throws MissingMassListException {
+      return getMassSpectrum(scan).getNumberOfDataPoints();
+    }
+
+    public MassSpectrum getMassSpectrum(@Nonnull Scan scan) throws MissingMassListException {
+      return switch (this) {
+        case RAW -> scan;
+        case CENTROID -> {
+            MassList masses = scan.getMassList();
+            if (masses == null) {
+              throw new MissingMassListException(scan);
+            }
+            yield masses;
+        }
+      };
+    }
   }
 
   /**

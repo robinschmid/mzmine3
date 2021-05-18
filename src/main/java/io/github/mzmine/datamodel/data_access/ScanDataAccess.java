@@ -28,6 +28,9 @@ import io.github.mzmine.datamodel.data_access.EfficientDataAccess.ScanDataType;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
 import io.github.mzmine.util.exceptions.MissingMassListException;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Objects;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,18 +43,34 @@ import javax.annotation.Nullable;
  */
 public class ScanDataAccess implements MassSpectrum {
 
+  private static final Logger logger = Logger.getLogger(ScanDataAccess.class.getName());
+
   protected final RawDataFile dataFile;
   protected final ScanDataType type;
-  private final ScanSelection selection;
   protected final int totalScans;
-
   // current data
   protected final double[] mzs;
   protected final double[] intensities;
+  private final ScanSelection selection;
   protected int currentNumberOfDataPoints = -1;
-
   protected int scanIndex = -1;
   protected int currentScanInDataFile = -1;
+  protected Scan currentScan = null;
+
+  // buffer to map Scan -> info
+  // only used to jump from one scan to another
+  private LinkedHashMap<Scan, ScanDataAccessInfo> scanInfoMap;
+  /**
+   * number of data points across all scans or mass lists
+   */
+  private int totalNumberOfDataPointsAcrossScans = -1;
+
+  /**
+   * for accessing single data points in different scans out of order - use methods {@link
+   * #getMzValue(Scan, int)}. Will wait for multiple accessions from the same scan to preload data
+   */
+  private Scan lastAccessedScan = null;
+  private int accessCounter = 0;
 
   /**
    * The intended use of this memory access is to loop over all scans and access data points via
@@ -95,8 +114,7 @@ public class ScanDataAccess implements MassSpectrum {
   }
 
   public Scan getCurrentScan() {
-    assert scanIndex >= 0 && hasNextScan();
-    return dataFile.getScan(currentScanInDataFile);
+    return currentScan;
   }
 
   /**
@@ -141,39 +159,45 @@ public class ScanDataAccess implements MassSpectrum {
    */
   @Nullable
   public Scan nextScan() throws MissingMassListException {
-    if (hasNextScan()) {
-      Scan scan = null;
-      do {
-        // next scan in data file
-        currentScanInDataFile++;
-        scan = dataFile.getScan(currentScanInDataFile);
-
-        assert scan != null;
-        // find next scan
-      } while (selection != null && !selection.matches(scan));
-
-      // next scan found
-      scanIndex++;
-      switch (type) {
-        case RAW -> {
-          scan.getMzValues(mzs);
-          scan.getIntensityValues(intensities);
-          currentNumberOfDataPoints = scan.getNumberOfDataPoints();
-        }
-        case CENTROID -> {
-          MassList masses = scan.getMassList();
-          if (masses == null) {
-            throw new MissingMassListException(scan);
-          }
-          masses.getMzValues(mzs);
-          masses.getIntensityValues(intensities);
-          currentNumberOfDataPoints = masses.getNumberOfDataPoints();
-        }
-      }
-      assert currentNumberOfDataPoints <= mzs.length;
-      return scan;
+    if (!hasNextScan()) {
+      return null;
     }
-    return null;
+    // find next scan
+    do {
+      // next scan in data file
+      currentScanInDataFile++;
+      currentScan = dataFile.getScan(currentScanInDataFile);
+
+      assert currentScan != null;
+      // find next scan
+    } while (selection != null && !selection.matches(currentScan));
+
+    // next scan found - set data
+    scanIndex++;
+    setCurrentData(currentScan);
+
+    return currentScan;
+  }
+
+  private void setCurrentData(Scan scan) throws MissingMassListException {
+    currentScan = scan;
+    switch (type) {
+      case RAW -> {
+        scan.getMzValues(mzs);
+        scan.getIntensityValues(intensities);
+        currentNumberOfDataPoints = scan.getNumberOfDataPoints();
+      }
+      case CENTROID -> {
+        MassList masses = scan.getMassList();
+        if (masses == null) {
+          throw new MissingMassListException(scan);
+        }
+        masses.getMzValues(mzs);
+        masses.getIntensityValues(intensities);
+        currentNumberOfDataPoints = masses.getNumberOfDataPoints();
+      }
+    }
+    assert currentNumberOfDataPoints <= mzs.length;
   }
 
   /**
@@ -272,6 +296,174 @@ public class ScanDataAccess implements MassSpectrum {
     }
   }
 
+
+  /**
+   * This method calculates the total number of data points stored in all selected scans/or
+   * masslists depending on the underlying {@link ScanSelection} and {@link ScanDataType}
+   *
+   * @return total number of data points in all selected scans/mass lists
+   */
+  public int getTotalNumberOfDataPointsAcrossScans() throws MissingMassListException {
+    if (totalNumberOfDataPointsAcrossScans == -1) {
+      createScanInfoMap();
+    }
+    return totalNumberOfDataPointsAcrossScans;
+  }
+
+  /**
+   * This method is used to jump to specific scans in the {@link ScanSelection}. To iterate over all
+   * scans sorted by retention time - use {@link #nextScan()}
+   *
+   * @param scan the scan to jump to
+   * @return true if the scan was already active or if the scan was available in the scan selection
+   * and set as the current.
+   */
+  public boolean assureCurrentScanIs(Scan scan) {
+    // check if already selected
+    if (Objects.equals(currentScan, scan)) {
+      return true;
+    }
+
+    // compute map and set to current
+    if (scanInfoMap == null) {
+      createScanInfoMap();
+    }
+    ScanDataAccessInfo info = scanInfoMap.get(scan);
+    if (info != null) {
+      currentScanInDataFile = info.originalIndex();
+      scanIndex = info.filteredIndex();
+      setCurrentData(scan);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Checks if scan equals the current scan and loads data efficiently. Prefer {@link
+   * #getMzValue(int)} to access all data points in sequence.
+   *
+   * @param scan           the scan that contains the data point (either in RAW or CENTROID data)
+   * @param dataPointIndex the index of the data point
+   * @return the m/z value in a scan (or mass list) at index
+   */
+  public double getMzValue(@Nonnull Scan scan, int dataPointIndex) {
+    Objects.requireNonNull(scan);
+
+    // count access for preloading
+    countAccess(scan);
+
+    if (accessCounter > 2) {
+      // data is accessed in a sequence (all data points)
+      // set scan if not available
+      if (assureCurrentScanIs(scan)) {
+        return getMzValue(dataPointIndex);
+      }
+    } else if (containsScan(scan)) {
+      // data is accessed from random scans
+      // get data directly from scan to avoid loading the full data arrays
+      return type.getMassSpectrum(scan).getMzValue(dataPointIndex);
+    }
+    return 0;
+  }
+
+  /**
+   * Checks if scan equals the current scan and loads data efficiently. Prefer {@link
+   * #getIntensityValue(int)} to access all data points in sequence.
+   *
+   * @param scan           the scan that contains the data point (either in RAW or CENTROID data)
+   * @param dataPointIndex the index of the data point
+   * @return the intensity value in a scan (or mass list) at index
+   */
+  public double getIntensityValue(@Nonnull Scan scan, int dataPointIndex) {
+    Objects.requireNonNull(scan);
+
+    // count access for preloading
+    countAccess(scan);
+
+    if (accessCounter > 2) {
+      // data is accessed in a sequence (all data points)
+      // set scan if not available
+      if (assureCurrentScanIs(scan)) {
+        return getIntensityValue(dataPointIndex);
+      }
+    } else if (containsScan(scan)) {
+      // data is accessed from random scans
+      // get data directly from scan to avoid loading the full data arrays
+      return type.getMassSpectrum(scan).getIntensityValue(dataPointIndex);
+    }
+    return 0;
+  }
+
+  /**
+   * Count access to this scan in a row to specify when to preload data from disk
+   *
+   * @param scan accessed scan
+   */
+  private void countAccess(@Nonnull Scan scan) {
+    if (Objects.equals(scan, lastAccessedScan)) {
+      accessCounter++;
+    } else {
+      lastAccessedScan = scan;
+      accessCounter = 1;
+    }
+  }
+
+  /**
+   * Checks if the scan is actually from the correct raw data file and matches the {@link
+   * ScanSelection}
+   *
+   * @param scan tested scan
+   * @return true if scan is in this {@link RawDataFile} and {@link ScanSelection}
+   */
+  public boolean containsScan(Scan scan) {
+    return scan != null && dataFile.equals(scan.getDataFile())
+           && getScanInfoMap().get(scan) != null;
+  }
+
+  /**
+   * A map with the filtered index, original in data file index, and number of data points. Sorted
+   * in natural order (by retention time)
+   *
+   * @return map of scan information
+   */
+  public LinkedHashMap<Scan, ScanDataAccessInfo> getScanInfoMap() {
+    if (scanInfoMap == null) {
+      createScanInfoMap();
+    }
+    return scanInfoMap;
+  }
+
+  /**
+   * Creates the scan info map to link all scans to their filteredIndex, index in data file, and
+   * number of data points
+   */
+  private void createScanInfoMap() throws MissingMassListException {
+    scanInfoMap = new LinkedHashMap<>(getNumberOfScans());
+    Scan scan;
+    int indexInDataFile = -1;
+
+    totalNumberOfDataPointsAcrossScans = 0;
+    for (int scanIndex = 0; scanIndex < getNumberOfScans(); scanIndex++) {
+      do {
+        // next scan in data file
+        indexInDataFile++;
+        scan = dataFile.getScan(indexInDataFile);
+
+        assert scan != null;
+        // find next scan
+      } while (selection != null && !selection.matches(scan));
+      // adding number of signals
+      int numberOfDataPoints = type.getNumberOfDataPoints(scan);
+
+      // create scan info to easily jump from scan to scan with the setScan method
+      scanInfoMap.put(scan, new ScanDataAccessInfo(scanIndex, indexInDataFile, numberOfDataPoints));
+
+      // calc total over all scans
+      totalNumberOfDataPointsAcrossScans += numberOfDataPoints;
+    }
+  }
+
+
   @Override
   public double[] getMzValues(@Nonnull double[] dst) {
     throw new UnsupportedOperationException(
@@ -296,4 +488,5 @@ public class ScanDataAccess implements MassSpectrum {
     throw new UnsupportedOperationException(
         "The intended use of this class is to loop over all scans and data points");
   }
+
 }
