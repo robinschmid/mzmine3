@@ -18,6 +18,7 @@
 
 package io.github.mzmine.gui.chartbasics.simplechart.providers.impl.series;
 
+import com.google.common.collect.Range;
 import io.github.mzmine.datamodel.MassSpectrum;
 import io.github.mzmine.datamodel.RawDataFile;
 import io.github.mzmine.datamodel.Scan;
@@ -32,6 +33,7 @@ import io.github.mzmine.taskcontrol.TaskStatus;
 import io.github.mzmine.util.exceptions.MissingMassListException;
 import io.github.mzmine.util.javafx.FxColorUtil;
 import java.awt.Color;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import javafx.beans.property.SimpleObjectProperty;
 import javax.annotation.Nonnull;
@@ -58,15 +60,6 @@ public class RtMzHeatmapProvider implements PlotXYZDataProvider,
   // scan info map holds info about the number of data points for a filtered list of scans etc
   private LinkedHashMap<Scan, ScanDataAccessInfo> scanInfoMap;
   private double progress;
-
-  public RtMzHeatmapProvider(@Nonnull final RawDataFile raw) {
-    this(raw, null, ScanDataType.CENTROID);
-  }
-
-  public RtMzHeatmapProvider(@Nonnull final RawDataFile raw,
-      @Nullable final ScanSelection scanSelection, @Nonnull ScanDataType type) {
-    this(raw, scanSelection, type, raw.getName(), raw.getColor());
-  }
 
   public RtMzHeatmapProvider(@Nonnull final RawDataFile raw,
       @Nullable final ScanSelection scanSelection, @Nonnull ScanDataType type,
@@ -209,13 +202,13 @@ public class RtMzHeatmapProvider implements PlotXYZDataProvider,
   @Nullable
   @Override
   public Double getBoxHeight() {
-    return null;
+    return 0.001;
   }
 
   @Nullable
   @Override
   public Double getBoxWidth() {
-    return null;
+    return 0.001;
   }
 
   /**

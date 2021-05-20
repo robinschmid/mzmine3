@@ -18,10 +18,15 @@
 
 package io.github.mzmine.modules.visualization.rt_mz_map;
 
+import com.google.common.collect.Range;
 import io.github.mzmine.datamodel.data_access.EfficientDataAccess.ScanDataType;
+import io.github.mzmine.gui.chartbasics.chartutils.paintscales.PaintScale;
+import io.github.mzmine.gui.chartbasics.chartutils.paintscales.PaintScaleBoundStyle;
+import io.github.mzmine.gui.chartbasics.chartutils.paintscales.PaintScaleColorStyle;
 import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.impl.SimpleParameterSet;
 import io.github.mzmine.parameters.parametertypes.ComboParameter;
+import io.github.mzmine.parameters.parametertypes.PaintScaleParameter;
 import io.github.mzmine.parameters.parametertypes.WindowSettingsParameter;
 import io.github.mzmine.parameters.parametertypes.selectors.RawDataFilesParameter;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
@@ -44,13 +49,31 @@ public class RtMzMapParameters extends SimpleParameterSet {
   public static final ScanSelectionParameter scanSelection =
       new ScanSelectionParameter(new ScanSelection(1));
 
+
+  public static final PaintScaleParameter paintScale =
+      new PaintScaleParameter("Color scale", "Select paint scale",
+          new PaintScale[] {
+              new PaintScale(PaintScaleColorStyle.RAINBOW, PaintScaleBoundStyle.NONE,
+                  Range.closed(0.0, 100.0)),
+              new PaintScale(PaintScaleColorStyle.GRREN_RED, PaintScaleBoundStyle.NONE,
+                  Range.closed(0.0, 100.0)),
+              new PaintScale(PaintScaleColorStyle.RED, PaintScaleBoundStyle.NONE,
+                  Range.closed(0.0, 100.0)),
+              new PaintScale(PaintScaleColorStyle.GREEN, PaintScaleBoundStyle.NONE,
+                  Range.closed(0.0, 100.0)),
+              new PaintScale(PaintScaleColorStyle.CYAN, PaintScaleBoundStyle.NONE,
+                  Range.closed(0.0, 100.0)),
+              new PaintScale(PaintScaleColorStyle.YELLOW, PaintScaleBoundStyle.NONE,
+                  Range.closed(0.0, 100.0))});
+
+
   /**
    * Windows size and position
    */
   public static final WindowSettingsParameter windowSettings = new WindowSettingsParameter();
 
   public RtMzMapParameters() {
-    super(new Parameter[]{plotType, dataFiles, scanSelection, windowSettings});
+    super(new Parameter[]{plotType, dataFiles, scanSelection, paintScale, windowSettings});
   }
 
 }

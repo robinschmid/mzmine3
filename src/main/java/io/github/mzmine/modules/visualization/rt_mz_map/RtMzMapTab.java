@@ -21,6 +21,7 @@ package io.github.mzmine.modules.visualization.rt_mz_map;
 import io.github.mzmine.datamodel.RawDataFile;
 import io.github.mzmine.datamodel.data_access.EfficientDataAccess.ScanDataType;
 import io.github.mzmine.datamodel.features.FeatureList;
+import io.github.mzmine.gui.chartbasics.chartutils.paintscales.PaintScale;
 import io.github.mzmine.gui.mainwindow.MZmineTab;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
@@ -69,11 +70,12 @@ public class RtMzMapTab extends MZmineTab {
 
   public RtMzMapTab(RawDataFile dataFile, ParameterSet parameters) {
     this(dataFile, parameters.getParameter(RtMzMapParameters.scanSelection).getValue(),
-        parameters.getParameter(RtMzMapParameters.plotType).getValue());
+        parameters.getParameter(RtMzMapParameters.plotType).getValue(), parameters.getParameter(RtMzMapParameters.paintScale).getValue());
   }
 
   public RtMzMapTab(RawDataFile dataFile, @Nullable ScanSelection scanSelection, @Nonnull
-      ScanDataType scanDataType) {
+      ScanDataType scanDataType,
+      PaintScale paintScale) {
     super("Map", true, false);
 
     this.dataFile = dataFile;
@@ -83,7 +85,7 @@ public class RtMzMapTab extends MZmineTab {
     mainPane = new BorderPane();
     setContent(mainPane);
 
-    this.chart = new RtMzHeatmapChart(dataFile, scanSelection, scanDataType);
+    this.chart = new RtMzHeatmapChart(dataFile, scanSelection, scanDataType, paintScale);
     mainPane.setCenter(chart);
 
 //    toolBar = new ToolBar();

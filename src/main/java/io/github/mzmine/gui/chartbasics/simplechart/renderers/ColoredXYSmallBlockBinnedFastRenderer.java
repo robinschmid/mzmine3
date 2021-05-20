@@ -18,21 +18,20 @@
 
 package io.github.mzmine.gui.chartbasics.simplechart.renderers;
 
+import io.github.mzmine.gui.chartbasics.chartutils.paintscales.PaintScale;
 import io.github.mzmine.gui.chartbasics.simplechart.datasets.ColoredXYDataset;
 import io.github.mzmine.gui.chartbasics.simplechart.datasets.ColoredXYZDataset;
 import io.github.mzmine.taskcontrol.TaskStatus;
 import java.awt.Graphics2D;
 import java.awt.geom.Rectangle2D;
 import java.io.Serializable;
+import java.util.Arrays;
 import org.jfree.chart.LegendItem;
 import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.event.RendererChangeEvent;
 import org.jfree.chart.plot.CrosshairState;
-import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.PlotRenderingInfo;
 import org.jfree.chart.plot.XYPlot;
-import org.jfree.chart.renderer.LookupPaintScale;
-import org.jfree.chart.renderer.PaintScale;
 import org.jfree.chart.renderer.xy.AbstractXYItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRendererState;
@@ -83,6 +82,12 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
     implements XYItemRenderer, Cloneable, PublicCloneable, Serializable {
 
   /**
+   * Minimum pixel size on screen for binning
+   */
+  private final int MIN_PIXEL_WIDTH = 2;
+  private final int MIN_PIXEL_HEIGTH = 2;
+
+  /**
    * The block width (defaults to 1.0).
    */
   private double blockWidth = 1.0;
@@ -124,7 +129,6 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
    */
   public ColoredXYSmallBlockBinnedFastRenderer() {
     updateOffsets();
-    this.paintScale = new LookupPaintScale();
     setDefaultItemLabelsVisible(false);
   }
 
@@ -216,9 +220,7 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
    * @since 1.0.4
    */
   public void setPaintScale(PaintScale scale) {
-    Args.nullNotPermitted(scale, "scale");
     this.paintScale = scale;
-    fireChangeEvent();
   }
 
   /**
@@ -311,28 +313,63 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
   @Override
   public XYItemRendererState initialise(Graphics2D g2, Rectangle2D dataArea, XYPlot plot,
       XYDataset dataset, PlotRenderingInfo info) {
-    BinnedMapRendererState rendererState = new BinnedMapRendererState(info, dataArea,
-        (pixels) -> flushMapToScreen(g2, dataArea, pixels));
-    return rendererState;
+    // set block width etc
+    if (dataset instanceof ColoredXYZDataset coloredData) {
+      // dataset is not already computed
+      if(coloredData.getStatus()!=TaskStatus.FINISHED) {
+        return new DataNotReadyRendererState(info);
+      }
+      setDefaultPaint(coloredData.getAWTColor(), false);
+      setPaintScale((PaintScale) coloredData.getPaintScale());
+      setBlockWidth(coloredData.getBoxWidth(), false);
+      setBlockHeight(coloredData.getBoxHeight(), false);
+    }
+
+    int dataIndex = plot.indexOf(dataset);
+    ValueAxis domainAxis = plot.getDomainAxisForDataset(dataIndex);
+    ValueAxis rangeAxis = plot.getRangeAxisForDataset(dataIndex);
+    // block width and height
+    double xx0 = domainAxis.valueToJava2D(0, dataArea, plot.getDomainAxisEdge());
+    double yy0 = rangeAxis.valueToJava2D(0, dataArea, plot.getRangeAxisEdge());
+    double xx1 = domainAxis.valueToJava2D(this.blockWidth, dataArea,
+        plot.getDomainAxisEdge());
+    double yy1 = rangeAxis.valueToJava2D(this.blockHeight, dataArea,
+        plot.getRangeAxisEdge());
+
+    // pixel size in absolute pixel - apply minimum size
+    int pixelWidth = Math.max((int) Math.round(Math.abs(xx0 - xx1)), MIN_PIXEL_WIDTH);
+    int pixelHeight = Math.max((int) Math.round(Math.abs(yy0 - yy1)), MIN_PIXEL_HEIGTH);
+
+    // create state and flush graphics on finish
+    BinnedMapRendererState state = new BinnedMapRendererState(info, dataArea, pixelWidth,
+        pixelHeight, (rendererState) -> flushMapToScreen(g2, dataArea, rendererState));
+    return state;
   }
 
-  public void flushMapToScreen(Graphics2D g2, Rectangle2D dataArea, double[][] pixels) {
+  public void flushMapToScreen(Graphics2D g2, Rectangle2D dataArea,
+      BinnedMapRendererState rendererState) {
+
+    double[][] pixels = rendererState.getPixels();
+    int pixelWidth = rendererState.getPixelWidth();
+    int pixelHeight = rendererState.getPixelHeight();
+
     int startX = (int) dataArea.getX();
     int startY = (int) dataArea.getY();
+
+    // default color
+    g2.setPaint(getDefaultPaint());
 
     for (int x = 0; x < pixels.length; x++) {
       for (int y = 0; y < pixels[x].length; y++) {
         double z = pixels[x][y];
-
-        if (!Double.isNaN(z)) {
-          // paintscale is only defined by the renderer - if the dataset changes - it has do update the renderer
-          g2.setPaint(this.paintScale.getPaint(z));
-          g2.fillRect(startX + x, startY + y, 1, 1);
+        // paintscale is only defined by the renderer - if the dataset changes - it has do update the renderer
+        if(this.paintScale!=null) {
+          g2.setPaint(paintScale.getPaint(z));
         }
+        g2.fillRect(startX + x, startY + y, pixelWidth, pixelHeight);
       }
     }
   }
-
 
   /**
    * Draws the block representing the specified item.
@@ -354,30 +391,19 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
   public void drawItem(Graphics2D g2, XYItemRendererState state, Rectangle2D dataArea,
       PlotRenderingInfo info, XYPlot plot, ValueAxis domainAxis, ValueAxis rangeAxis,
       XYDataset dataset, int series, int item, CrosshairState crosshairState, int pass) {
+    if (item == 0) {
+      System.out.println("Drawing the first item");
+    }
+    if(state instanceof DataNotReadyRendererState) {
+      return;
+    }
+
     double x = dataset.getXValue(series, item);
     double y = dataset.getYValue(series, item);
 
-    double xx0 = domainAxis.valueToJava2D(x + this.xOffset, dataArea, plot.getDomainAxisEdge());
-    double yy0 = rangeAxis.valueToJava2D(y + this.yOffset, dataArea, plot.getRangeAxisEdge());
-    double xx1 = domainAxis.valueToJava2D(x + this.blockWidth + this.xOffset, dataArea,
-        plot.getDomainAxisEdge());
-    double yy1 = rangeAxis.valueToJava2D(y + this.blockHeight + this.yOffset, dataArea,
-        plot.getRangeAxisEdge());
+    double xx = domainAxis.valueToJava2D(x + this.xOffset, dataArea, plot.getDomainAxisEdge());
+    double yy = rangeAxis.valueToJava2D(y + this.yOffset, dataArea, plot.getRangeAxisEdge());
 
-    // block rect
-    final double bx, by, bw, bh;
-    PlotOrientation orientation = plot.getOrientation();
-    if (orientation.equals(PlotOrientation.HORIZONTAL)) {
-      bx = Math.min(yy0, yy1);
-      by = Math.min(xx0, xx1);
-      bw = Math.abs(yy1 - yy0);
-      bh = Math.abs(xx0 - xx1);
-    } else {
-      bx = Math.min(xx0, xx1);
-      by = Math.min(yy0, yy1);
-      bw = Math.abs(xx1 - xx0);
-      bh = Math.abs(yy1 - yy0);
-    }
     // no need for rect
 //    Rectangle2D block;
 //    if (orientation.equals(PlotOrientation.HORIZONTAL)) {
@@ -391,15 +417,13 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
 //    }
 
     // check if visible
-    if (dataArea.intersects(bx, by, bw, bh)) {
-      double z = ((XYZDataset) dataset).getZValue(series, item);
-      ((BinnedMapRendererState) state).addValue(z, bx, by, bw, bh);
+    double z = ((XYZDataset) dataset).getZValue(series, item);
+    ((BinnedMapRendererState) state).addValue(z, xx, yy);
 
-      // paintscale is only defined by the renderer - if the dataset changes - it has do update the renderer
+    // paintscale is only defined by the renderer - if the dataset changes - it has do update the renderer
 //      g2.setPaint(this.paintScale.getPaint(z));
 //      g2.fillRect((int) Math.floor(bx), (int) Math.floor(by), (int) Math.ceil(bw),
 //          (int) Math.ceil(bh));
-    }
 //    g2.fill(block);
 //    g2.setStroke(new BasicStroke(1.0f));
 //    g2.draw(block);

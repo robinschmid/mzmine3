@@ -20,15 +20,15 @@ package io.github.mzmine.modules.visualization.rt_mz_map;
 import io.github.mzmine.datamodel.RawDataFile;
 import io.github.mzmine.datamodel.data_access.EfficientDataAccess.ScanDataType;
 import io.github.mzmine.gui.chartbasics.ChartLogics;
+import io.github.mzmine.gui.chartbasics.chartutils.paintscales.PaintScale;
 import io.github.mzmine.gui.chartbasics.simplechart.SimpleXYZScatterPlot;
 import io.github.mzmine.gui.chartbasics.simplechart.datasets.ColoredXYZDataset;
 import io.github.mzmine.gui.chartbasics.simplechart.datasets.RunOption;
 import io.github.mzmine.gui.chartbasics.simplechart.providers.impl.series.RtMzHeatmapProvider;
-import io.github.mzmine.gui.chartbasics.simplechart.renderers.ColoredXYSmallBlockFastRenderer;
+import io.github.mzmine.gui.chartbasics.simplechart.renderers.ColoredXYSmallBlockBinnedFastRenderer;
 import io.github.mzmine.gui.preferences.UnitFormat;
 import io.github.mzmine.main.MZmineCore;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
-import io.github.mzmine.taskcontrol.TaskStatus;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.jfree.chart.axis.NumberAxis;
@@ -38,37 +38,29 @@ import org.jfree.chart.axis.NumberAxis;
  */
 public class RtMzHeatmapChart extends SimpleXYZScatterPlot<RtMzHeatmapProvider> {
 
-  public RtMzHeatmapChart(@Nonnull final RawDataFile raw) {
-    this(raw, null, ScanDataType.RAW);
-  }
-
   public RtMzHeatmapChart(@Nonnull final RawDataFile raw,
-      @Nullable final ScanSelection scanSelection, @Nonnull ScanDataType type) {
-    this(raw, scanSelection, type, raw.getName(), raw.getColor());
+      @Nullable final ScanSelection scanSelection, @Nonnull ScanDataType type,
+      PaintScale paintScale) {
+    this(raw, scanSelection, type, paintScale, raw.getName(), raw.getColor());
   }
 
   public RtMzHeatmapChart(@Nonnull final RawDataFile raw,
       @Nullable final ScanSelection scanSelection, @Nonnull ScanDataType type,
+      PaintScale paintScale,
       final String seriesKey, final javafx.scene.paint.Color color) {
-    this(raw, scanSelection, type, seriesKey, color, RunOption.NEW_THREAD);
+    this(raw, scanSelection, type, paintScale, seriesKey, color, RunOption.NEW_THREAD);
   }
 
   public RtMzHeatmapChart(@Nonnull final RawDataFile raw,
       @Nullable final ScanSelection scanSelection, @Nonnull ScanDataType type,
+      PaintScale paintScale,
       final String seriesKey, final javafx.scene.paint.Color color, RunOption runOption) {
     super();
     RtMzHeatmapChart chartViwer = this;
     // fast renderer is updated by dataset
-    final ColoredXYSmallBlockFastRenderer fastRenderer = new ColoredXYSmallBlockFastRenderer();
+    final ColoredXYSmallBlockBinnedFastRenderer fastRenderer = new ColoredXYSmallBlockBinnedFastRenderer();
     final ColoredXYZDataset dataset = new ColoredXYZDataset(
-        new RtMzHeatmapProvider(raw, scanSelection, type, seriesKey, color), runOption) {
-      @Override
-      protected void onCalculationsFinished() {
-        super.onCalculationsFinished();
-        // update renderer box width etc
-        updateRenderer(this, fastRenderer);
-      }
-    };
+        new RtMzHeatmapProvider(raw, scanSelection, type, seriesKey, color), runOption);
 
     UnitFormat unitFormat = MZmineCore.getConfiguration().getUnitFormat();
     chartViwer.setRangeAxisLabel("m/z");
@@ -98,13 +90,6 @@ public class RtMzHeatmapChart extends SimpleXYZScatterPlot<RtMzHeatmapProvider> 
 //        .setRange(RangeUtils.guavaToJFree(dataset.getDomainValueRange()), false, true);
 //    chartViwer.getXYPlot().getRangeAxis()
 //        .setRange(RangeUtils.guavaToJFree(dataset.getRangeValueRange()), false, true);
-  }
-
-  private void updateRenderer(ColoredXYZDataset dataset,
-      ColoredXYSmallBlockFastRenderer renderer) {
-    renderer.setPaintScale(dataset.getPaintScale());
-    renderer.setBlockWidth(dataset.getBoxWidth(), false);
-    renderer.setBlockHeight(dataset.getBoxHeight(), false);
   }
 
 }

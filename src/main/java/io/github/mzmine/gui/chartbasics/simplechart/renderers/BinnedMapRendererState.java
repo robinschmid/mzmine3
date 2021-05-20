@@ -17,9 +17,9 @@
 
 package io.github.mzmine.gui.chartbasics.simplechart.renderers;
 
-import io.github.mzmine.util.ArrayUtils;
 import java.awt.geom.Rectangle2D;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 import org.jfree.chart.plot.PlotRenderingInfo;
 import org.jfree.chart.renderer.xy.XYItemRendererState;
 import org.jfree.data.xy.XYDataset;
@@ -29,47 +29,68 @@ import org.jfree.data.xy.XYDataset;
  */
 public class BinnedMapRendererState extends XYItemRendererState {
 
+  private static final Logger logger = Logger.getLogger(BinnedMapRendererState.class.getName());
+
   private final Rectangle2D dataArea;
-  private final Consumer<double[][]> onFinished;
+  /**
+   * Called after all data points were entered into the grid
+   */
+  private final Consumer<BinnedMapRendererState> onFinished;
+
+  /**
+   * The pixel width and height
+   */
+  private final int pixelWidth;
+  private final int pixelHeight;
   /**
    * pixels grid [x][y] -> intensity
    */
   private final double[][] pixels;
-  private final int startX;
-  private final int startY;
+  /**
+   * Start and end coordinates in Java2D of the dataArea
+   */
+  private final int firstX;
+  private final int firstY;
   private final int lastX;
   private final int lastY;
 
 
-  public BinnedMapRendererState(PlotRenderingInfo info, Rectangle2D dataArea, Consumer<double[][]> onFinished) {
+  public BinnedMapRendererState(PlotRenderingInfo info, Rectangle2D dataArea,
+      int pixelWidth, int pixelHeight, Consumer<BinnedMapRendererState> onFinished) {
     super(info);
+    assert pixelWidth > 0;
+    assert pixelHeight > 0;
+
     this.dataArea = dataArea;
+    this.pixelWidth = pixelWidth;
+    this.pixelHeight = pixelHeight;
     this.onFinished = onFinished;
     // disable visible items optimisation - it doesn't work for this
     // renderer...
     setProcessVisibleItemsOnly(false);
 
     // start
-    startX = (int) dataArea.getX();
-    startY = (int) dataArea.getY();
+    firstX = (int) dataArea.getX();
+    firstY = (int) dataArea.getY();
 
     // create data array
-    int w = (int) dataArea.getWidth() + 2;
-    int h = (int) dataArea.getHeight() + 2;
+    int w = (int) dataArea.getWidth() / pixelWidth + 2;
+    int h = (int) dataArea.getHeight() / pixelHeight + 2;
     this.pixels = new double[w][h];
 
-    lastX = startX + w;
-    lastY = startY + h;
+    lastX = firstX + w;
+    lastY = firstY + h;
     // fill all with NaN
-    ArrayUtils.fill2D(pixels, Double.NaN);
+//    ArrayUtils.fill2D(pixels, Double.NaN);
   }
 
   @Override
   public void endSeriesPass(XYDataset dataset, int series, int firstItem, int lastItem, int pass,
       int passCount) {
     // trigger the rendering after all data points were passed
-    onFinished.accept(pixels);
+    onFinished.accept(this);
   }
+
   /**
    * pixels grid [x][y] -> intensity
    *
@@ -83,23 +104,36 @@ public class BinnedMapRendererState extends XYItemRendererState {
    * block coordinates and width and height
    *
    * @param z  intensity
-   * @param bx x
-   * @param by y
-   * @param bw block width
-   * @param bh block height
+   * @param bx block x
+   * @param by block y
    */
-  public void addValue(double z, double bx, double by, double bw, double bh) {
-    double endX = Math.min(bx + bw+1, lastX);
-    double endY = Math.min(by + bh+1, lastY);
-    // fill pixel array from - to
-    for (int xi = (int) bx; xi < endX; xi++) {
-      for (int yi = (int) by; yi < endY; yi++) {
-        if (Double.isNaN(pixels[xi][yi])) {
-          pixels[xi][yi] = z;
-        } else {
-          pixels[xi][yi] += z;
-        }
-      }
+  public void addValue(double z, double bx, double by) {
+    double xi = (bx - firstX) / pixelWidth;
+    double yi = (by - firstY) / pixelHeight;
+
+    // in bounds
+    if (xi >= 0 && yi >= 0 && xi < pixels.length && yi < pixels[0].length) {
+      pixels[(int) xi][(int) yi] += z;
     }
+    // bilinear
+//      for(int w=-1; w<=1; w++) {
+//        for (int h = -1; h <= 1; h++) {
+//          int px = (int) xi+w;
+//          int py = (int) xi+w;
+//          if(px>=0 && py>=0 && px<pixels.length && py<pixels[0].length) {
+//            // calculate factor depending on position of data point within this bin and next neighbors
+//            pixels[px][py] += z * (xi-(int)xi)
+//          }
+//        }
+//      }
+//      }
+  }
+
+  public int getPixelWidth() {
+    return pixelWidth;
+  }
+
+  public int getPixelHeight() {
+    return pixelHeight;
   }
 }
