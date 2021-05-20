@@ -311,23 +311,27 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
   @Override
   public XYItemRendererState initialise(Graphics2D g2, Rectangle2D dataArea, XYPlot plot,
       XYDataset dataset, PlotRenderingInfo info) {
-    BinnedMapRendererState rendererState = new BinnedMapRendererState(info, dataArea, (pixels) -> flushMapToScreen(g2, dataArea, pixels));
+    BinnedMapRendererState rendererState = new BinnedMapRendererState(info, dataArea,
+        (pixels) -> flushMapToScreen(g2, dataArea, pixels));
     return rendererState;
   }
 
-  public void flushMapToScreen(Graphics2D g2, Rectangle2D dataArea, double[][] pixels){
+  public void flushMapToScreen(Graphics2D g2, Rectangle2D dataArea, double[][] pixels) {
+    int startX = (int) dataArea.getX();
+    int startY = (int) dataArea.getY();
+
     for (int x = 0; x < pixels.length; x++) {
       for (int y = 0; y < pixels[x].length; y++) {
         double z = pixels[x][y];
 
-        // paintscale is only defined by the renderer - if the dataset changes - it has do update the renderer
-        g2.setPaint(this.paintScale.getPaint(z));
-        g2.fillRect((int) Math.floor(bx), (int) Math.floor(by), (int) Math.ceil(bw),
-            (int) Math.ceil(bh));
+        if (!Double.isNaN(z)) {
+          // paintscale is only defined by the renderer - if the dataset changes - it has do update the renderer
+          g2.setPaint(this.paintScale.getPaint(z));
+          g2.fillRect(startX + x, startY + y, 1, 1);
+        }
       }
     }
   }
-
 
 
   /**
@@ -388,11 +392,8 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
 
     // check if visible
     if (dataArea.intersects(bx, by, bw, bh)) {
-      double z = 0.0;
-      if (dataset instanceof XYZDataset xyzdata) {
-        z = xyzdata.getZValue(series, item);
-      }
-      ((BinnedMapRendererState) state).addValue(z, bx,by,bw,bh);
+      double z = ((XYZDataset) dataset).getZValue(series, item);
+      ((BinnedMapRendererState) state).addValue(z, bx, by, bw, bh);
 
       // paintscale is only defined by the renderer - if the dataset changes - it has do update the renderer
 //      g2.setPaint(this.paintScale.getPaint(z));
@@ -491,7 +492,8 @@ public class ColoredXYSmallBlockBinnedFastRenderer extends AbstractXYItemRendere
    */
   @Override
   public Object clone() throws CloneNotSupportedException {
-    ColoredXYSmallBlockBinnedFastRenderer clone = (ColoredXYSmallBlockBinnedFastRenderer) super.clone();
+    ColoredXYSmallBlockBinnedFastRenderer clone = (ColoredXYSmallBlockBinnedFastRenderer) super
+        .clone();
     clone.setBlockHeight(this.blockHeight);
     clone.setBlockWidth(this.blockWidth);
     if (this.paintScale instanceof PublicCloneable) {
