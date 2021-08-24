@@ -35,7 +35,7 @@ import com.google.common.io.FileWriteMode;
 import com.google.common.io.Files;
 import io.github.msdk.MSDKRuntimeException;
 import io.github.mzmine.datamodel.DataPoint;
-import io.github.mzmine.modules.io.spectraldbsubmit.formats.GnpsJsonGenerator;
+import io.github.mzmine.modules.io.spectraldbsubmit.formats.GNPSLibraryGenerator;
 import io.github.mzmine.modules.io.spectraldbsubmit.formats.MSPEntryGenerator;
 import io.github.mzmine.modules.io.spectraldbsubmit.param.GnpsLibrarySubmitParameters;
 import io.github.mzmine.modules.io.spectraldbsubmit.param.LibrarySubmitIonParameters;
@@ -147,7 +147,7 @@ public class LibrarySubmitTask extends AbstractTask {
       if (dps != null && dps.length > 2) {
         // export / submit json?
         if (fileJson != null || submitGNPS) {
-          String json = GnpsJsonGenerator.generateJSON(param, dps);
+          String json = GNPSLibraryGenerator.generateJSON(param, dps);
           log.info(json);
           if (saveLocal && fileJson != null) {
             if (writeToLocalGnpsJsonFile(fileJson, json))
@@ -181,7 +181,6 @@ public class LibrarySubmitTask extends AbstractTask {
    * 
    * @param message
    * @param type
-   * @param isLink
    */
   public void writeResults(final String message, final Result type) {
     writeResults(message, type, false);
@@ -225,7 +224,6 @@ public class LibrarySubmitTask extends AbstractTask {
    * Append entry to msp file
    * 
    * @param file
-   * @param json
    */
   private boolean writeToLocalMSPFIle(File file, LibrarySubmitIonParameters param,
       DataPoint[] dps) {

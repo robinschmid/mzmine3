@@ -527,6 +527,9 @@
     <MenuItem text="Calculate quality parameters"
       onAction="#runModule"
       userData="io.github.mzmine.modules.tools.qualityparameters.QualityParametersModule"/>
+    <MenuItem text="Analyze GNPS results (FBMN / IIMN)"
+      onAction="#runModule"
+      userData="io.github.mzmine.modules.tools.gnps_iimn_resultsanalysis.GNPSResultsAnalysisModule"/>
     <MenuItem text="Processing wizard"
       onAction="#showWizardTab"
       userData="io.github.mzmine.modules.tools.batchwizard.BatchWizardModule"/>

@@ -112,4 +112,29 @@ public class LibraryMetaDataParameters extends SimpleParameterSet {
         // optional
         SMILES, INCHI, INCHI_AUX, CAS, PUBMED});
   }
+
+  protected LibraryMetaDataParameters(Parameter parameters[]) {
+    super(parameters);
+  }
+
+  /**
+   * Create full parameter set and copy values
+   *
+   * @param methodParam
+   */
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  public LibraryMetaDataParameters(LibraryMetaDataParameters methodParam) {
+    this();
+    // copy all values
+    for (Parameter p : methodParam.getParameters()) {
+      try {
+        if (this.getParameter(p) != null) {
+          Parameter targetP = this.getParameter(p);
+          targetP.setValue(p.getValue());
+        }
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
+  }
 }

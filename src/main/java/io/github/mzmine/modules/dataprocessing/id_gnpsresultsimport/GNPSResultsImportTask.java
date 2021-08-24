@@ -177,7 +177,7 @@ public class GNPSResultsImportTask extends AbstractTask {
           }
 
           // add identity
-          GNPSLibraryMatch identity = new GNPSLibraryMatch(results, compoundName);
+          GNPSLibraryMatch identity = new GNPSLibraryMatch(results, compoundName, id);
           addGNPSLibraryMatchToRow(row, identity);
         }
       } else {
@@ -268,7 +268,7 @@ public class GNPSResultsImportTask extends AbstractTask {
     EDGE_TYPE("EdgeType", String.class), // edgetype
     EDGE_SCORE("EdgeScore", Double.class), EDGE_ANNOTATION("EdgeAnnotation", String.class);
 
-    private final String key;
+    public final String key;
     private final Class c;
 
     EdgeAtt(String key, Class c) {
@@ -288,10 +288,14 @@ public class GNPSResultsImportTask extends AbstractTask {
   public enum EdgeType {
     MS1_ANNOTATION("MS1 annotation"), COSINE("Cosine");
 
-    private final String key;
+    public final String key;
 
     EdgeType(String key) {
       this.key = key;
+    }
+
+    public String getKey() {
+      return key;
     }
   }
 

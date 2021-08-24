@@ -30,12 +30,14 @@ public class GNPSLibraryMatch {
 
   private final String identity;
   private final HashMap<String, Object> results;
+  private final int nodeID;
 
-  public GNPSLibraryMatch(@NotNull HashMap<String, Object> results, String compound) {
+  public GNPSLibraryMatch(HashMap<String, Object> results, String compound, int nodeID) {
     this.results = results;
     String adduct = getResultOr(ATT.ADDUCT, "").toString();
     String score = getResultOr(ATT.LIBRARY_MATCH_SCORE, "NO_SCORE").toString();
     identity = MessageFormat.format("{0}; {1}; cos={2}", compound, adduct, score);
+    this.nodeID = nodeID;
   }
 
   @NotNull
@@ -67,9 +69,23 @@ public class GNPSLibraryMatch {
     return result == null ? defaultValue : result;
   }
 
+  public double getMatchScore() {
+    String s = getResultOr(ATT.LIBRARY_MATCH_SCORE, "0").toString();
+    return Double.parseDouble(s);
+  }
+
+  public int getSharedSignals() {
+    String s = getResultOr(ATT.SHARED_SIGNALS, "0").toString();
+    return Integer.parseInt(s);
+  }
+
   @Override
   public String toString() {
     return identity;
+  }
+
+  public int getNodeID() {
+    return nodeID;
   }
 
   /**
@@ -92,8 +108,18 @@ public class GNPSLibraryMatch {
     // entry
     GNPS_NETWORK_URL("GNPSLinkout_Network", String.class), // link to
     // network
-    GNPS_CLUSTER_URL("GNPSLinkout_Cluster", String.class); // link to
+    GNPS_CLUSTER_URL("GNPSLinkout_Cluster", String.class), // link to
     // cluster
+    COMPOUND_SOURCE("Compound_Source", String.class), // isolated, ...
+    DATA_COLLECTOR("Data_Collector", String.class), //
+    PI("PI", String.class), //
+
+    // node specific keys
+    COMPONENT_INDEX("componentindex", Integer.class), //
+    PRECURSOR_MASS("precursor mass", Double.class), // precursor
+    NEUTRAL_M_MASS("neutral M mass", Double.class), // neutral mass by ion identity networking
+    LIBRARY_CLASS("Library_Class", String.class), //
+    SPECTRUM_ID("SpectrumID", String.class); // spectrum id
 
     private final String key;
     private final Class c;

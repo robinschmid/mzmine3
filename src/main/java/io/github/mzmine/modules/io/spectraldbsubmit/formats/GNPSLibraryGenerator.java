@@ -29,6 +29,8 @@
 
 package io.github.mzmine.modules.io.spectraldbsubmit.formats;
 
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
@@ -46,7 +48,16 @@ import io.github.mzmine.util.spectraldb.entry.DBEntryField;
  * @author Robin Schmid (robinschmid@uni-muenster.de)
  *
  */
-public class GnpsJsonGenerator {
+public class GNPSLibraryGenerator {
+
+  // batch import header
+  // tab separated
+  private static final String HEADER_BATCH =
+      "FILENAME,SEQ,COMPOUND_NAME,MOLECULEMASS,INSTRUMENT,IONSOURCE,EXTRACTSCAN,SMILES,INCHI,INCHIAUX,CHARGE,IONMODE,PUBMED,ACQUISITION,EXACTMASS,DATACOLLECTOR,ADDUCT,INTEREST,LIBQUALITY,GENUS,SPECIES,STRAIN,CASNUMBER,PI";
+  private static final String tab = "\t";
+  private static final NumberFormat mzForm = new DecimalFormat("0.000###");
+  private static final String NA = "N/A";
+
   /**
    * Whole JSON entry
    * 
@@ -132,5 +143,104 @@ public class GnpsJsonGenerator {
       data.add(signal.build());
     }
     return data.build();
+  }
+
+
+  /**
+   * Generate string for GNPS batch upload of library spectra. One entry = one row. Tab separated
+   *
+   * @param param
+   * @param mgfName   mgf file name
+   * @param specIndex specturm index in mgf
+   * @return
+   */
+  public static String generateTabSeparatedBatchRow(LibrarySubmitIonParameters param, String mgfName,
+      int specIndex) {
+    LibraryMetaDataParameters meta = (LibraryMetaDataParameters) param
+        .getParameter(LibrarySubmitIonParameters.META_PARAM).getValue();
+    StringBuilder s = new StringBuilder();
+    String v = "";
+    s.append(mgfName);
+    s.append(tab);
+    s.append("*..*");
+    s.append(tab);
+    s.append(
+        (v = meta.getParameter(LibraryMetaDataParameters.COMPOUND_NAME).getValue()).isEmpty() ? NA
+            : v);
+    s.append(tab);
+    // MOLECULEMASS = exact ion m/z
+    s.append(
+        (v = mzForm.format(param.getParameter(LibrarySubmitIonParameters.MZ).getValue())).isEmpty()
+            ? "0"
+            : v);
+    s.append(tab);
+    s.append((v = meta.getParameter(LibraryMetaDataParameters.INSTRUMENT).getValue().toString())
+        .isEmpty() ? NA : v);
+    s.append(tab);
+    s.append((v = meta.getParameter(LibraryMetaDataParameters.ION_SOURCE).getValue().toString())
+        .isEmpty() ? NA : v);
+    s.append(tab);
+    // spectrum index in mgf
+    s.append(String.valueOf(specIndex));
+    s.append(tab);
+    s.append(
+        (v = meta.getParameter(LibraryMetaDataParameters.SMILES).getValue()).isEmpty() ? NA : v);
+    s.append(tab);
+    s.append(
+        (v = meta.getParameter(LibraryMetaDataParameters.INCHI).getValue()).isEmpty() ? NA : v);
+    s.append(tab);
+    s.append(
+        (v = meta.getParameter(LibraryMetaDataParameters.INCHI_AUX).getValue()).isEmpty() ? NA : v);
+    s.append(tab);
+    s.append(
+        (v = param.getParameter(LibrarySubmitIonParameters.CHARGE).getValue().toString()).isEmpty()
+            ? "0"
+            : v);
+    s.append(tab);
+    s.append(
+        (v = meta.getParameter(LibraryMetaDataParameters.IONMODE).getValue().toString()).isEmpty()
+            ? "Positive"
+            : v);
+    s.append(tab);
+    s.append(
+        (v = meta.getParameter(LibraryMetaDataParameters.PUBMED).getValue()).isEmpty() ? NA : v);
+    s.append(tab);
+    s.append((v = meta.getParameter(LibraryMetaDataParameters.ACQUISITION).getValue().toString())
+        .isEmpty() ? "Crude" : v);
+    s.append(tab);
+    // exact neutral mass
+    s.append((v = mzForm.format(meta.getParameter(LibraryMetaDataParameters.EXACT_MASS).getValue()))
+        .isEmpty() ? "0" : v);
+    s.append(tab);
+    s.append(
+        (v = meta.getParameter(LibraryMetaDataParameters.DATA_COLLECTOR).getValue()).isEmpty() ? NA
+            : v);
+    s.append(tab);
+    s.append(
+        (v = param.getParameter(LibrarySubmitIonParameters.ADDUCT).getValue()).isEmpty() ? NA : v);
+    s.append(tab);
+    // interest is always NA
+    s.append(NA);
+    s.append(tab);
+    // quality is always 3
+    s.append("3");
+    s.append(tab);
+    // TODO add genus species strain
+    s.append(NA);
+    s.append(tab);
+    s.append(NA);
+    s.append(tab);
+    s.append(NA);
+    s.append(tab);
+    // cas and pi
+    s.append((v = meta.getParameter(LibraryMetaDataParameters.CAS).getValue()).isEmpty() ? NA : v);
+    s.append(tab);
+    s.append((v = meta.getParameter(LibraryMetaDataParameters.PI).getValue()).isEmpty() ? NA : v);
+
+    return s.toString();
+  }
+
+  public static String generateTabSeparatedBatchHeader() {
+    return HEADER_BATCH.replaceAll(",", tab);
   }
 }

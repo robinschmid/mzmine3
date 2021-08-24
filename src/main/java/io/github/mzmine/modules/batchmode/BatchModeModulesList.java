@@ -126,6 +126,7 @@ import io.github.mzmine.modules.io.import_rawdata_zip.ZipImportModule;
 import io.github.mzmine.modules.io.projectload.ProjectLoadModule;
 import io.github.mzmine.modules.io.projectsave.ProjectSaveAsModule;
 import io.github.mzmine.modules.io.projectsave.ProjectSaveModule;
+import io.github.mzmine.modules.tools.gnps_iimn_resultsanalysis.GNPSResultsAnalysisModule;
 import java.util.List;
 
 public class BatchModeModulesList {
@@ -304,7 +305,7 @@ public class BatchModeModulesList {
       MZTabmImportModule.class, //
       MzTabImportModule.class, //
       CSVExportModularModule.class, //
-      LegacyCSVExportModule.class //
+      LegacyCSVExportModule.class, //
 
       /*
        * needed in batch mode?
@@ -315,6 +316,7 @@ public class BatchModeModulesList {
        * needed in batch mode?
        * {@link io.github.mzmine.modules.MZmineModuleCategory.MainCategory#OTHER}
        */
+      GNPSResultsAnalysisModule.class
 
   );
 
