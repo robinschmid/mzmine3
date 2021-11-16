@@ -160,7 +160,8 @@ public final class MZmineCore {
     if (tempDirectory != null) {
       // needs to be accessible
       if (FileAndPathUtil.createDirectory(tempDirectory)) {
-        configuration.getPreferences().setParameter(MZminePreferences.tempDirectory, tempDirectory);
+        instance.configuration.getPreferences()
+            .setParameter(MZminePreferences.tempDirectory, tempDirectory);
         updateTempDir = true;
       } else {
         logger.log(Level.WARNING, "Cannot create directory for temp files");
