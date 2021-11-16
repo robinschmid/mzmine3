@@ -22,7 +22,6 @@ import io.github.mzmine.datamodel.MassList;
 import io.github.mzmine.datamodel.Scan;
 import io.github.mzmine.datamodel.features.FeatureListRow;
 import io.github.mzmine.modules.MZmineProcessingStep;
-import io.github.mzmine.modules.dataprocessing.id_spectraldbsearch.sort.SortSpectralDBIdentitiesTask;
 import io.github.mzmine.modules.visualization.spectra.simplespectra.datapointprocessing.isotopes.MassListDeisotoper;
 import io.github.mzmine.modules.visualization.spectra.simplespectra.datapointprocessing.isotopes.MassListDeisotoperParameters;
 import io.github.mzmine.modules.visualization.spectra.simplespectra.spectraidentification.spectraldatabase.SpectralMatchTask;
@@ -52,54 +51,46 @@ import org.jetbrains.annotations.NotNull;
 
 public class RowsSpectralMatchTask extends AbstractTask {
 
-  private Logger logger = Logger.getLogger(this.getClass().getName());
-
   private static final String METHOD = "Spectral DB search";
   private static final int MAX_ERROR = 3;
-  private int errorCounter = 0;
-  private String description;
-  private FeatureListRow[] rows;
   private final File dataBaseFile;
   private final MZTolerance mzToleranceSpectra;
   private final MZTolerance mzTolerancePrecursor;
   private final RTTolerance rtTolerance;
   private final boolean useRT;
-  private int finishedRows = 0;
   private final int totalRows;
-
-  private ParameterSet parameters;
-
   private final int msLevel;
   private final double noiseLevel;
   private final int minMatch;
-  private List<SpectralDBEntry> list;
   private final boolean removePrecursor;
-
-  private int count = 0;
-
+  private final boolean cropSpectraToOverlap;
+  private final Logger logger = Logger.getLogger(this.getClass().getName());
+  private final String description;
+  private final FeatureListRow[] rows;
+  private final ParameterSet parameters;
   // as this module is started in a series the start entry is saved to track
   // progress
-  private int startEntry;
-  private int listsize;
-  private MZmineProcessingStep<SpectralSimilarityFunction> simFunction;
-
+  private final int startEntry;
+  private final int listsize;
+  private final MZmineProcessingStep<SpectralSimilarityFunction> simFunction;
+  private int count = 0;
   // remove 13C isotopes
-  private boolean removeIsotopes;
-  private MassListDeisotoperParameters deisotopeParam;
-
-  private final boolean cropSpectraToOverlap;
+  private final boolean removeIsotopes;
+  private final MassListDeisotoperParameters deisotopeParam;
   // listen for matches
-  private Consumer<SpectralDBFeatureIdentity> matchListener;
-
-  private boolean allMS2Scans;
-
+  private final Consumer<SpectralDBFeatureIdentity> matchListener;
+  private final boolean allMS2Scans;
   // needs any signals within mzToleranceSpectra for
   // 13C, H, 2H or Cl
-  private boolean needsIsotopePattern;
-  private int minMatchedIsoSignals;
+  private final boolean needsIsotopePattern;
+  private final int minMatchedIsoSignals;
+  private int errorCounter = 0;
+  private int finishedRows = 0;
+  private List<SpectralDBEntry> list;
 
   public RowsSpectralMatchTask(String description, @NotNull FeatureListRow[] rows,
-      ParameterSet parameters, int startEntry, List<SpectralDBEntry> list, @NotNull Date moduleCallDate) {
+      ParameterSet parameters, int startEntry, List<SpectralDBEntry> list,
+      @NotNull Date moduleCallDate) {
     this(description, rows, parameters, startEntry, list, null, moduleCallDate);
   }
 
@@ -216,8 +207,6 @@ public class RowsSpectralMatchTask extends AbstractTask {
             count++;
           }
         }
-        // sort identities based on similarity score
-        SortSpectralDBIdentitiesTask.sortIdentities(row);
       } catch (MissingMassListException e) {
         logger.log(Level.WARNING, "No mass list in spectrum for rowID=" + row.getID(), e);
         errorCounter++;
@@ -288,9 +277,7 @@ public class RowsSpectralMatchTask extends AbstractTask {
 
       // check spectra similarity
       SpectralSimilarity sim = createSimilarity(library, query);
-      if (sim != null) {
-        return sim;
-      }
+      return sim;
     }
     return null;
   }

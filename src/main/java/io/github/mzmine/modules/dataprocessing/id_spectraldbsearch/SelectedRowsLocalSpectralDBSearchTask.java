@@ -21,6 +21,7 @@ import io.github.mzmine.datamodel.features.FeatureListRow;
 import io.github.mzmine.datamodel.features.ModularFeatureList;
 import io.github.mzmine.datamodel.features.types.annotations.SpectralLibraryMatchesType;
 import io.github.mzmine.main.MZmineCore;
+import io.github.mzmine.modules.dataprocessing.id_spectraldbsearch.sort.SortSpectralDBIdentitiesTask;
 import io.github.mzmine.modules.visualization.featurelisttable_modular.FeatureTableFX;
 import io.github.mzmine.modules.visualization.spectra.spectralmatchresults.SpectraIdentificationResultsWindowFX;
 import io.github.mzmine.parameters.ParameterSet;
@@ -99,7 +100,7 @@ public class SelectedRowsLocalSpectralDBSearchTask extends AbstractTask {
         .map(r -> (ModularFeatureList) r.getFeatureList())
         .distinct().forEach(flist -> flist.addRowType(new SpectralLibraryMatchesType()));
 
-    if (peakListRows.length == 1) {
+    if (peakListRows.length == 1 && !MZmineCore.isHeadLessMode()) {
       // add result frame
       Platform.runLater(() -> {
         resultWindow = new SpectraIdentificationResultsWindowFX();
@@ -142,6 +143,11 @@ public class SelectedRowsLocalSpectralDBSearchTask extends AbstractTask {
       setStatus(TaskStatus.ERROR);
       setErrorMessage(e.toString());
     }
+    // sort identities based on similarity score
+    for (var row : peakListRows) {
+      SortSpectralDBIdentitiesTask.sortIdentities(row);
+    }
+
     logger.info("Added " + count + " spectral library matches");
     if (resultWindow != null) {
       resultWindow

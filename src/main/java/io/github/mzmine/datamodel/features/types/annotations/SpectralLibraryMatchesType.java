@@ -69,9 +69,9 @@ public class SpectralLibraryMatchesType extends
           createEntry(CosineScoreType.class, match -> (float) match.getSimilarity().getScore()),
           createEntry(MatchingSignalsType.class, match -> match.getSimilarity().getOverlap()),
           createEntry(PrecursorMZType.class,
-              match -> (double) match.getEntry().getField(DBEntryField.MZ).orElse(null)),
+              match -> match.getEntry().getField(DBEntryField.MZ).orElse(null)),
           createEntry(NeutralMassType.class,
-              match -> (double) match.getEntry().getField(DBEntryField.EXACT_MASS).orElse(null))
+              match -> match.getEntry().getField(DBEntryField.EXACT_MASS).orElse(null))
       );
   // Unmodifiable list of all subtypes
   private static final List<DataType> subTypes = List.of(new SpectralLibraryMatchesType(),

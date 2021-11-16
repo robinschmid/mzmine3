@@ -22,6 +22,7 @@ import io.github.mzmine.datamodel.features.FeatureListRow;
 import io.github.mzmine.datamodel.features.SimpleFeatureListAppliedMethod;
 import io.github.mzmine.datamodel.features.types.annotations.SpectralLibraryMatchesType;
 import io.github.mzmine.main.MZmineCore;
+import io.github.mzmine.modules.dataprocessing.id_spectraldbsearch.sort.SortSpectralDBIdentitiesTask;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.taskcontrol.AbstractTask;
 import io.github.mzmine.taskcontrol.TaskStatus;
@@ -121,6 +122,10 @@ class LocalSpectralDBSearchTask extends AbstractTask {
       logger.log(Level.SEVERE, "Could not read file " + dataBaseFile, e);
       setStatus(TaskStatus.ERROR);
       setErrorMessage(e.toString());
+    }
+    // sort identities based on similarity score
+    for (var row : featureList.getRows()) {
+      SortSpectralDBIdentitiesTask.sortIdentities(row);
     }
     logger.info("Added " + count + " spectral library matches");
 
