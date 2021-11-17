@@ -36,13 +36,13 @@ import org.jetbrains.annotations.Nullable;
  */
 public class MZmineArgumentParser {
 
-  private static Logger logger = Logger.getLogger(MZmineArgumentParser.class.getName());
+  private static final Logger logger = Logger.getLogger(MZmineArgumentParser.class.getName());
 
   private File batchFile;
   private File preferencesFile;
   private File tempDirectory;
   private boolean isKeepRunningAfterBatch = false;
-  private KeepInRam isKeepInRam = KeepInRam.NONE;
+  private KeepInMemory isKeepInMemory = null;
 
   public void parse(String[] args) {
     Options options = new Options();
@@ -105,9 +105,9 @@ public class MZmineArgumentParser {
 
       String keepInData = cmd.getOptionValue(keepInMemory.getLongOpt());
       if (keepInData != null) {
-        isKeepInRam = KeepInRam.parse(keepInData);
+        isKeepInMemory = KeepInMemory.parse(keepInData);
         logger.info(
-            () -> "the -m / --memory argument was set to " + isKeepInRam.toString()
+            () -> "the -m / --memory argument was set to " + isKeepInMemory.toString()
                   + " to keep objects in RAM (scan data, features, etc) which are otherwise stored in memory mapped ");
       }
 
@@ -153,24 +153,9 @@ public class MZmineArgumentParser {
    *
    * @return true will keep objects in memory which are usually stored in memory mapped files
    */
-  public KeepInRam isKeepInRam() {
-    return isKeepInRam;
+  public KeepInMemory isKeepInMemory() {
+    return isKeepInMemory;
   }
 
-  public enum KeepInRam {
-    NONE, ALL, FEATURES, MASS_LISTS, RAW_SCANS, MASSES_AND_FEATURES;
-
-    public static KeepInRam parse(String s) {
-      s = s.toLowerCase();
-      return switch (s) {
-        case "all" -> ALL;
-        case "features" -> FEATURES;
-        case "centroids" -> MASS_LISTS;
-        case "raw" -> RAW_SCANS;
-        case "masses_features" -> MASSES_AND_FEATURES;
-        default -> throw new IllegalStateException("Unexpected value: " + s);
-      };
-    }
-  }
 }
 
