@@ -24,6 +24,7 @@ import io.github.mzmine.parameters.parametertypes.BooleanParameter;
 import io.github.mzmine.parameters.parametertypes.ComboParameter;
 import io.github.mzmine.parameters.parametertypes.IntegerParameter;
 import io.github.mzmine.parameters.parametertypes.OptionalParameter;
+import io.github.mzmine.parameters.parametertypes.RemoveOriginalSourcesParameter;
 import io.github.mzmine.parameters.parametertypes.StringParameter;
 import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsParameter;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZToleranceParameter;
@@ -49,7 +50,7 @@ public class IsotopeGrouperParameters extends SimpleParameterSet {
   public static final OptionalParameter<MobilityToleranceParameter> mobilityTolerace =
       new OptionalParameter<>(new MobilityToleranceParameter("Mobility tolerance",
           "If enabled (and mobility dimension was recorded), "
-              + "isotopic peaks will only be grouped if they fit within the given tolerance."));
+          + "isotopic peaks will only be grouped if they fit within the given tolerance."));
 
   public static final BooleanParameter monotonicShape = new BooleanParameter("Monotonic shape",
       "If true, then monotonically decreasing height of isotope pattern is required");
@@ -60,13 +61,12 @@ public class IsotopeGrouperParameters extends SimpleParameterSet {
   public static final ComboParameter<String> representativeIsotope = new ComboParameter<String>(
       "Representative isotope",
       "Which peak should represent the whole isotope pattern. For small molecular weight\n"
-          + "compounds with monotonically decreasing isotope pattern, the most intense isotope\n"
-          + "should be representative. For high molecular weight peptides, the lowest m/z\n"
-          + "peptides, the lowest m/z isotope may be the representative.",
+      + "compounds with monotonically decreasing isotope pattern, the most intense isotope\n"
+      + "should be representative. For high molecular weight peptides, the lowest m/z\n"
+      + "peptides, the lowest m/z isotope may be the representative.",
       representativeIsotopeValues);
 
-  public static final BooleanParameter autoRemove = new BooleanParameter("Remove original peaklist",
-      "If checked, original peaklist will be removed and only deisotoped version remains");
+  public static final BooleanParameter autoRemove = new RemoveOriginalSourcesParameter();
 
   public IsotopeGrouperParameters() {
     super(new Parameter[]{peakLists, suffix, mzTolerance, rtTolerance, mobilityTolerace,

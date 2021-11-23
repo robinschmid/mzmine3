@@ -22,6 +22,7 @@ import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.impl.SimpleParameterSet;
 import io.github.mzmine.parameters.parametertypes.BooleanParameter;
 import io.github.mzmine.parameters.parametertypes.ComboParameter;
+import io.github.mzmine.parameters.parametertypes.RemoveOriginalSourcesParameter;
 import io.github.mzmine.parameters.parametertypes.StringParameter;
 import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsParameter;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZToleranceParameter;
@@ -57,11 +58,10 @@ public class DuplicateFilterParameters extends SimpleParameterSet {
       new BooleanParameter("Require same identification",
           "If checked, duplicate peaks must have same identification(s)");
 
-  public static final BooleanParameter autoRemove = new BooleanParameter("Remove original peaklist",
-      "If checked, original peaklist will be removed and only deisotoped version remains");
+  public static final BooleanParameter autoRemove = new RemoveOriginalSourcesParameter();
 
   public DuplicateFilterParameters() {
-    super(new Parameter[] {peakLists, suffix, filterMode, mzDifferenceMax, rtDifferenceMax,
+    super(new Parameter[]{peakLists, suffix, filterMode, mzDifferenceMax, rtDifferenceMax,
         requireSameIdentification, autoRemove,});
   }
 
