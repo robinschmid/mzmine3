@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2020 The MZmine Development Team
+ * Copyright 2006-2021 The MZmine Development Team
  *
  * This file is part of MZmine.
  *
@@ -8,11 +8,12 @@
  * License, or (at your option) any later version.
  *
  * MZmine is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
- * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
- * Public License for more details.
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along with MZmine; if not,
- * write to the Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+ * write to the Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
  */
 
 package io.github.mzmine.modules.dataprocessing.featdet_adapchromatogrambuilder;
@@ -49,7 +50,6 @@ import io.github.mzmine.util.exceptions.MissingMassListException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -61,30 +61,26 @@ import org.jetbrains.annotations.Nullable;
 
 public class ModularADAPChromatogramBuilderTask extends AbstractTask {
 
-  RangeSet<Double> rangeSet = TreeRangeSet.create();
+  private static final Logger logger = Logger
+      .getLogger(ModularADAPChromatogramBuilderTask.class.getName());
+  private final MZmineProject project;
+  private final RawDataFile dataFile;
+  // User parameters
+  private final String suffix;
+  private final MZTolerance mzTolerance;
+  private final int minimumScanSpan;
+  // Owen added User parameers;
+  private final double IntensityThresh2;
+  private final double minIntensityForStartChrom;
+  private RangeSet<Double> rangeSet = TreeRangeSet.create();
   // After each range is created it does not change so we can map the ranges (which will be uniqe)
   // to the chromatograms
-  HashMap<Range, ADAPChromatogram> rangeToChromMap = new HashMap<>();
-
-  private Logger logger = Logger.getLogger(this.getClass().getName());
-
-  private MZmineProject project;
-  private RawDataFile dataFile;
-
+  private HashMap<Range, ADAPChromatogram> rangeToChromMap = new HashMap<>();
   private double progress = 0.0;
   private ScanSelection scanSelection;
   private int newFeatureID = 1;
   private Scan[] scans;
-
-  // User parameters
-  private String suffix;
-  private MZTolerance mzTolerance;
   private double minimumHeight;
-  private int minimumScanSpan;
-  // Owen added User parameers;
-  private double IntensityThresh2;
-  private double minIntensityForStartChrom;
-
   private ModularFeatureList newFeatureList;
   private ParameterSet parameters;
 
@@ -93,17 +89,18 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
    * @param parameters
    */
   public ModularADAPChromatogramBuilderTask(MZmineProject project, RawDataFile dataFile,
-      ParameterSet parameters, @Nullable MemoryMapStorage storage, @NotNull Instant moduleCallDate) {
+      ParameterSet parameters, @Nullable MemoryMapStorage storage,
+      @NotNull Instant moduleCallDate) {
     super(storage, moduleCallDate);
     this.project = project;
     this.dataFile = dataFile;
-    this.scanSelection =
-        parameters.getParameter(ADAPChromatogramBuilderParameters.scanSelection).getValue();
+    this.scanSelection = parameters.getParameter(ADAPChromatogramBuilderParameters.scanSelection)
+        .getValue();
 
-    this.mzTolerance =
-        parameters.getParameter(ADAPChromatogramBuilderParameters.mzTolerance).getValue();
-    this.minimumScanSpan =
-        parameters.getParameter(ADAPChromatogramBuilderParameters.minimumScanSpan).getValue();
+    this.mzTolerance = parameters.getParameter(ADAPChromatogramBuilderParameters.mzTolerance)
+        .getValue();
+    this.minimumScanSpan = parameters
+        .getParameter(ADAPChromatogramBuilderParameters.minimumScanSpan).getValue();
     // this.minimumHeight = parameters
     // .getParameter(ChromatogramBuilderParameters.minimumHeight)
     // .getValue();
@@ -111,10 +108,10 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
     this.suffix = parameters.getParameter(ADAPChromatogramBuilderParameters.suffix).getValue();
 
     // Owen added parameters
-    this.IntensityThresh2 =
-        parameters.getParameter(ADAPChromatogramBuilderParameters.IntensityThresh2).getValue();
-    this.minIntensityForStartChrom =
-        parameters.getParameter(ADAPChromatogramBuilderParameters.startIntensity).getValue();
+    this.IntensityThresh2 = parameters
+        .getParameter(ADAPChromatogramBuilderParameters.IntensityThresh2).getValue();
+    this.minIntensityForStartChrom = parameters
+        .getParameter(ADAPChromatogramBuilderParameters.startIntensity).getValue();
     this.parameters = parameters;
   }
 
@@ -143,7 +140,6 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
    */
   @Override
   public void run() {
-    boolean writeChromCDF = true;
 
     setStatus(TaskStatus.PROCESSING);
 
@@ -153,21 +149,15 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
     if (scans.length == 0) {
       setStatus(TaskStatus.ERROR);
       setErrorMessage("There are no scans satisfying filtering values. Consider updating filters "
-          + "with \"Set filters\" in the \"Scans\" parameter.");
+                      + "with \"Set filters\" in the \"Scans\" parameter.");
       return;
     }
 
-    List<Float> rtListForChromCDF = new ArrayList<>();
-
-        // Check if the scans are properly ordered by RT
-        double prevRT = Double.NEGATIVE_INFINITY;
-        for (Scan s : scans) {
-          if (isCanceled()) {
-            return;
-      }
-
-      if (writeChromCDF) {
-        rtListForChromCDF.add(s.getRetentionTime());
+    // Check if the scans are properly ordered by RT
+    double prevRT = Double.NEGATIVE_INFINITY;
+    for (Scan s : scans) {
+      if (isCanceled()) {
+        return;
       }
 
       if (s.getRetentionTime() < prevRT) {
@@ -219,8 +209,9 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
         scan = scanData.nextScan();
       } catch (MissingMassListException e) {
         setStatus(TaskStatus.ERROR);
-        setErrorMessage("Scan #" + scanData.getCurrentScan().getScanNumber() + " from " + dataFile.getName()
-                        + " does not have a mass list. Pleas run \"Raw data methods\" -> \"Mass detection\".");
+        setErrorMessage(
+            "Scan #" + scanData.getCurrentScan().getScanNumber() + " from " + dataFile.getName()
+            + " does not have a mass list. Pleas run \"Raw data methods\" -> \"Mass detection\".");
         e.printStackTrace();
         return;
       }
@@ -325,8 +316,9 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
           ADAPChromatogram curChrom = rangeToChromMap.get(plusRange);
           curChrom.addMzFeature(mzFeature.getScan(), mzFeature);
         } else {
-          throw new IllegalStateException(String.format("Incorrect range [%f, %f] for m/z %f",
-              toBeLowerBound, toBeUpperBound, mzFeature.getMZ()));
+          throw new IllegalStateException(String
+              .format("Incorrect range [%f, %f] for m/z %f", toBeLowerBound, toBeUpperBound,
+                  mzFeature.getMZ()));
         }
 
       } else {
@@ -346,6 +338,7 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
 
     // finish chromatograms
     Set<Range<Double>> ranges = rangeSet.asRanges();
+    rangeSet = null; // free
     Iterator<Range<Double>> RangeIterator = ranges.iterator();
 
     List<ADAPChromatogram> buildingChromatograms = new ArrayList<ADAPChromatogram>();
@@ -366,8 +359,8 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
 
       // And remove chromatograms who dont have a certian number of continous points above the
       // IntensityThresh2 level.
-      double numberOfContinuousPointsAboveNoise =
-          chromatogram.findNumberOfContinuousPointsAboveNoise(IntensityThresh2);
+      double numberOfContinuousPointsAboveNoise = chromatogram
+          .findNumberOfContinuousPointsAboveNoise(IntensityThresh2);
       if (numberOfContinuousPointsAboveNoise < minimumScanSpan) {
         // System.out.println("skipping chromatogram because it does not meet the min point scan
         // requirements");
@@ -377,6 +370,7 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
       }
 
     }
+    rangeToChromMap = null; // free
 
     buildingChromatograms.forEach(c -> c.addNZeros(1, 1));
     // Sort the final chromatograms by m/z
@@ -393,8 +387,8 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
     for (ADAPChromatogram finishedFeature : buildingChromatograms) {
       finishedFeature.setFeatureList(newFeatureList);
       ModularFeature modular = FeatureConvertors.ADAPChromatogramToModularFeature(finishedFeature);
-      ModularFeatureListRow newRow =
-          new ModularFeatureListRow(newFeatureList, newFeatureID, modular);
+      ModularFeatureListRow newRow = new ModularFeatureListRow(newFeatureList, newFeatureID,
+          modular);
       newFeatureList.addRow(newRow);
       // activate shape for this row
       newRow.set(FeatureShapeType.class, true);
@@ -412,9 +406,22 @@ public class ModularADAPChromatogramBuilderTask extends AbstractTask {
 
     progress = 1.0;
 
+    clearObjects();
     setStatus(TaskStatus.FINISHED);
 
     logger.info(() -> "Finished chromatogram builder on " + dataFile);
+  }
+
+  private void clearObjects() {
+    rangeSet = null;
+    rangeToChromMap = null;
+
+    scanSelection = null;
+    scans = null;
+
+    // User parameters
+    newFeatureList = null;
+    parameters = null;
   }
 
 }
