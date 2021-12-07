@@ -71,15 +71,14 @@ public class JoinAlignerParameters extends SimpleParameterSet {
 
   public static final BooleanParameter removeOriginalFeatureLists = new RemoveOriginalSourcesParameter();
 
-  public static final OptionalModuleParameter compareIsotopePattern =
-      new OptionalModuleParameter("Compare isotope pattern",
-          "If both peaks represent an isotope pattern, add isotope pattern score to match score",
-          new IsotopePatternScoreParameters(), false);
+  public static final OptionalModuleParameter<IsotopePatternScoreParameters> compareIsotopePattern = new OptionalModuleParameter<>(
+      "Compare isotope pattern",
+      "If both peaks represent an isotope pattern, add isotope pattern score to match score",
+      new IsotopePatternScoreParameters(), false);
 
-  public static final OptionalModuleParameter compareSpectraSimilarity =
-      new OptionalModuleParameter("Compare spectra similarity",
-          "Compare MS1 or MS2 spectra similarity",
-          new JoinAlignerSpectraSimilarityScoreParameters(), false);
+  public static final OptionalModuleParameter<JoinAlignerSpectraSimilarityScoreParameters> compareSpectraSimilarity = new OptionalModuleParameter<>(
+      "Compare spectra similarity", "Compare MS1 or MS2 spectra similarity",
+      new JoinAlignerSpectraSimilarityScoreParameters(), false);
 
   public JoinAlignerParameters() {
     super(new Parameter[]{peakLists, peakListName, MZTolerance, MZWeight, RTTolerance, RTWeight,
