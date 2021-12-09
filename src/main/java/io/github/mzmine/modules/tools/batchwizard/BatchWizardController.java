@@ -95,6 +95,7 @@ import io.github.mzmine.parameters.parametertypes.tolerances.RTTolerance.Unit;
 import io.github.mzmine.parameters.parametertypes.tolerances.mobilitytolerance.MobilityTolerance;
 import io.github.mzmine.util.ExitCode;
 import io.github.mzmine.util.FeatureMeasurementType;
+import io.github.mzmine.util.MathUtils;
 import io.github.mzmine.util.RangeUtils;
 import io.github.mzmine.util.files.FileAndPathUtil;
 import io.github.mzmine.util.maths.similarity.SimilarityMeasure;
@@ -102,12 +103,16 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.collections.FXCollections;
+import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import org.jetbrains.annotations.NotNull;
 import org.openscience.cdk.Element;
@@ -117,10 +122,10 @@ public class BatchWizardController {
   final ParameterSet wizardParam = MZmineCore.getConfiguration()
       .getModuleParameters(BatchWizardModule.class).cloneParameterSet();
   final ParameterSet hplcParameters = wizardParam.getParameter(BatchWizardParameters.hplcParams)
-      .getEmbeddedParameters().cloneParameterSet();
+      .getEmbeddedParameters();
   final ParameterSetupDialog hplcDialog = new ParameterSetupDialog(false, hplcParameters);
   final ParameterSet msParameters = wizardParam.getParameter(BatchWizardParameters.msParams)
-      .getEmbeddedParameters().cloneParameterSet();
+      .getEmbeddedParameters();
   final ParameterSetupDialog msDialog = new ParameterSetupDialog(false, msParameters);
 
   public RadioButton rbOrbitrap;
@@ -147,10 +152,15 @@ public class BatchWizardController {
     pnParametersLC.add(hplcDialog.getParamsPane(), 0, 1, 1, 1);
 
     // add export file param
-    exportPathComponent = wizardParam.getParameter(BatchWizardParameters.exportPath)
-        .createEditingComponent();
+    final var exportParam = wizardParam.getParameter(BatchWizardParameters.exportPath);
+    exportPathComponent = exportParam.createEditingComponent();
+    final Label label = new Label(exportParam.getName());
+    label.setTooltip(new Tooltip(exportParam.getDescription()));
+    label.setStyle("-fx-font-weight: bold");
+    HBox box = new HBox(4, label, exportPathComponent);
+    box.setAlignment(Pos.CENTER_LEFT);
     rightMenu.setSpacing(4);
-    rightMenu.getChildren().add(0, exportPathComponent);
+    rightMenu.getChildren().add(0, box);
 
     files = new FileNamesParameter("MS data files",
         "Please select the data files you want to process.",
@@ -209,8 +219,11 @@ public class BatchWizardController {
       DefaultLcParameters.hplc.setToParameterSet(hplcParameters);
       hplcDialog.setParameterValuesToComponents();
     }
+    //    if (rbGC.isSelected()) {
+    //      DefaultLcParameters.gc.setToParameterSet(hplcParameters);
+    //      hplcDialog.setParameterValuesToComponents();
+    //    }
   }
-
 
   public void onRunPressed() {
     List<String> errorMessages = new ArrayList<>();
@@ -241,6 +254,10 @@ public class BatchWizardController {
     if (batchModeParameters.showSetupDialog(false) == ExitCode.OK) {
       MZmineCore.runMZmineModule(BatchModeModule.class, batchModeParameters.cloneParameterSet());
     }
+
+    // keep old settings
+    MZmineCore.getConfiguration()
+        .setModuleParameters(BatchWizardModule.class, wizardParam.cloneParameterSet());
   }
 
   private BatchQueue createTofQueue(boolean useExport, File exportPath) {
@@ -526,7 +543,10 @@ public class BatchWizardController {
     // should be relatively high - unless user suspects many same m/z peaks in chromatogram
     // e.g., isomers or fragments in GC-EI-MS
     // 10 isomers, 0.05 min FWHM, 10 min total time = 0.90 threshold
-    final double thresholdPercent = 1d - fwhm * maxIsomers / totalRtWidth * 2d;
+    // ranges from 0.3 - 0.9
+    final double thresholdPercent = MathUtils.within(1d - fwhm * maxIsomers / totalRtWidth * 2d,
+        0.3, 0.9, 3);
+
     param.setParameter(MinimumSearchFeatureResolverParameters.CHROMATOGRAPHIC_THRESHOLD_LEVEL,
         thresholdPercent);
     param.setParameter(MinimumSearchFeatureResolverParameters.SEARCH_RT_RANGE, (double) fwhm);
