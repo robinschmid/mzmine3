@@ -18,16 +18,16 @@
 
 package io.github.mzmine.parameters.parametertypes.selectors;
 
+import com.google.common.base.Strings;
 import io.github.mzmine.datamodel.features.FeatureList;
+import io.github.mzmine.main.MZmineCore;
+import io.github.mzmine.parameters.UserParameter;
 import java.util.ArrayList;
 import java.util.Collection;
 import org.jetbrains.annotations.NotNull;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import com.google.common.base.Strings;
-import io.github.mzmine.main.MZmineCore;
-import io.github.mzmine.parameters.UserParameter;
 
 public class FeatureListsParameter implements UserParameter<FeatureListsSelection, FeatureListsComponent> {
 
@@ -118,8 +118,8 @@ public class FeatureListsParameter implements UserParameter<FeatureListsSelectio
   @Override
   public void loadValueFromXML(Element xmlElement) {
 
-    FeatureList[] currentDataPeakLists =
-        MZmineCore.getProjectManager().getCurrentProject().getFeatureLists().toArray(FeatureList[]::new);
+    FeatureList[] currentDataPeakLists = MZmineCore.getProjectManager().getCurrentProject()
+        .getCurrentFeatureLists().toArray(FeatureList[]::new);
 
     FeatureListsSelectionType selectionType;
     final String attrValue = xmlElement.getAttribute("type");

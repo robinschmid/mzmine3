@@ -70,22 +70,17 @@ class TwoDBottomPanel extends HBox {
     // thresholdCombo.setBackground(Color.white);
     // thresholdCombo.setFont(smallFont);
 
-
-
     featureTextField = new TextField();
     // peakTextField.setPreferredSize(new Dimension(50, 15));
     // peakTextField.setFont(smallFont);
     // peakTextField.addActionListener(this);
 
-
-    featureListSelector = new ComboBox<FeatureList>(
-        MZmineCore.getProjectManager().getCurrentProject().getFeatureLists());
+    featureListSelector = new ComboBox<FeatureList>(FXCollections.observableList(
+        MZmineCore.getProjectManager().getCurrentProject().getCurrentFeatureLists()));
     // peakListSelector.setBackground(Color.white);
     // peakListSelector.setFont(smallFont);
 
-
     loadButton = new Button("Load");
-
 
     thresholdSettings = parameters.getParameter(TwoDVisualizerParameters.featureThresholdSettings);
 

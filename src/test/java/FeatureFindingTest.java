@@ -155,9 +155,9 @@ public class FeatureFindingTest {
 
     assertEquals(2, project.getDataFiles().length);
     // sort by name
-    project.rawDataFilesProperty().sort(Comparator.comparing(RawDataFile::getName));
+    project.getCurrentRawDataFiles().sort(Comparator.comparing(RawDataFile::getName));
     int filesTested = 0;
-    for (RawDataFile raw : project.getRawDataFiles()) {
+    for (RawDataFile raw : project.getCurrentRawDataFiles()) {
       // check all scans and mass lists
       for (Scan scan : raw.getScans()) {
         assertNotNull(scan);
@@ -241,10 +241,10 @@ public class FeatureFindingTest {
       case FINISHED -> "";
     });
 
-    assertEquals(project.getFeatureLists().size(), 2);
+    assertEquals(project.getCurrentFeatureLists().size(), 2);
     // test feature lists
     int filesTested = 0;
-    for (FeatureList flist : project.getFeatureLists()) {
+    for (FeatureList flist : project.getCurrentFeatureLists()) {
       assertEquals(1, flist.getNumberOfRawDataFiles());
       assertEquals(2, flist.getAppliedMethods().size());
       // check default sorting of rows
@@ -316,7 +316,7 @@ public class FeatureFindingTest {
       case FINISHED -> "";
     });
 
-    assertEquals(4, project.getFeatureLists().size());
+    assertEquals(4, project.getCurrentFeatureLists().size());
     // test feature lists
     ModularFeatureList processed1 = (ModularFeatureList) project
         .getFeatureList(getName(sample1, chromSuffix, smoothSuffix));
@@ -426,9 +426,9 @@ public class FeatureFindingTest {
       case FINISHED -> "";
     });
 
-    logger.info("Lists after deconvolution:  " + project.getFeatureLists().stream()
+    logger.info("Lists after deconvolution:  " + project.getCurrentFeatureLists().stream()
         .map(FeatureList::getName).collect(Collectors.joining(", ")));
-    assertEquals(6, project.getFeatureLists().size());
+    assertEquals(6, project.getCurrentFeatureLists().size());
     // test feature lists
     ModularFeatureList processed1 = (ModularFeatureList) project
         .getFeatureList(getName(sample1, chromSuffix, smoothSuffix, deconSuffix));
@@ -489,7 +489,7 @@ public class FeatureFindingTest {
       case FINISHED -> "";
     });
 
-    assertEquals(8, project.getFeatureLists().size());
+    assertEquals(8, project.getCurrentFeatureLists().size());
     // test feature lists
     ModularFeatureList processed1 = (ModularFeatureList) project
         .getFeatureList(getName(sample1, chromSuffix, smoothSuffix, deconSuffix, deisotopeSuffix));
@@ -569,7 +569,7 @@ public class FeatureFindingTest {
       case FINISHED -> "";
     });
 
-    assertEquals(9, project.getFeatureLists().size());
+    assertEquals(9, project.getCurrentFeatureLists().size());
     // test feature lists
     ModularFeatureList processed1 = (ModularFeatureList) project
         .getFeatureList(getName(alignedName));

@@ -76,9 +76,8 @@ public class MobilogramBinningSetupDialog extends ParameterSetupDialogWithPrevie
     processedRenderer = new ColoredXYShapeRenderer();
 
     previewChart.setRangeAxisNumberFormatOverride(intensityFormat);
-    ObservableList<ModularFeatureList> flists = (ObservableList<ModularFeatureList>)
-        (ObservableList<? extends FeatureList>) MZmineCore.getProjectManager().getCurrentProject()
-            .getFeatureLists();
+    ObservableList<ModularFeatureList> flists = (ObservableList<ModularFeatureList>) (ObservableList<? extends FeatureList>) MZmineCore.getProjectManager()
+        .getCurrentProject().getCurrentFeatureLists();
 
     fBox = new ComboBox<>();
     flistBox = new ComboBox<>(flists);

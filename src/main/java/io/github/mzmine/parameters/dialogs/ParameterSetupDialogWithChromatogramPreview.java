@@ -45,11 +45,10 @@ public abstract class ParameterSetupDialogWithChromatogramPreview extends
 
   // Dialog components
   private final BorderPane pnlPreviewFields = new BorderPane();
-  private final ComboBox<RawDataFile> comboDataFileName = new ComboBox<RawDataFile>(
-      MZmineCore.getProjectManager().getCurrentProject().getRawDataFiles());
+  private final ComboBox<RawDataFile> comboDataFileName;
   // TODO: FloatRangeComponent
-  private final DoubleRangeComponent rtRangeBox =
-      new DoubleRangeComponent(MZmineCore.getConfiguration().getRTFormat());
+  private final DoubleRangeComponent rtRangeBox = new DoubleRangeComponent(
+      MZmineCore.getConfiguration().getRTFormat());
   private final DoubleRangeComponent mzRangeBox =
       new DoubleRangeComponent(MZmineCore.getConfiguration().getMZFormat());
   // Show as TIC
@@ -63,6 +62,8 @@ public abstract class ParameterSetupDialogWithChromatogramPreview extends
   public ParameterSetupDialogWithChromatogramPreview(boolean valueCheckRequired,
       ParameterSet parameters) {
     super(valueCheckRequired, parameters);
+    comboDataFileName = new ComboBox<>(FXCollections.observableList(
+        MZmineCore.getProjectManager().getCurrentProject().getCurrentRawDataFiles()));
 
     dataFiles = MZmineCore.getProjectManager().getCurrentProject().getDataFiles();
 
