@@ -26,7 +26,6 @@ import io.github.mzmine.util.spectraldb.entry.SpectralLibrary;
 import java.io.File;
 import java.util.Hashtable;
 import java.util.List;
-import javafx.beans.property.ListProperty;
 import javafx.collections.ObservableList;
 import org.jetbrains.annotations.Nullable;
 
@@ -128,9 +127,6 @@ public interface MZmineProject {
 
   ObservableList<RawDataFile> getRawDataFiles();
 
-  ListProperty<RawDataFile> rawDataFilesProperty();
-
-  ListProperty<FeatureList> featureListsProperty();
 
   /**
    * Returns all feature lists which contain given data file
@@ -155,13 +151,6 @@ public interface MZmineProject {
   // void addProjectListener(MZmineProjectListener newListener);
 
   // void removeProjectListener(MZmineProjectListener listener);
-
-  /**
-   * List of loaded spectral libraries
-   *
-   * @return property of spectral libraries list
-   */
-  ListProperty<SpectralLibrary> spectralLibrariesProperty();
 
   @Nullable
   public Boolean isStandalone();
