@@ -245,11 +245,12 @@ public class MZmineProjectImpl implements MZmineProject {
       if (names.contains(featureList.getName())) {
         featureList.setName(getUniqueName(featureList.getName(), names));
       }
+
+      FxThreadUtil.runOnFxThreadAndWait(() -> {
+        featureListsProperty.get().add(featureList);
+      });
     }
 
-    FxThreadUtil.runOnFxThreadAndWait(() -> {
-      featureListsProperty.get().add(featureList);
-    });
   }
 
   @Override
