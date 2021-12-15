@@ -183,17 +183,18 @@ public class Fx3DBorderPaneController {
     colorCol.setCellFactory(column -> new ColorTableCell<Fx3DAbstractDataset>(column));
     double minValue = 0;
     double maxValue = 1;
-    opacityCol
-        .setCellFactory(column -> new SliderCell<Fx3DAbstractDataset>(column, minValue, maxValue));
+    opacityCol.setCellFactory(
+        column -> new SliderCell<Fx3DAbstractDataset>(column, minValue, maxValue));
 
-    visibilityCol.setCellFactory(column -> new ButtonCell<Fx3DAbstractDataset>(column,
-        new Glyph("FontAwesome", "EYE"), new Glyph("FontAwesome", "EYE_SLASH")));
+    visibilityCol.setCellFactory(
+        column -> new ButtonCell<Fx3DAbstractDataset>(column, new Glyph("FontAwesome", "EYE"),
+            new Glyph("FontAwesome", "EYE_SLASH")));
     axesBtn.setSelected(true);
     lightsBtn.setSelected(true);
     addLights();
-    rotateAnimationTimeline =
-        new Timeline(new KeyFrame(Duration.seconds(0), new KeyValue(yRotate.angleProperty(), 360)),
-            new KeyFrame(Duration.seconds(50), new KeyValue(yRotate.angleProperty(), 0)));
+    rotateAnimationTimeline = new Timeline(
+        new KeyFrame(Duration.seconds(0), new KeyValue(yRotate.angleProperty(), 360)),
+        new KeyFrame(Duration.seconds(50), new KeyValue(yRotate.angleProperty(), 0)));
     rotateAnimationTimeline.setCycleCount(Timeline.INDEFINITE);
 
     tableView.setItems(visualizedMeshPlots);

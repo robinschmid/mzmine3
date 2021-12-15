@@ -66,7 +66,8 @@ class TwoDBottomPanel extends HBox {
     // setBorder(new EmptyBorder(5, 5, 5, 0));
 
     //
-    thresholdCombo = new ComboBox<>(FXCollections.observableArrayList(FeatureThresholdMode.values()));
+    thresholdCombo = new ComboBox<>(
+        FXCollections.observableArrayList(FeatureThresholdMode.values()));
     // thresholdCombo.setBackground(Color.white);
     // thresholdCombo.setFont(smallFont);
 

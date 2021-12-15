@@ -49,11 +49,11 @@ public abstract class ParameterSetupDialogWithChromatogramPreview extends
   // TODO: FloatRangeComponent
   private final DoubleRangeComponent rtRangeBox = new DoubleRangeComponent(
       MZmineCore.getConfiguration().getRTFormat());
-  private final DoubleRangeComponent mzRangeBox =
-      new DoubleRangeComponent(MZmineCore.getConfiguration().getMZFormat());
+  private final DoubleRangeComponent mzRangeBox = new DoubleRangeComponent(
+      MZmineCore.getConfiguration().getMZFormat());
   // Show as TIC
-  private final ComboBox<TICPlotType> ticViewComboBox =
-      new ComboBox<TICPlotType>(FXCollections.observableArrayList(TICPlotType.values()));
+  private final ComboBox<TICPlotType> ticViewComboBox = new ComboBox<TICPlotType>(
+      FXCollections.observableArrayList(TICPlotType.values()));
   private RawDataFile[] dataFiles;
   private RawDataFile previewDataFile;
   // XYPlot
