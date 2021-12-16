@@ -378,4 +378,49 @@ public class MathUtils {
     }
     return value;
   }
+
+  /**
+   * Tries to parse double number
+   *
+   * @param number tested number string
+   * @return true if parsed to a double
+   */
+  public static boolean isNumber(String number) {
+    try {
+      Double.parseDouble(number);
+      return true;
+    } catch (Exception ex) {
+      return false;
+    }
+  }
+
+  /**
+   * Tries to parse double number
+   *
+   * @param number     tested number string
+   * @param defaultVal the default value
+   * @return the double value or default if not parable
+   */
+  public static double getDoubleOrElse(String number, double defaultVal) {
+    try {
+      return Double.parseDouble(number);
+    } catch (Exception ex) {
+      return defaultVal;
+    }
+  }
+
+  /**
+   * Tries to parse int
+   *
+   * @param number tested number string
+   * @return true if parsed to int
+   */
+  public static boolean isInt(String number) {
+    try {
+      Integer.parseInt(number);
+      return true;
+    } catch (Exception ex) {
+      return false;
+    }
+  }
 }
