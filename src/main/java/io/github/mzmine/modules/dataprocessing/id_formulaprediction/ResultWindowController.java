@@ -502,7 +502,6 @@ public class ResultWindowController {
       MZmineCore.getTaskController().addTask(searchTask, TaskPriority.HIGH);
     }
   }
-}
 
   private void ensureMinimumParameters() {
     final ParameterSet parameters = getParameters();
