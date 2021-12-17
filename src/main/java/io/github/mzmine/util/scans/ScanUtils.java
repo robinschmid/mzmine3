@@ -196,7 +196,7 @@ public class ScanUtils {
   @Nullable
   public static DataPoint findBasePeak(@NotNull Scan scan, @NotNull Range<Double> mzRange) {
     final Double scanBasePeakMz = scan.getBasePeakMz();
-    if (mzRange.contains(scanBasePeakMz)) {
+    if (scanBasePeakMz != null && mzRange.contains(scanBasePeakMz)) {
       return new SimpleDataPoint(scanBasePeakMz, scan.getBasePeakIntensity());
     }
 
