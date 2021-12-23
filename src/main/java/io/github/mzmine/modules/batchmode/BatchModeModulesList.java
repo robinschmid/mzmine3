@@ -23,6 +23,7 @@ import io.github.mzmine.modules.dataprocessing.adap_hierarchicalclustering.ADAPH
 import io.github.mzmine.modules.dataprocessing.adap_mcr.ADAPMultivariateCurveResolutionModule;
 import io.github.mzmine.modules.dataprocessing.align_adap3.ADAP3AlignerModule;
 import io.github.mzmine.modules.dataprocessing.align_hierarchical.HierarAlignerGcModule;
+import io.github.mzmine.modules.dataprocessing.align_join.JoinAligner2Module;
 import io.github.mzmine.modules.dataprocessing.align_join.JoinAlignerModule;
 import io.github.mzmine.modules.dataprocessing.align_path.PathAlignerModule;
 import io.github.mzmine.modules.dataprocessing.align_ransac.RansacAlignerModule;
@@ -216,6 +217,7 @@ public class BatchModeModulesList {
        * {@link io.github.mzmine.modules.MZmineModuleCategory#ALIGNMENT}
        */
       JoinAlignerModule.class, //
+      JoinAligner2Module.class, //
       ADAP3AlignerModule.class, //
       HierarAlignerGcModule.class, //
       PathAlignerModule.class, //
