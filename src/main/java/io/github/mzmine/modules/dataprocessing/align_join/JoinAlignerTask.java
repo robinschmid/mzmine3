@@ -53,12 +53,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -132,12 +132,12 @@ public class JoinAlignerTask extends AbstractTask {
     sameIDRequired = parameters.getParameter(JoinAlignerParameters.SameIDRequired).getValue();
     compareIsotopePattern = parameters.getParameter(JoinAlignerParameters.compareIsotopePattern)
         .getValue();
-    final ParameterSet isoParam = parameters
-        .getParameter(JoinAlignerParameters.compareIsotopePattern).getEmbeddedParameters();
+    final ParameterSet isoParam = parameters.getParameter(
+        JoinAlignerParameters.compareIsotopePattern).getEmbeddedParameters();
 
     if (compareIsotopePattern) {
-      minIsotopeScore = isoParam
-          .getValue(IsotopePatternScoreParameters.isotopePatternScoreThreshold);
+      minIsotopeScore = isoParam.getValue(
+          IsotopePatternScoreParameters.isotopePatternScoreThreshold);
       isotopeNoiseLevel = isoParam.getValue(IsotopePatternScoreParameters.isotopeNoiseLevel);
       isotopeMZTolerance = isoParam.getValue(IsotopePatternScoreParameters.mzTolerance);
     } else {
@@ -146,8 +146,8 @@ public class JoinAlignerTask extends AbstractTask {
       isotopeMZTolerance = null;
     }
 
-    compareSpectraSimilarity = parameters
-        .getParameter(JoinAlignerParameters.compareSpectraSimilarity).getValue();
+    compareSpectraSimilarity = parameters.getParameter(
+        JoinAlignerParameters.compareSpectraSimilarity).getValue();
 
     if (compareSpectraSimilarity) {
       simFunction = parameters.getParameter(JoinAlignerParameters.compareSpectraSimilarity)
@@ -159,17 +159,11 @@ public class JoinAlignerTask extends AbstractTask {
     }
   }
 
-  /**
-   * @see io.github.mzmine.taskcontrol.Task#getTaskDescription()
-   */
   @Override
   public String getTaskDescription() {
     return "Join aligner, " + featureListName + " (" + featureLists.size() + " feature lists)";
   }
 
-  /**
-   * @see io.github.mzmine.taskcontrol.Task#getFinishedPercentage()
-   */
   @Override
   public double getFinishedPercentage() {
     if (totalRows == 0) {
@@ -179,9 +173,6 @@ public class JoinAlignerTask extends AbstractTask {
                                         / (double) totalRows : 0d;
   }
 
-  /**
-   * @see Runnable#run()
-   */
   @Override
   public void run() {
 
@@ -192,8 +183,8 @@ public class JoinAlignerTask extends AbstractTask {
     }
 
     setStatus(TaskStatus.PROCESSING);
-    logger
-        .info(() -> "Running parallel join aligner on " + featureLists.size() + " feature lists.");
+    logger.info(
+        () -> "Running parallel join aligner on " + featureLists.size() + " feature lists.");
 
     // Remember how many rows we need to process. Each row will be processed
     // twice, first for score calculation, second for actual alignment.
@@ -220,12 +211,10 @@ public class JoinAlignerTask extends AbstractTask {
 
     // contains all files that potentially have unaligned features.
     final List<ModularFeatureList> leftoverFlists = new ArrayList<>(featureLists);
-    boolean alignmentDone = false;
 
     // Contains all rows without a match in the aligned feature list. All rows for now, since there
     // has been no alignment yet
-    final List<FeatureListRow> leftoverRows = Collections
-        .synchronizedList(new ArrayList<>(unalignedRows));
+    final List<FeatureListRow> leftoverRows = new ArrayList<>(unalignedRows);
 
     while (leftoverFlists.size() > 0) {
       // select the next base feature list, and get all rows from that feature list from our list
@@ -247,7 +236,6 @@ public class JoinAlignerTask extends AbstractTask {
               row -> (FeatureListRow) new ModularFeatureListRow(alignedFeatureList,
                   newRowID.getAndIncrement(), (ModularFeatureListRow) row, true)).toList());
       nextBaseRows.sort(new FeatureListRowSorter(SortingProperty.MZ, SortingDirection.Ascending));
-      nextBaseRows.forEach(row -> alignedFeatureList.addRow(row));
 
       // remove new base rows from the leftover rows.
       leftoverRows.removeIf(row -> row.getFeatureList().equals(nextBaseList));
@@ -260,10 +248,10 @@ public class JoinAlignerTask extends AbstractTask {
       leftoverRows.clear();
 
       // use the whole feature list to align on. the average row m/zs and rts change during alignment due to
-      List<FeatureListRow> baseRows = new ArrayList<>(alignedFeatureList.getRows());
-      baseRows.sort(new FeatureListRowSorter(SortingProperty.MZ, SortingDirection.Ascending));
-      alignRowsOnBaseRows(unalignedRows, baseRows, leftoverRows);
+      alignRowsOnBaseRows(unalignedRows, nextBaseRows, leftoverRows);
 
+      // add all new base rows
+      nextBaseRows.forEach(row -> alignedFeatureList.addRow(row));
       iteration++;
     }
 
@@ -287,13 +275,12 @@ public class JoinAlignerTask extends AbstractTask {
 
   private void alignRowsOnBaseRows(List<FeatureListRow> unalignedRows,
       List<FeatureListRow> baseRowsByMz, List<FeatureListRow> leftoverRows) {
-
+    // track added features
     final Map<FeatureListRow, Boolean> assignedRows = new HashMap<>();
     unalignedRows.forEach(row -> assignedRows.put(row, false));
 
     // key = a row to be aligned, value = all possible matches in the aligned fl and it's scores
-    //    final Map<FeatureListRow, List<RowVsRowScore>> rowToScoreMap = new ConcurrentHashMap<>();
-    final List<RowVsRowScore> scoresList = Collections.synchronizedList(new ArrayList<>());
+    final ConcurrentLinkedDeque<RowVsRowScore> scoresList = new ConcurrentLinkedDeque<>();
 
     unalignedRows.parallelStream().forEach(row -> {
       if (isCanceled()) {
@@ -305,28 +292,24 @@ public class JoinAlignerTask extends AbstractTask {
       final Range<Float> rtRange =
           rtWeight > 0 ? rtTolerance.getToleranceRange(row.getAverageRT()) : Range.all();
       final Range<Float> mobilityRange =
-          compareMobility && row.getAverageMobility() != null ? mobilityTolerance
-              .getToleranceRange(row.getAverageMobility()) : Range.singleton(0f);
+          compareMobility && row.getAverageMobility() != null ? mobilityTolerance.getToleranceRange(
+              row.getAverageMobility()) : Range.singleton(0f);
 
       // find all rows in the aligned rows that might match
-      final List<FeatureListRow> candidatesInAligned = FeatureListUtils
-          .getRows(baseRowsByMz, rtRange, mzRange, true);
+      final List<FeatureListRow> candidatesInAligned = FeatureListUtils.getRows(baseRowsByMz,
+          rtRange, mzRange, true);
 
       if (candidatesInAligned.isEmpty()) {
         return;
       }
 
-      //      final List<RowVsRowScore> rowVsRowScores = rowToScoreMap
-      //          .computeIfAbsent(row, r -> new ArrayList<>());
-
+      // calculate score for unaligned row against all candidates
       for (FeatureListRow candidateInAligned : candidatesInAligned) {
-        if (checkMZ(candidateInAligned, mzRange) && checkRT(candidateInAligned, rtRange)
-            && checkMobility(candidateInAligned, mobilityRange) && (!sameChargeRequired
-                                                                    || FeatureUtils
-                                                                        .compareChargeState(row,
-                                                                            candidateInAligned))
+        // retention time and m/z is already checked for candidates
+        if (checkMobility(candidateInAligned, mobilityRange) //
+            && (!sameChargeRequired || FeatureUtils.compareChargeState(row, candidateInAligned)) //
             && (!sameIDRequired || FeatureUtils.compareIdentities(row, candidateInAligned))
-            && checkIsotopePattern(/*isotopePatternMap,*/ row, candidateInAligned)
+            && checkIsotopePattern(row, candidateInAligned) //
             && checkSpectralSimilarity(row, candidateInAligned)) {
 
           final RowVsRowScore score;
@@ -340,7 +323,6 @@ public class JoinAlignerTask extends AbstractTask {
                 RangeUtils.rangeLength(rtRange) / 2.0, rtWeight,
                 RangeUtils.rangeLength(mobilityRange), mobilityWeight);
           }
-          //          rowVsRowScores.add(score);
           scoresList.add(score);
         }
       }
@@ -348,12 +330,12 @@ public class JoinAlignerTask extends AbstractTask {
 
     // after an iteration, rows of all other featureLists have been given a mapping
     // now we have to find the best match
-    scoresList.sort(RowVsRowScore::compareTo);
-    //    Map<FeatureListRow, FeatureListRow> assignedAlignedRows = new HashMap<>();
-    for (RowVsRowScore score : scoresList) {
-      final FeatureListRow alignedRow = score.getAlignedRow();
-      final FeatureListRow row = score.getPeakListRow();
-      if (assignedRows.get(row) == false) {
+    final RowVsRowScore[] scores = scoresList.stream().sorted().toArray(RowVsRowScore[]::new);
+
+    for (RowVsRowScore score : scores) {
+      final FeatureListRow alignedRow = score.getAlignedBaseRow();
+      final FeatureListRow row = score.getRowToAdd();
+      if (!assignedRows.get(row)) {
         // put all features of the row into the aligned row
         for (Feature feature : row.getFeatures()) {
           if (!alignedRow.hasFeature(feature.getRawDataFile())) {
@@ -361,21 +343,17 @@ public class JoinAlignerTask extends AbstractTask {
                 new ModularFeature(alignedFeatureList, feature));
             assignedRows.put(row, true);
             alignedRows.getAndIncrement();
-          } /*else {
-            // if we align all unaligned features on the full aligned feature list, this might actually happen.
-            logger.finest(() -> "Warning: already a feature for raw file in row.");
-          }*/
+          }
         }
       }
     }
 
     // keep track of unaligned rows for the next interation.
-    assignedRows.entrySet().stream().filter(e -> e.getValue() == false)
+    assignedRows.entrySet().stream().filter(e -> !e.getValue())
         .forEach(e -> leftoverRows.add(e.getKey()));
-    logger.finest(
-        () -> "Assigned " + (unalignedRows.size() - leftoverRows.size()) + "/" + unalignedRows
-            .size() + ". " + leftoverRows.size() + " remaining. Iteration " + iteration + "/"
-              + featureLists.size());
+    logger.finest(() -> "Assigned " + (unalignedRows.size() - leftoverRows.size()) + "/"
+                        + unalignedRows.size() + ". " + leftoverRows.size()
+                        + " remaining. Iteration " + iteration + "/" + featureLists.size());
   }
 
   @Nullable
@@ -403,7 +381,7 @@ public class JoinAlignerTask extends AbstractTask {
     if (compareSpectraSimilarity) {
       DataPoint[] rowDPs = null;
       DataPoint[] candidateDPs = null;
-      SpectralSimilarity sim = null;
+      SpectralSimilarity sim;
 
       // get data points of mass list of the representative
       // scans
@@ -442,31 +420,26 @@ public class JoinAlignerTask extends AbstractTask {
     return true;
   }
 
-  private boolean checkIsotopePattern(/*Map<FeatureListRow, IsotopePattern> isotopePatternMap,*/
-      FeatureListRow row, FeatureListRow candidate) {
+  private boolean checkIsotopePattern(FeatureListRow row, FeatureListRow candidate) {
     if (compareIsotopePattern) {
-      // get isotope pattern or put the best
-      //      IsotopePattern ip1 = isotopePatternMap
-      //          .computeIfAbsent(row, FeatureListRow::getBestIsotopePattern);
-      //      IsotopePattern ip2 = isotopePatternMap
-      //          .computeIfAbsent(candidate, FeatureListRow::getBestIsotopePattern);
       IsotopePattern ip1 = row.getBestIsotopePattern();
       IsotopePattern ip2 = candidate.getBestIsotopePattern();
 
-      return (ip1 == null) || (ip2 == null) || IsotopePatternScoreCalculator
-          .checkMatch(ip1, ip2, isotopeMZTolerance, isotopeNoiseLevel, minIsotopeScore);
+      return (ip1 == null) || (ip2 == null) || IsotopePatternScoreCalculator.checkMatch(ip1, ip2,
+          isotopeMZTolerance, isotopeNoiseLevel, minIsotopeScore);
     }
     return true;
   }
 
-  private boolean checkMZ(FeatureListRow candidate, Range<Double> mzRange) {
-    return mzWeight <= 0 || mzRange.contains(candidate.getAverageMZ());
-  }
-
-  private boolean checkRT(FeatureListRow candidate, Range<Float> rtRange) {
-    return rtWeight <= 0 || candidate.getAverageRT() < 0 || rtRange
-        .contains(candidate.getAverageRT());
-  }
+  //
+  //  private boolean checkMZ(FeatureListRow candidate, Range<Double> mzRange) {
+  //    return mzWeight <= 0 || mzRange.contains(candidate.getAverageMZ());
+  //  }
+  //
+  //  private boolean checkRT(FeatureListRow candidate, Range<Float> rtRange) {
+  //    return rtWeight <= 0 || candidate.getAverageRT() < 0 || rtRange.contains(
+  //        candidate.getAverageRT());
+  //  }
 
   private boolean checkMobility(FeatureListRow candidate, Range<Float> mobilityRange) {
     return !compareMobility || mobilityWeight <= 0 || candidate.getAverageMobility() == null
