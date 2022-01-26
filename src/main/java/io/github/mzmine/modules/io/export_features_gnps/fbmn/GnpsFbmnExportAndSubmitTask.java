@@ -42,6 +42,7 @@ import io.github.mzmine.modules.io.export_features_gnps.GNPSUtils;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.taskcontrol.AbstractTask;
 import io.github.mzmine.taskcontrol.AllTasksFinishedListener;
+import io.github.mzmine.taskcontrol.ProcessedItemsCounter;
 import io.github.mzmine.taskcontrol.Task;
 import io.github.mzmine.taskcontrol.TaskPriority;
 import io.github.mzmine.taskcontrol.TaskStatus;
@@ -51,9 +52,11 @@ import java.awt.Desktop;
 import java.io.File;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import org.apache.commons.io.FilenameUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -71,10 +74,14 @@ public class GnpsFbmnExportAndSubmitTask extends AbstractTask {
   private final AtomicDouble progress = new AtomicDouble(0);
   private final FeatureMeasurementType featureMeasure;
   private final File baseFile;
+  private final ModularFeatureList[] featureLists;
 
   GnpsFbmnExportAndSubmitTask(ParameterSet parameters, @NotNull Instant moduleCallDate) {
     super(null, moduleCallDate); // no new data stored -> null
     this.parameters = parameters;
+
+    featureLists = parameters.getParameter(GnpsFbmnExportAndSubmitParameters.FEATURE_LISTS)
+        .getValue().getMatchingFeatureLists();
     featureMeasure = parameters.getValue(GnpsFbmnExportAndSubmitParameters.FEATURE_INTENSITY);
     baseFile = FileAndPathUtil.eraseFormat(
         parameters.getValue(GnpsFbmnExportAndSubmitParameters.FILENAME));
@@ -105,6 +112,8 @@ public class GnpsFbmnExportAndSubmitTask extends AbstractTask {
     boolean openFolder = parameters.getParameter(GnpsFbmnExportAndSubmitParameters.OPEN_FOLDER)
         .getValue();
     boolean submit = parameters.getParameter(GnpsFbmnExportAndSubmitParameters.SUBMIT).getValue();
+    final FeatureListRowsFilter filter = parameters.getValue(
+        GnpsFbmnExportAndSubmitParameters.FILTER);
 
     List<AbstractTask> list = new ArrayList<>(4);
     GnpsFbmnMgfExportTask task = new GnpsFbmnMgfExportTask(parameters, getModuleCallDate());
@@ -123,6 +132,17 @@ public class GnpsFbmnExportAndSubmitTask extends AbstractTask {
     new AllTasksFinishedListener(list, true,
         // succeed
         l -> {
+          // check if all tasks exported the same number of rows
+          final long[] exportedRowsPerTask = list.stream().mapToLong(
+                  t -> (t instanceof ProcessedItemsCounter counter) ? counter.getProcessedItems() : -1)
+              .filter(counter -> counter >= 0).toArray();
+          boolean validExport = Arrays.stream(exportedRowsPerTask).distinct().count() == 1;
+          if (!validExport && filter.equals(FeatureListRowsFilter.ONLY_WITH_MS2)) {
+            logger.log(Level.WARNING,
+                "GNPS export resulted in files with different length despite using the same filter: "
+                + Arrays.stream(exportedRowsPerTask).mapToObj(v -> String.valueOf(v))
+                    .collect(Collectors.joining(", ")));
+          }
           try {
             logger.info("succeed" + thistask.getStatus().toString());
             if (submit) {
@@ -200,13 +220,10 @@ public class GnpsFbmnExportAndSubmitTask extends AbstractTask {
     final String name = FilenameUtils.removeExtension(full.getName());
     full = new File(full.getParentFile(), name + "_quant_full.csv");
 
-    ModularFeatureList[] flist = parameters.getParameter(
-        GnpsFbmnExportAndSubmitParameters.FEATURE_LISTS).getValue().getMatchingFeatureLists();
-
     FeatureListRowsFilter filter = parameters.getParameter(GnpsFbmnExportAndSubmitParameters.FILTER)
         .getValue();
 
-    return new CSVExportModularTask(flist, full, ",", ";", filter, getModuleCallDate());
+    return new CSVExportModularTask(featureLists, full, ",", ";", filter, getModuleCallDate());
   }
 
 
@@ -236,10 +253,7 @@ public class GnpsFbmnExportAndSubmitTask extends AbstractTask {
 
     FeatureListRowsFilter filter = parameters.getValue(GnpsFbmnExportAndSubmitParameters.FILTER);
 
-    ModularFeatureList[] flist = parameters.getParameter(
-        GnpsFbmnExportAndSubmitParameters.FEATURE_LISTS).getValue().getMatchingFeatureLists();
-
-    return new LegacyCSVExportTask(flist, full, ",", common, rawdata, false, ";", filter,
+    return new LegacyCSVExportTask(featureLists, full, ",", common, rawdata, false, ";", filter,
         getModuleCallDate());
   }
 
@@ -258,10 +272,8 @@ public class GnpsFbmnExportAndSubmitTask extends AbstractTask {
           .getEmbeddedParameters()
           .getParameter(GnpsFbmnSubmitParameters.EXPORT_ION_IDENTITY_NETWORKS).getValue();
     }
-    ModularFeatureList[] flist = parameters.getParameter(
-        GnpsFbmnExportAndSubmitParameters.FEATURE_LISTS).getValue().getMatchingFeatureLists();
 
-    return new ExportCorrAnnotationTask(flist, full, 0, filter, exAnn, false, false, false,
+    return new ExportCorrAnnotationTask(featureLists, full, 0, filter, exAnn, false, false, false,
         getModuleCallDate());
   }
 
