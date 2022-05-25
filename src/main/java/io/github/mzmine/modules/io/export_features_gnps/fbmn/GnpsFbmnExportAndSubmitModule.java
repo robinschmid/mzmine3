@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2021 The MZmine Development Team
+ * Copyright 2006-2022 The MZmine Development Team
  *
  * This file is part of MZmine.
  *
@@ -18,14 +18,14 @@
 /*
  * This module was prepared by Abi Sarvepalli, Christopher Jensen, and Zheng Zhang at the Dorrestein
  * Lab (University of California, San Diego).
- * 
+ *
  * 2018-Nov: Changes by Robin Schmid - Direct submit
- * 
+ *
  * It is freely available under the GNU GPL licence of MZmine2.
- * 
+ *
  * For any questions or concerns, please refer to:
  * https://groups.google.com/forum/#!forum/molecular_networking_bug_reports
- * 
+ *
  * Credit to the Du-Lab development team for the initial commitment to the MGF export module.
  */
 
@@ -45,16 +45,15 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Exports all files needed for GNPS feature based molecular networking (quant table (csv export)),
  * MS2 mgf, additional edges (ion identity networks)
- * 
- * @author Robin Schmid (robinschmid@uni-muenster.de)
  *
+ * @author Robin Schmid (robinschmid@uni-muenster.de)
  */
 public class GnpsFbmnExportAndSubmitModule implements MZmineProcessingModule {
-  private final Logger logger = Logger.getLogger(getClass().getName());
 
+  private static final Logger logger = Logger.getLogger(
+      GnpsFbmnExportAndSubmitModule.class.getName());
   private static final String MODULE_NAME = "Export/Submit to GNPS-FBMN";
-  private static final String MODULE_DESCRIPTION =
-      "GNPS feature-based molecular networking export and submit module. Exports the MGF file for GNPS (only for MS/MS), the quant table (CSV export) and additional edges (ion identity networks and correlation)";
+  private static final String MODULE_DESCRIPTION = "GNPS feature-based molecular networking export and submit module. Exports the MGF file for GNPS (only for MS/MS), the quant table (CSV export) and additional edges (ion identity networks and correlation)";
 
   @Override
   public String getDescription() {
@@ -67,12 +66,6 @@ public class GnpsFbmnExportAndSubmitModule implements MZmineProcessingModule {
       @NotNull Instant moduleCallDate) {
     // add gnps export task
     GnpsFbmnExportAndSubmitTask task = new GnpsFbmnExportAndSubmitTask(parameters, moduleCallDate);
-    /*
-     * We do not add the task to the tasks collection, but instead directly submit to the task
-     * controller, because we need to set the priority to HIGH. If the priority is not HIGH and the
-     * maximum number of concurrent tasks is set to 1 in the MZmine preferences, then this BatchTask
-     * would block all other tasks.
-     */
     tasks.add(task);
 
     return ExitCode.OK;
