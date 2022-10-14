@@ -160,12 +160,7 @@ public class LocalCSVDatabaseSearchTask extends AbstractTask {
       List<ImportType> lineIds = findLineIds(importTypes, databaseValues[0]);
 
       // option to read more fields and append to comment as json
-      final DataType<String> type = DataTypes.get(CommentType.class);
-      List<ImportType> commentFields = Arrays.stream(
-              parameters.getValue(LocalCSVDatabaseSearchParameters.commentFields).split(","))
-          .map(s -> s.trim().toLowerCase()).map(s -> new ImportType(true, s, type)).toList();
-
-      commentFields = findLineIds(commentFields, databaseValues[0]);
+      List<ImportType> commentFields = extractCommentFields();
 
       // sample header index
       if (filterSamples) {
@@ -211,6 +206,21 @@ public class LocalCSVDatabaseSearchTask extends AbstractTask {
 
     setStatus(TaskStatus.FINISHED);
 
+  }
+
+  private List<ImportType> extractCommentFields() {
+    List<ImportType> commentFields = new ArrayList<>();
+    final String appendComments = parameters.getValue(
+        LocalCSVDatabaseSearchParameters.commentFields);
+    if (appendComments != null && !appendComments.isBlank()) {
+      final DataType<String> type = DataTypes.get(CommentType.class);
+      commentFields = Arrays.stream(appendComments.split(",")).map(s -> s.trim().toLowerCase())
+          .map(s -> new ImportType(true, s, type)).toList();
+      if (!commentFields.isEmpty()) {
+        commentFields = findLineIds(commentFields, databaseValues[0]);
+      }
+    }
+    return commentFields;
   }
 
   private boolean matchSample(final String sample) {
