@@ -44,7 +44,6 @@ import io.github.mzmine.modules.io.projectload.CachedIMSRawDataFile;
 import io.github.mzmine.project.impl.ProjectChangeEvent;
 import io.github.mzmine.util.CorrelationGroupingUtils;
 import io.github.mzmine.util.DataTypeUtils;
-import io.github.mzmine.util.FeatureListRowSorter;
 import io.github.mzmine.util.MemoryMapStorage;
 import io.github.mzmine.util.files.FileAndPathUtil;
 import java.text.DateFormat;
@@ -499,11 +498,11 @@ public class ModularFeatureList implements FeatureList {
   public List<FeatureListRow> getRowsInsideScanAndMZRange(Range<Float> rtRange,
       Range<Double> mzRange) {
     List<FeatureListRow> rows = new ArrayList<>();
-    for(var row : getRows()) {
+    for (var row : getRows()) {
       Float rt = row.getAverageRT();
-      if(rt==null || (rtRange.contains(rt) && mzRange.contains(row.getAverageMZ()))) {
+      if (rt == null || (rtRange.contains(rt) && mzRange.contains(row.getAverageMZ()))) {
         rows.add(row);
-      } else if(rt>rtRange.upperEndpoint()) {
+      } else if (rt > rtRange.upperEndpoint()) {
         break;
       }
     }

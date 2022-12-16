@@ -31,7 +31,6 @@ import io.github.mzmine.datamodel.IMSRawDataFile;
 import io.github.mzmine.datamodel.ImagingRawDataFile;
 import io.github.mzmine.datamodel.MZmineProject;
 import io.github.mzmine.datamodel.RawDataFile;
-import java.util.logging.Logger;
 import io.github.mzmine.gui.Desktop;
 import io.github.mzmine.gui.HeadLessDesktop;
 import io.github.mzmine.gui.MZmineGUI;
@@ -63,7 +62,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Locale;
@@ -109,8 +107,7 @@ public final class MZmineCore {
    * Main method
    */
   public static void main(final String[] args) {
-    try 
-    {
+    try {
       Semver version = getMZmineVersion();
       logger.info("Starting MZmine " + version);
       /*
@@ -262,8 +259,7 @@ public final class MZmineCore {
   }
 
   @NotNull
-  public static TaskController getTaskController() 
-  {
+  public static TaskController getTaskController() {
     return instance.taskController;
   }
 
@@ -279,17 +275,17 @@ public final class MZmineCore {
 
   public static void setDesktop(Desktop desktop) {
     assert desktop != null;
-    getInstance().desktop =  desktop;
+    getInstance().desktop = desktop;
   }
 
   @NotNull
   public static ProjectManager getProjectManager() {
-    assert getInstance().projectManager   != null;
+    assert getInstance().projectManager != null;
     return getInstance().projectManager;
   }
 
   @NotNull
-  public static MZmineConfiguration  getConfiguration() {
+  public static MZmineConfiguration getConfiguration() {
     assert getInstance().configuration != null;
     return getInstance().configuration;
   }
@@ -369,8 +365,7 @@ public final class MZmineCore {
   @NotNull
   public static Semver getMZmineVersion() {
     try {
-      ClassLoader myClassLoader = 
-        MZmineCore.class.getClassLoader();
+      ClassLoader myClassLoader = MZmineCore.class.getClassLoader();
       InputStream inStream = myClassLoader.getResourceAsStream("mzmineversion.properties");
       if (inStream == null) {
         return new Semver("3-SNAPSHOT", SemverType.LOOSE);
