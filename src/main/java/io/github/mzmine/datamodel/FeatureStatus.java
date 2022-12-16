@@ -25,12 +25,14 @@
 
 package io.github.mzmine.datamodel;
 
+import io.github.mzmine.util.color.ColorsFX;
 import io.github.mzmine.util.color.SimpleColorPalette;
 import io.github.mzmine.util.javafx.FxColorUtil;
 import java.awt.Color;
 import io.github.mzmine.main.MZmineCore;
-import io.github.mzmine.util.color.Colors;
-import io.github.mzmine.util.color.ColorsFX;
+import io.github.mzmine.util.color.Colors;  
+
+
 import io.github.mzmine.util.color.Vision;
 
 public enum FeatureStatus {
@@ -48,14 +50,15 @@ public enum FeatureStatus {
   /**
    * Peak was estimated in secondary peak picking
    */
-  ESTIMATED,
+  ESTIMATED  ,
 
   /**
    * Peak was defined manually
    */
   MANUAL;
 
-  public Color getColor() {
+  public Color getColor() 
+  {
     SimpleColorPalette palette =
         (MZmineCore.getConfiguration().getDefaultColorPalette() != null) ? MZmineCore.getConfiguration()
             .getDefaultColorPalette() : SimpleColorPalette.DEFAULT.get(Vision.DEUTERANOPIA);
@@ -82,8 +85,7 @@ public enum FeatureStatus {
         return palette.getPositiveColor();
       case ESTIMATED:
         return palette.getNeutralColor();
-      case MANUAL:
-        return javafx.scene.paint.Color.BLACK;
+      case MANUAL: return javafx.scene.paint.Color.BLACK;
       case UNKNOWN:
       default:
         return palette.getNegativeColor();
