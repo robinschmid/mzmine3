@@ -23,8 +23,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+
+
+
 package io.github.mzmine.main;
 
+import org.jetbrains.annotations.NotNull;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 import io.github.mzmine.datamodel.IMSRawDataFile;
@@ -60,6 +64,7 @@ import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Paths;
 import java.time.Instant;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -74,7 +79,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javafx.application.Application;
 import javafx.application.Platform;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -144,11 +148,14 @@ public final class MZmineCore {
       final File prefFile = Objects.requireNonNullElse(argsParser.getPreferencesFile(),
           MZmineConfiguration.CONFIG_FILE);
 
-      boolean updateTempDir = false;
+      boolean updateTempDir =    false;
       // Load configuration
-      if (prefFile.exists() && prefFile.canRead()) {
+      if (prefFile.exists() && prefFile.canRead()) 
+      
+      {
         try {
-          getInstance().configuration.loadConfiguration(prefFile);
+          getInstance().configuration
+            .loadConfiguration(prefFile);
           updateTempDir = true;
         } catch (Exception e) {
           logger.log(Level.WARNING,
