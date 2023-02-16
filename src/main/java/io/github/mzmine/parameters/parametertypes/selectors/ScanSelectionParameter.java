@@ -35,8 +35,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-public class ScanSelectionParameter
-    implements UserParameter<ScanSelection, ScanSelectionComponent> {
+public class ScanSelectionParameter implements
+    UserParameter<ScanSelection, ScanSelectionComponent> {
+
   private final String name, description;
   private ScanSelection value;
 
@@ -131,8 +132,9 @@ public class ScanSelectionParameter
 
   @Override
   public void saveValueToXML(Element xmlElement) {
-    if (value == null)
+    if (value == null) {
       return;
+    }
     Document parentDocument = xmlElement.getOwnerDocument();
 
     final Range<Integer> scanNumberRange = value.getScanNumberRange();

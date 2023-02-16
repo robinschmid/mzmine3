@@ -35,7 +35,6 @@ import io.github.mzmine.modules.dataprocessing.align_join.JoinAlignerParameters;
 import io.github.mzmine.modules.dataprocessing.featdet_chromatogramdeconvolution.ResolvingDimension;
 import io.github.mzmine.modules.dataprocessing.featdet_chromatogramdeconvolution.minimumsearch.MinimumSearchFeatureResolverModule;
 import io.github.mzmine.modules.dataprocessing.featdet_chromatogramdeconvolution.minimumsearch.MinimumSearchFeatureResolverParameters;
-import io.github.mzmine.modules.dataprocessing.filter_groupms2.FeatureLimitOptions;
 import io.github.mzmine.modules.dataprocessing.filter_groupms2.GroupMS2Parameters;
 import io.github.mzmine.modules.dataprocessing.filter_groupms2.GroupMS2SubParameters;
 import io.github.mzmine.modules.dataprocessing.filter_isotopegrouper.IsotopeGrouperModule;
@@ -61,6 +60,8 @@ import io.github.mzmine.parameters.parametertypes.MinimumFeaturesFilterParameter
 import io.github.mzmine.parameters.parametertypes.OptionalValue;
 import io.github.mzmine.parameters.parametertypes.absoluterelative.AbsoluteAndRelativeInt;
 import io.github.mzmine.parameters.parametertypes.absoluterelative.AbsoluteAndRelativeInt.Mode;
+import io.github.mzmine.parameters.parametertypes.combowithinput.FeatureLimitOptions;
+import io.github.mzmine.parameters.parametertypes.combowithinput.RtLimitsFilter;
 import io.github.mzmine.parameters.parametertypes.ionidentity.IonLibraryParameterSet;
 import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelection;
 import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelectionType;
@@ -182,11 +183,10 @@ public class WizardBatchBuilderLcDDA extends WizardBatchBuilder {
     // retention time
     // rt tolerance is +- while FWHM is the width. still the MS2 might be triggered very early
     // change rt tol depending on number of data points
-    boolean limitByRTEdges = minRtDataPoints >= 4;
+    var rtFilterMode = minRtDataPoints >= 4 ? FeatureLimitOptions.USE_FEATURE_EDGES
+        : FeatureLimitOptions.USE_TOLERANCE;
     groupMs2Params.setParameter(GroupMS2Parameters.rtFilter,
-        limitByRTEdges ? FeatureLimitOptions.USE_FEATURE_EDGES : FeatureLimitOptions.USE_TOLERANCE);
-    groupMs2Params.getParameter(GroupMS2Parameters.rtFilter).getEmbeddedParameter()
-        .setValue(new RTTolerance(fwhm, Unit.MINUTES));
+        new RtLimitsFilter(rtFilterMode, new RTTolerance(fwhm, Unit.MINUTES)));
 
     // important apply to retention time
     param.setParameter(MinimumSearchFeatureResolverParameters.dimension,

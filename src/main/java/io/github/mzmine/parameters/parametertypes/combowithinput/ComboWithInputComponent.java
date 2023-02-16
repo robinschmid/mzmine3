@@ -23,7 +23,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.parameters.parametertypes;
+package io.github.mzmine.parameters.parametertypes.combowithinput;
 
 import io.github.mzmine.parameters.UserParameter;
 import java.util.Objects;
@@ -34,12 +34,12 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 
-public class ComboWIthInputComponent<EnumValue> extends HBox {
+public class ComboWithInputComponent<EnumValue> extends HBox {
 
   private final ComboBox<EnumValue> comboBox;
   private final Node embeddedComponent;
 
-  public ComboWIthInputComponent(final UserParameter<?, Node> embeddedParameter,
+  public ComboWithInputComponent(final UserParameter<?, Node> embeddedParameter,
       final ObservableList<EnumValue> choices, final EnumValue selected,
       final EnumValue inputTrigger) {
     setSpacing(5);

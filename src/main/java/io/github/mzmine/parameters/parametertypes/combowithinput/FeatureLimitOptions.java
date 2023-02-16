@@ -23,7 +23,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.filter_groupms2;
+package io.github.mzmine.parameters.parametertypes.combowithinput;
 
 public enum FeatureLimitOptions {
   USE_FEATURE_EDGES, USE_TOLERANCE;
