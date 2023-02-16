@@ -41,19 +41,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
-import javax.annotation.concurrent.Immutable;
 
-@Immutable
-public class ScanSelection {
-
-  private final Range<Integer> scanNumberRange;
-  private final Range<Double> scanMobilityRange;
-  private final Range<Float> scanRTRange;
-  private final PolarityType polarity;
-  private final MassSpectrumType spectrumType;
-  private final Integer msLevel;
-  private final Integer baseFilteringInteger;
-  private final String scanDefinition;
+public record ScanSelection(Range<Integer> scanNumberRange, Integer baseFilteringInteger,
+                            Range<Float> scanRTRange, Range<Double> scanMobilityRange,
+                            PolarityType polarity, MassSpectrumType spectrumType, Integer msLevel,
+                            String scanDefinition) {
 
   /**
    * Uses MS level 1 only
@@ -68,19 +60,6 @@ public class ScanSelection {
 
   public ScanSelection(Range<Float> scanRTRange, Integer msLevel) {
     this(null, null, scanRTRange, null, null, null, msLevel, null);
-  }
-
-  public ScanSelection(Range<Integer> scanNumberRange, Integer baseFilteringInteger,
-      Range<Float> scanRTRange, Range<Double> scanMobilityRange, PolarityType polarity,
-      MassSpectrumType spectrumType, Integer msLevel, String scanDefinition) {
-    this.scanNumberRange = scanNumberRange;
-    this.baseFilteringInteger = baseFilteringInteger;
-    this.scanRTRange = scanRTRange;
-    this.scanMobilityRange = scanMobilityRange;
-    this.polarity = polarity;
-    this.spectrumType = spectrumType;
-    this.msLevel = msLevel;
-    this.scanDefinition = scanDefinition;
   }
 
   public Range<Integer> getScanNumberRange() {
