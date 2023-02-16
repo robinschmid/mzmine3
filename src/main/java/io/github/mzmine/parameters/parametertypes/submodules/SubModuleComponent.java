@@ -42,6 +42,7 @@ public class SubModuleComponent extends FlowPane {
   private final Button setButton;
 
   public SubModuleComponent(ParameterSet embeddedParameters) {
+    setHgap(4);
     setButton = new Button("Setup...");
     setButton.setOnAction(e -> embeddedParameters.showSetupDialog(false));
     setButton.setDisable(false);

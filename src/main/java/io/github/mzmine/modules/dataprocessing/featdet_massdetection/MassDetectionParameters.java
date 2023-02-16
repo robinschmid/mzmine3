@@ -150,7 +150,7 @@ public class MassDetectionParameters extends SimpleParameterSet {
     // Do an additional check for centroid/continuous data and show a
     // warning if there is a potential problem
     long numCentroided = 0, numProfile = 0;
-    ScanSelection scanSel = getParameter(scanSelection).getValue();
+    ScanSelection scanSel = getValue(scanSelection);
 
     for (RawDataFile file : selectedFiles) {
       Scan[] scans = scanSel.getMatchingScans(file);

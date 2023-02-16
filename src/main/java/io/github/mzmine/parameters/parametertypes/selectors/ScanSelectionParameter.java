@@ -28,21 +28,23 @@ package io.github.mzmine.parameters.parametertypes.selectors;
 import com.google.common.collect.Range;
 import io.github.mzmine.datamodel.MassSpectrumType;
 import io.github.mzmine.datamodel.PolarityType;
-import io.github.mzmine.parameters.UserParameter;
+import io.github.mzmine.parameters.Parameter;
+import io.github.mzmine.parameters.parametertypes.ParameterSetComponent;
+import io.github.mzmine.parameters.parametertypes.ParameterSetParameter;
+import io.github.mzmine.parameters.parametertypes.combowithinput.MsLevelFilter;
+import io.github.mzmine.util.RangeUtils;
 import io.github.mzmine.util.XMLUtils;
 import java.util.Collection;
-import org.w3c.dom.Document;
+import javafx.scene.control.Button;
+import javafx.scene.text.Text;
+import org.jetbrains.annotations.Nullable;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-public class ScanSelectionParameter implements
-    UserParameter<ScanSelection, ScanSelectionComponent> {
-
-  private final String name, description;
-  private ScanSelection value;
+public class ScanSelectionParameter extends ParameterSetParameter {
 
   public ScanSelectionParameter() {
-    this("Scans", "Select scans that should be included.", null);
+    this(null);
   }
 
   public ScanSelectionParameter(ScanSelection defaultValue) {
@@ -50,35 +52,7 @@ public class ScanSelectionParameter implements
   }
 
   public ScanSelectionParameter(String name, String description, ScanSelection defaultValue) {
-    this.name = name;
-    this.description = description;
-    this.value = defaultValue;
-  }
-
-  @Override
-  public ScanSelection getValue() {
-    return value;
-  }
-
-  @Override
-  public void setValue(ScanSelection newValue) {
-    this.value = newValue;
-  }
-
-  @Override
-  public ScanSelectionParameter cloneParameter() {
-    ScanSelectionParameter copy = new ScanSelectionParameter(name, description, value);
-    return copy;
-  }
-
-  @Override
-  public String getName() {
-    return name;
-  }
-
-  @Override
-  public String getDescription() {
-    return description;
+    super(name, description, new ScanSelectionFiltersParameters(defaultValue));
   }
 
   @Override
@@ -88,7 +62,13 @@ public class ScanSelectionParameter implements
 
   @Override
   public void loadValueFromXML(Element xmlElement) {
+    // changed this parameter to a ParameterSetParameter
+    // before all parameters were manually saved
+    // Load parent first for new versions and then try to see if old version was saved below
+    clearFilters();
+    super.loadValueFromXML(xmlElement);
 
+    // try to load values from old format
     Range<Integer> scanNumberRange = null;
     Integer baseFilteringInteger = null;
     Range<Double> scanMobilityRange = null;
@@ -126,74 +106,53 @@ public class ScanSelectionParameter implements
       scanDefinition = items.item(i).getTextContent();
     }
 
-    this.value = new ScanSelection(scanNumberRange, baseFilteringInteger, scanRTRange,
-        scanMobilityRange, polarity, spectrumType, msLevel, scanDefinition);
-  }
-
-  @Override
-  public void saveValueToXML(Element xmlElement) {
-    if (value == null) {
-      return;
-    }
-    Document parentDocument = xmlElement.getOwnerDocument();
-
-    final Range<Integer> scanNumberRange = value.getScanNumberRange();
-    final Range<Float> scanRetentionTimeRange = value.getScanRTRange();
-    final Range<Double> scanMobilityRange = value.getScanMobilityRange();
-    final Integer baseFilteringInteger = value.getBaseFilteringInteger();
-    final PolarityType polarity = value.getPolarity();
-    final MassSpectrumType spectrumType = value.getSpectrumType();
-    final Integer msLevel = value.getMsLevel();
-    final String scanDefinition = value.getScanDefinition();
-
-    XMLUtils.appendRange(xmlElement, "scan_numbers", scanNumberRange);
-    XMLUtils.appendRange(xmlElement, "retention_time", scanRetentionTimeRange);
-    XMLUtils.appendRange(xmlElement, "mobility", scanMobilityRange);
-
-    if (baseFilteringInteger != null) {
-      Element newElement = parentDocument.createElement("baseFilteringInteger");
-      newElement.setTextContent(baseFilteringInteger.toString());
-      xmlElement.appendChild(newElement);
-    }
-    if (polarity != null) {
-      Element newElement = parentDocument.createElement("polarity");
-      newElement.setTextContent(polarity.toString());
-      xmlElement.appendChild(newElement);
-    }
-
-    if (spectrumType != null) {
-      Element newElement = parentDocument.createElement("spectrum_type");
-      newElement.setTextContent(spectrumType.toString());
-      xmlElement.appendChild(newElement);
-    }
-
-    if (msLevel != null) {
-      Element newElement = parentDocument.createElement("ms_level");
-      newElement.setTextContent(String.valueOf(msLevel));
-      xmlElement.appendChild(newElement);
-    }
-
-    if (scanDefinition != null) {
-      Element newElement = parentDocument.createElement("scan_definition");
-      newElement.setTextContent(scanDefinition);
-      xmlElement.appendChild(newElement);
-    }
+    // apply if not null
+    setParameterIfNotNull(ScanSelectionFiltersParameters.scanNumParameter, scanNumberRange);
+    setParameterIfNotNull(ScanSelectionFiltersParameters.baseFilteringIntegerParameter,
+        baseFilteringInteger);
+    setParameterIfNotNull(ScanSelectionFiltersParameters.rtParameter,
+        RangeUtils.toDoubleRange(scanRTRange));
+    setParameterIfNotNull(ScanSelectionFiltersParameters.mobilityParameter, scanMobilityRange);
+    setParameterIfNotNull(ScanSelectionFiltersParameters.polarityParameter, polarity);
+    setParameterIfNotNull(ScanSelectionFiltersParameters.spectrumTypeParameter, spectrumType);
+    setParameterIfNotNull(ScanSelectionFiltersParameters.scanDefinitionParameter, scanDefinition);
+    setParameterIfNotNull(ScanSelectionFiltersParameters.msLevelParameter,
+        MsLevelFilter.of(msLevel));
 
   }
 
-  @Override
-  public ScanSelectionComponent createEditingComponent() {
-    return new ScanSelectionComponent();
+  private <T> void setParameterIfNotNull(Parameter<T> parameter, T value) {
+    if (value != null) {
+      getEmbeddedParameters().setParameter(parameter, value);
+    }
   }
 
   @Override
-  public void setValueFromComponent(ScanSelectionComponent component) {
-    value = component.getValue();
+  public ParameterSetComponent createEditingComponent() {
+    var component = super.createEditingComponent();
+    final Text filterLabel = new Text("All");
+    var clearBtn = new Button("Clear");
+    component.getChildren().addAll(clearBtn, filterLabel);
+
+    clearBtn.setOnAction(event -> clearFilters(component));
+
+    // TODO fire change event and update text
+    return component;
   }
 
-  @Override
-  public void setValueToComponent(ScanSelectionComponent component, ScanSelection newValue) {
-    component.setValue(newValue);
+  public void clearFilters() {
+    clearFilters(null);
+  }
+
+  public void clearFilters(@Nullable final ParameterSetComponent component) {
+    setFilter(null);
+    if (component != null) {
+      component.setValue(getEmbeddedParameters());
+    }
+  }
+
+  public void setFilter(@Nullable ScanSelection selection) {
+    ((ScanSelectionFiltersParameters) getEmbeddedParameters()).setFilter(selection);
   }
 
 }

@@ -27,13 +27,32 @@ package io.github.mzmine.parameters.parametertypes.combowithinput;
 
 import io.github.mzmine.datamodel.Scan;
 import io.github.mzmine.parameters.parametertypes.combowithinput.MsLevelFilter.Options;
+import org.jetbrains.annotations.Nullable;
 
 /**
- * @param filter
+ * @param filter        enum filter option
  * @param specificLevel only used for the option SPECIFIC_FILTER
  */
 public record MsLevelFilter(Options filter, int specificLevel) implements
     ComboWithInputValue<Options, Integer> {
+
+  public static MsLevelFilter of(@Nullable final Integer msLevel) {
+    return switch (msLevel) {
+      case null -> new MsLevelFilter(Options.ALL, 1);
+      case 1 -> new MsLevelFilter(Options.MS1, 1);
+      case 2 -> new MsLevelFilter(Options.MS2, 2);
+      default -> new MsLevelFilter(Options.SPECIFIC_LEVEL, msLevel);
+    };
+  }
+
+  @Override
+  public String toString() {
+    return switch (filter) {
+      case ALL -> "All MS levels";
+      case MS2, MSn, MS1 -> filter.toString();
+      case SPECIFIC_LEVEL -> "MS level=" + specificLevel;
+    };
+  }
 
   @Override
   public Options getSelectedOption() {
