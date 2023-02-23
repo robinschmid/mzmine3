@@ -29,26 +29,28 @@ import com.google.common.collect.Range;
 import io.github.mzmine.datamodel.MassSpectrumType;
 import io.github.mzmine.datamodel.PolarityType;
 import io.github.mzmine.parameters.Parameter;
-import io.github.mzmine.parameters.parametertypes.ParameterSetComponent;
-import io.github.mzmine.parameters.parametertypes.ParameterSetParameter;
 import io.github.mzmine.parameters.parametertypes.combowithinput.MsLevelFilter;
+import io.github.mzmine.parameters.parametertypes.submodules.AdvancedParametersParameter;
+import io.github.mzmine.parameters.parametertypes.submodules.ParameterSetComponent;
 import io.github.mzmine.util.RangeUtils;
 import io.github.mzmine.util.XMLUtils;
 import java.util.Collection;
-import javafx.scene.control.Button;
-import javafx.scene.text.Text;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-public class ScanSelectionParameter extends ParameterSetParameter {
+public class ScanSelectionParameter extends
+    AdvancedParametersParameter<ScanSelectionFiltersParameters> {
 
   public ScanSelectionParameter() {
     this(null);
   }
 
   public ScanSelectionParameter(ScanSelection defaultValue) {
-    this("Scans", "Select scans that should be included.", defaultValue);
+    this("Scan filters",
+        "Select scans that should be included. Needs to be activated to actually filter.",
+        defaultValue);
   }
 
   public ScanSelectionParameter(String name, String description, ScanSelection defaultValue) {
@@ -57,6 +59,7 @@ public class ScanSelectionParameter extends ParameterSetParameter {
 
   @Override
   public boolean checkValue(Collection<String> errorMessages) {
+
     return true;
   }
 
@@ -126,19 +129,19 @@ public class ScanSelectionParameter extends ParameterSetParameter {
       getEmbeddedParameters().setParameter(parameter, value);
     }
   }
-
-  @Override
-  public ParameterSetComponent createEditingComponent() {
-    var component = super.createEditingComponent();
-    final Text filterLabel = new Text("All");
-    var clearBtn = new Button("Clear");
-    component.getChildren().addAll(clearBtn, filterLabel);
-
-    clearBtn.setOnAction(event -> clearFilters(component));
-
-    // TODO fire change event and update text
-    return component;
-  }
+//
+//  @Override
+//  public ParameterSetComponent createEditingComponent() {
+//    var component = super.createEditingComponent();
+//    final Text filterLabel = new Text("All");
+//    var clearBtn = new Button("Clear");
+//    component.getChildren().addAll(clearBtn, filterLabel);
+//
+//    clearBtn.setOnAction(event -> clearFilters(component));
+//
+//    // TODO fire change event and update text
+//    return component;
+//  }
 
   public void clearFilters() {
     clearFilters(null);
@@ -152,7 +155,14 @@ public class ScanSelectionParameter extends ParameterSetParameter {
   }
 
   public void setFilter(@Nullable ScanSelection selection) {
-    ((ScanSelectionFiltersParameters) getEmbeddedParameters()).setFilter(selection);
+    getEmbeddedParameters().setFilter(selection);
+  }
+
+  /**
+   * @return ScanSelection from the current dataset
+   */
+  public @NotNull ScanSelection createFilter() {
+    return getValue() ? getEmbeddedParameters().createFilter();
   }
 
 }

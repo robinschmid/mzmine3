@@ -23,30 +23,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.batchmode;
+package io.github.mzmine.parameters;
 
-import io.github.mzmine.parameters.impl.SimpleParameterSet;
-import io.github.mzmine.parameters.parametertypes.filenames.FileNameListSilentParameter;
-import io.github.mzmine.parameters.parametertypes.submodules.AdvancedParametersParameter;
-import io.github.mzmine.util.ExitCode;
+public interface OptionalParameterContainer {
 
-public class BatchModeParameters extends SimpleParameterSet {
-
-  public static final FileNameListSilentParameter lastFiles = new FileNameListSilentParameter(
-      "Last used files");
-  public static final BatchQueueParameter batchQueue = new BatchQueueParameter();
-
-  public static final AdvancedParametersParameter<AdvancedBatchModeParameters> advanced = new AdvancedParametersParameter<>(
-      new AdvancedBatchModeParameters());
-
-  public BatchModeParameters() {
-    super(batchQueue, advanced, lastFiles);
-  }
-
-  @Override
-  public ExitCode showSetupDialog(boolean valueCheckRequired) {
-    BatchModeParameterSetupDialog dialog = new BatchModeParameterSetupDialog(this);
-    dialog.showAndWait();
-    return dialog.getExitCode();
-  }
+  boolean isSelected();
 }

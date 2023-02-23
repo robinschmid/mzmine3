@@ -22,9 +22,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-package io.github.mzmine.parameters.parametertypes;
+package io.github.mzmine.parameters.parametertypes.submodules;
 
-import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.util.ExitCode;
 import javafx.scene.control.Button;
@@ -33,7 +32,6 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.layout.GridPane;
 
 /**
- *
  * @author aleksandrsmirnov
  */
 public class ParameterSetComponent extends GridPane {
@@ -56,12 +54,14 @@ public class ParameterSetComponent extends GridPane {
 
     btnChange = new Button("Change");
     btnChange.setOnAction(e -> {
-      if (parameters == null)
+      if (parameters == null) {
         return;
+      }
 
       ExitCode exitCode = parameters.showSetupDialog(true);
-      if (exitCode != ExitCode.OK)
+      if (exitCode != ExitCode.OK) {
         return;
+      }
       updateLabel();
 
     });

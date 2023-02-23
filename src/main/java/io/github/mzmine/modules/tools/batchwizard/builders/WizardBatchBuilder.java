@@ -37,10 +37,10 @@ import io.github.mzmine.modules.tools.batchwizard.subparameters.factories.Workfl
 import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.parameters.UserParameter;
-import io.github.mzmine.parameters.parametertypes.AdvancedParametersParameter;
 import io.github.mzmine.parameters.parametertypes.EmbeddedParameterSet;
 import io.github.mzmine.parameters.parametertypes.OptionalParameter;
 import io.github.mzmine.parameters.parametertypes.OptionalValue;
+import io.github.mzmine.parameters.parametertypes.submodules.AdvancedParametersParameter;
 import io.github.mzmine.parameters.parametertypes.submodules.OptionalModuleParameter;
 import java.io.File;
 import java.util.Optional;

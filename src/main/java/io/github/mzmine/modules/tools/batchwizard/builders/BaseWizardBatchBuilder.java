@@ -57,7 +57,6 @@ import io.github.mzmine.modules.dataprocessing.featdet_smoothing.savitzkygolay.S
 import io.github.mzmine.modules.dataprocessing.filter_duplicatefilter.DuplicateFilterModule;
 import io.github.mzmine.modules.dataprocessing.filter_duplicatefilter.DuplicateFilterParameters;
 import io.github.mzmine.modules.dataprocessing.filter_duplicatefilter.DuplicateFilterParameters.FilterMode;
-import io.github.mzmine.modules.dataprocessing.filter_groupms2.FeatureLimitOptions;
 import io.github.mzmine.modules.dataprocessing.filter_groupms2.GroupMS2Module;
 import io.github.mzmine.modules.dataprocessing.filter_groupms2.GroupMS2Parameters;
 import io.github.mzmine.modules.dataprocessing.filter_groupms2.GroupMS2SubParameters;
@@ -112,13 +111,14 @@ import io.github.mzmine.modules.tools.batchwizard.subparameters.MassSpectrometer
 import io.github.mzmine.modules.tools.batchwizard.subparameters.WizardStepParameters;
 import io.github.mzmine.modules.tools.batchwizard.subparameters.factories.MassSpectrometerWizardParameterFactory;
 import io.github.mzmine.parameters.ParameterSet;
-import io.github.mzmine.parameters.ParameterUtils;
 import io.github.mzmine.parameters.parametertypes.ImportType;
 import io.github.mzmine.parameters.parametertypes.MinimumFeaturesFilterParameters;
 import io.github.mzmine.parameters.parametertypes.ModuleComboParameter;
 import io.github.mzmine.parameters.parametertypes.OriginalFeatureListHandlingParameter.OriginalFeatureListOption;
 import io.github.mzmine.parameters.parametertypes.absoluterelative.AbsoluteAndRelativeInt;
 import io.github.mzmine.parameters.parametertypes.absoluterelative.AbsoluteAndRelativeInt.Mode;
+import io.github.mzmine.parameters.parametertypes.combowithinput.FeatureLimitOptions;
+import io.github.mzmine.parameters.parametertypes.combowithinput.RtLimitsFilter;
 import io.github.mzmine.parameters.parametertypes.ionidentity.IonLibraryParameterSet;
 import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelection;
 import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelectionType;
@@ -335,8 +335,8 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
     param.setParameter(ADAPChromatogramBuilderParameters.dataFiles,
         new RawDataFilesSelection(RawDataFilesSelectionType.BATCH_LAST_FILES));
     // crop rt range
-    param.setParameter(ADAPChromatogramBuilderParameters.scanSelection,
-        new ScanSelection(cropRtRange == null ? null : RangeUtils.toFloatRange(cropRtRange), 1));
+    param.getParameter(ADAPChromatogramBuilderParameters.scanSelection).param.setParameter(
+        ADAPChromatogramBuilderParameters.scanSelection, new ScanSelection(cropRtRange, 1));
     param.setParameter(ADAPChromatogramBuilderParameters.minimumScanSpan, minRtDataPoints);
     param.setParameter(ADAPChromatogramBuilderParameters.mzTolerance, mzTolScans);
     param.setParameter(ADAPChromatogramBuilderParameters.suffix, "eics");
@@ -867,15 +867,13 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
     groupMs2Params.setParameter(GroupMS2Parameters.minRequiredSignals, true, 1);
     groupMs2Params.setParameter(GroupMS2Parameters.minimumRelativeFeatureHeight, true, 0.25);
 
-    // retention time
     // rt tolerance is +- while FWHM is the width. still the MS2 might be triggered very early
     // change rt tol depending on number of data points
-    boolean realLimitByRtEdges = minRtDataPoints >= 4 && limitRtEdges;
+    var realRtTol = Objects.requireNonNullElse(rtTol, new RTTolerance(9999999, Unit.MINUTES));
+    var rtFilterMode = minRtDataPoints >= 4 ? FeatureLimitOptions.USE_FEATURE_EDGES
+        : FeatureLimitOptions.USE_TOLERANCE;
     groupMs2Params.setParameter(GroupMS2Parameters.rtFilter,
-        realLimitByRtEdges ? FeatureLimitOptions.USE_FEATURE_EDGES
-            : FeatureLimitOptions.USE_TOLERANCE);
-    groupMs2Params.getParameter(GroupMS2Parameters.rtFilter).getEmbeddedParameter()
-        .setValue(Objects.requireNonNullElse(rtTol, new RTTolerance(9999999, Unit.MINUTES)));
+        new RtLimitsFilter(rtFilterMode, realRtTol));
     return groupMs2Params;
   }
 

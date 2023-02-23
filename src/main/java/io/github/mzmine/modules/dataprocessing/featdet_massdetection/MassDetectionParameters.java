@@ -38,6 +38,7 @@ import io.github.mzmine.modules.dataprocessing.featdet_massdetection.localmaxima
 import io.github.mzmine.modules.dataprocessing.featdet_massdetection.recursive.RecursiveMassDetector;
 import io.github.mzmine.modules.dataprocessing.featdet_massdetection.wavelet.WaveletMassDetector;
 import io.github.mzmine.parameters.Parameter;
+import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.parameters.impl.IonMobilitySupport;
 import io.github.mzmine.parameters.impl.SimpleParameterSet;
 import io.github.mzmine.parameters.parametertypes.BooleanParameter;
@@ -150,7 +151,8 @@ public class MassDetectionParameters extends SimpleParameterSet {
     // Do an additional check for centroid/continuous data and show a
     // warning if there is a potential problem
     long numCentroided = 0, numProfile = 0;
-    ScanSelection scanSel = getValue(scanSelection);
+    ParameterSet value = getValue(scanSelection);
+    ScanSelection scanSel = (ScanSelection) value;
 
     for (RawDataFile file : selectedFiles) {
       Scan[] scans = scanSel.getMatchingScans(file);

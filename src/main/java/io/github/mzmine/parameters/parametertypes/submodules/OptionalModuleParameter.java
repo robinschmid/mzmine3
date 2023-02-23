@@ -25,6 +25,7 @@
 
 package io.github.mzmine.parameters.parametertypes.submodules;
 
+import io.github.mzmine.parameters.OptionalParameterContainer;
 import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.ParameterContainer;
 import io.github.mzmine.parameters.ParameterSet;
@@ -40,7 +41,7 @@ import org.w3c.dom.Element;
  * Parameter represented by check box with additional sub-module
  */
 public class OptionalModuleParameter<T extends ParameterSet> implements
-    UserParameter<Boolean, OptionalModuleComponent>, ParameterContainer,
+    UserParameter<Boolean, OptionalModuleComponent>, OptionalParameterContainer, ParameterContainer,
     EmbeddedParameterSet<T, Boolean> {
 
   private final String name;
@@ -169,5 +170,10 @@ public class OptionalModuleParameter<T extends ParameterSet> implements
 
     return ParameterUtils.equalValues(getEmbeddedParameters(), thatOpt.getEmbeddedParameters(),
         false, false);
+  }
+
+  @Override
+  public boolean isSelected() {
+    return value;
   }
 }

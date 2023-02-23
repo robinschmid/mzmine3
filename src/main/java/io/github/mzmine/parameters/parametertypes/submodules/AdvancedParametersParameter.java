@@ -22,17 +22,18 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-package io.github.mzmine.parameters.parametertypes;
+package io.github.mzmine.parameters.parametertypes.submodules;
 
+import io.github.mzmine.parameters.OptionalParameterContainer;
 import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.ParameterContainer;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.parameters.ParameterUtils;
 import io.github.mzmine.parameters.UserParameter;
+import io.github.mzmine.parameters.parametertypes.EmbeddedParameterSet;
 import java.util.Collection;
 import java.util.Objects;
 import javafx.scene.layout.Priority;
-import org.jetbrains.annotations.NotNull;
 import org.w3c.dom.Element;
 
 /**
@@ -42,13 +43,13 @@ import org.w3c.dom.Element;
  * @author Robin Schmid <a href="https://github.com/robinschmid">https://github.com/robinschmid</a>
  */
 public class AdvancedParametersParameter<T extends ParameterSet> implements
-    UserParameter<Boolean, AdvancedParametersComponent>, ParameterContainer,
-    EmbeddedParameterSet<T, Boolean> {
+    UserParameter<Boolean, AdvancedParametersComponent>, OptionalParameterContainer,
+    ParameterContainer, EmbeddedParameterSet<T, Boolean> {
 
   private final String name;
   private final String description;
   private T embeddedParameters;
-  private Boolean value;
+  private boolean value;
 
   public AdvancedParametersParameter(String name, String description, T embeddedParameters,
       boolean defaultVal) {
@@ -96,23 +97,11 @@ public class AdvancedParametersParameter<T extends ParameterSet> implements
 
   @Override
   public Boolean getValue() {
-    // If the option is selected, first check that the module has all
-    // parameters set
-    if ((value != null) && (value)) {
-      for (Parameter<?> p : embeddedParameters.getParameters()) {
-        if (p instanceof UserParameter<?, ?> up) {
-          Object upValue = up.getValue();
-          if (upValue == null) {
-            return null;
-          }
-        }
-      }
-    }
     return value;
   }
 
   @Override
-  public void setValue(@NotNull Boolean value) {
+  public void setValue(Boolean value) {
     this.value = Objects.requireNonNullElse(value, false);
   }
 
@@ -146,22 +135,16 @@ public class AdvancedParametersParameter<T extends ParameterSet> implements
 
   @Override
   public void saveValueToXML(Element xmlElement) {
-    if (value != null) {
-      xmlElement.setAttribute("selected", value.toString());
-    }
+    xmlElement.setAttribute("selected", String.valueOf(value));
     embeddedParameters.saveValuesToXML(xmlElement);
   }
 
   @Override
   public boolean checkValue(Collection<String> errorMessages) {
-    if (value == null) {
-      errorMessages.add(name + " is not set properly");
-      return false;
+    if (!value) {
+      return true;
     }
-    if (value) {
-      return embeddedParameters.checkParameterValues(errorMessages);
-    }
-    return true;
+    return embeddedParameters.checkParameterValues(errorMessages);
   }
 
   @Override
@@ -182,5 +165,10 @@ public class AdvancedParametersParameter<T extends ParameterSet> implements
 
     return ParameterUtils.equalValues(getEmbeddedParameters(), thatOpt.getEmbeddedParameters(),
         false, false);
+  }
+
+  @Override
+  public boolean isSelected() {
+    return value;
   }
 }

@@ -105,6 +105,9 @@ public class ScanSelectionFiltersParameters extends SimpleParameterSet {
     }
   }
 
+  /**
+   * @return ScanSelection from the current dataset
+   */
   @NotNull
   public ScanSelection createFilter() {
     Range<Integer> scanNumberRange = getValue(scanNumParameter);
