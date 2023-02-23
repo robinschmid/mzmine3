@@ -46,6 +46,14 @@ public class AdvancedParametersComponent extends Accordion {
     TitledPane titledPane = new TitledPane("", paramPane.getParamsPane());
     titledPane.setGraphic(checkBox);
 
+    checkBox.selectedProperty().addListener((observable, oldValue, newValue) -> {
+      paramPane.getParametersAndComponents().values()
+          .forEach(node -> node.setDisable(!checkBox.isSelected()));
+    });
+    
+    paramPane.getParametersAndComponents().values()
+        .forEach(node -> node.setDisable(!checkBox.isSelected()));
+
     getPanes().add(titledPane);
   }
 
