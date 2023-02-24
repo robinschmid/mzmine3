@@ -89,8 +89,10 @@ public class ImageBuilderModule implements MZmineProcessingModule {
   private ParameterSet initParameters(ParameterSet parameters) {
     ParameterSet newParameterSet = MZmineCore.getConfiguration()
         .getModuleParameters(ModularADAPChromatogramBuilderModule.class).cloneParameterSet();
-    newParameterSet.setParameter(ADAPChromatogramBuilderParameters.scanSelection,
-        parameters.getParameter(ImageBuilderParameters.scanSelection).getValue());
+    var scanFilter = parameters.getParameter(ImageBuilderParameters.scanSelection);
+    newParameterSet.getParameter(ADAPChromatogramBuilderParameters.scanSelection)
+        .setValue(scanFilter.getValue(),
+            parameters.getParameter(ImageBuilderParameters.scanSelection).createFilter());
     newParameterSet.setParameter(ADAPChromatogramBuilderParameters.minimumScanSpan,
         parameters.getParameter(ImageBuilderParameters.minTotalSignals).getValue());
     newParameterSet.setParameter(ADAPChromatogramBuilderParameters.mzTolerance,

@@ -113,7 +113,8 @@ public class WizardBatchBuilderFlowInjectLibraryGen extends BaseWizardBatchBuild
 
     param.setParameter(MsnTreeFeatureDetectionParameters.dataFiles,
         new RawDataFilesSelection(RawDataFilesSelectionType.BATCH_LAST_FILES));
-    param.setParameter(MsnTreeFeatureDetectionParameters.scanSelection, new ScanSelection(1));
+    param.getParameter(MsnTreeFeatureDetectionParameters.scanSelection)
+        .setValue(true, ScanSelection.MS1);
     param.setParameter(MsnTreeFeatureDetectionParameters.mzTol, mzTolScans);
     param.setParameter(MsnTreeFeatureDetectionParameters.suffix, "msn trees");
 

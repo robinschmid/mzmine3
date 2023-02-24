@@ -112,6 +112,7 @@ import io.github.mzmine.modules.tools.batchwizard.subparameters.MassSpectrometer
 import io.github.mzmine.modules.tools.batchwizard.subparameters.WizardStepParameters;
 import io.github.mzmine.modules.tools.batchwizard.subparameters.factories.MassSpectrometerWizardParameterFactory;
 import io.github.mzmine.parameters.ParameterSet;
+import io.github.mzmine.parameters.ParameterUtils;
 import io.github.mzmine.parameters.parametertypes.ImportType;
 import io.github.mzmine.parameters.parametertypes.MinimumFeaturesFilterParameters;
 import io.github.mzmine.parameters.parametertypes.ModuleComboParameter;
@@ -336,8 +337,8 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
     param.setParameter(ADAPChromatogramBuilderParameters.dataFiles,
         new RawDataFilesSelection(RawDataFilesSelectionType.BATCH_LAST_FILES));
     // crop rt range
-    param.getParameter(ADAPChromatogramBuilderParameters.scanSelection).param.setParameter(
-        ADAPChromatogramBuilderParameters.scanSelection, new ScanSelection(cropRtRange, 1));
+    param.getParameter(ADAPChromatogramBuilderParameters.scanSelection)
+        .setValue(true, new ScanSelection(cropRtRange, 1));
     param.setParameter(ADAPChromatogramBuilderParameters.minimumScanSpan, minRtDataPoints);
     param.setParameter(ADAPChromatogramBuilderParameters.mzTolerance, mzTolScans);
     param.setParameter(ADAPChromatogramBuilderParameters.suffix, "eics");
@@ -761,8 +762,9 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
     param.setParameter(MassDetectionParameters.dataFiles,
         new RawDataFilesSelection(RawDataFilesSelectionType.BATCH_LAST_FILES));
     // if MS level 0 then apply to all scans
-    param.setParameter(MassDetectionParameters.scanSelection,
-        new ScanSelection(msLevel < 1 ? null : msLevel));
+    var filterActive = msLevel < 1;
+    var scanFilter = filterActive ? ScanSelection.ALL : new ScanSelection(msLevel);
+    param.getParameter(MassDetectionParameters.scanSelection).setValue(filterActive, scanFilter);
     param.setParameter(MassDetectionParameters.scanTypes, scanTypes);
     param.setParameter(MassDetectionParameters.massDetector,
         new MZmineProcessingStepImpl<>(MZmineCore.getModuleInstance(AutoMassDetector.class),
@@ -778,7 +780,8 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
         .getModuleParameters(MobilityScanMergerModule.class).cloneParameterSet();
 
     param.setParameter(MobilityScanMergerParameters.mzTolerance, mzTolScans);
-    param.setParameter(MobilityScanMergerParameters.scanSelection, new ScanSelection());
+    param.getParameter(MobilityScanMergerParameters.scanSelection)
+        .setValue(true, ScanSelection.MS1);
     param.setParameter(MobilityScanMergerParameters.noiseLevel,
         0d); // the noise level of the mass detector already did all the filtering we want (at least in the wizard)
     param.setParameter(MobilityScanMergerParameters.mergingType, IntensityMergingType.SUMMED);

@@ -24,17 +24,8 @@
  */
 package io.github.mzmine.parameters.parametertypes.submodules;
 
-import io.github.mzmine.parameters.OptionalParameterContainer;
-import io.github.mzmine.parameters.Parameter;
-import io.github.mzmine.parameters.ParameterContainer;
 import io.github.mzmine.parameters.ParameterSet;
-import io.github.mzmine.parameters.ParameterUtils;
-import io.github.mzmine.parameters.UserParameter;
-import io.github.mzmine.parameters.parametertypes.EmbeddedParameterSet;
-import java.util.Collection;
-import java.util.Objects;
 import javafx.scene.layout.Priority;
-import org.w3c.dom.Element;
 
 /**
  * This adds an accordion to the parameter pane with additional parameters. Those parameters should
@@ -42,37 +33,21 @@ import org.w3c.dom.Element;
  *
  * @author Robin Schmid <a href="https://github.com/robinschmid">https://github.com/robinschmid</a>
  */
-public class AdvancedParametersParameter<T extends ParameterSet> implements
-    UserParameter<Boolean, AdvancedParametersComponent>, OptionalParameterContainer,
-    ParameterContainer, EmbeddedParameterSet<T, Boolean> {
+public class AdvancedParametersParameter<PARAMETERS extends ParameterSet> extends
+    OptionalEmbeddedParametersParameter<PARAMETERS, AdvancedParametersComponent> {
 
-  private final String name;
-  private final String description;
-  private T embeddedParameters;
-  private boolean value;
-
-  public AdvancedParametersParameter(String name, String description, T embeddedParameters,
+  public AdvancedParametersParameter(String name, String description, PARAMETERS embeddedParameters,
       boolean defaultVal) {
-    this.name = name;
-    this.description = description;
-    this.embeddedParameters = embeddedParameters;
-    value = defaultVal;
+    super(name, description, defaultVal, embeddedParameters);
   }
 
-  public AdvancedParametersParameter(String name, String description, T embeddedParameters) {
+  public AdvancedParametersParameter(String name, String description,
+      PARAMETERS embeddedParameters) {
     this(name, description, embeddedParameters, false);
   }
 
-  public AdvancedParametersParameter(T embeddedParameters) {
+  public AdvancedParametersParameter(PARAMETERS embeddedParameters) {
     this("Advanced", "Advanced parameters", embeddedParameters, false);
-  }
-
-  public T getEmbeddedParameters() {
-    return embeddedParameters;
-  }
-
-  public void setEmbeddedParameters(T embeddedParameters) {
-    this.embeddedParameters = embeddedParameters;
   }
 
   @Override
@@ -81,94 +56,17 @@ public class AdvancedParametersParameter<T extends ParameterSet> implements
   }
 
   @Override
-  public String getName() {
-    return name;
-  }
-
-  @Override
-  public String getDescription() {
-    return description;
-  }
-
-  @Override
   public AdvancedParametersComponent createEditingComponent() {
     return new AdvancedParametersComponent(embeddedParameters, name, value);
   }
 
   @Override
-  public Boolean getValue() {
-    return value;
-  }
-
-  @Override
-  public void setValue(Boolean value) {
-    this.value = Objects.requireNonNullElse(value, false);
-  }
-
-  @Override
-  public AdvancedParametersParameter<T> cloneParameter() {
-    final T embeddedParametersClone = (T) embeddedParameters.cloneParameterSet();
-    final AdvancedParametersParameter<T> copy = new AdvancedParametersParameter<>(name, description,
-        embeddedParametersClone);
+  public AdvancedParametersParameter<PARAMETERS> cloneParameter() {
+    final PARAMETERS embeddedParametersClone = (PARAMETERS) embeddedParameters.cloneParameterSet();
+    final AdvancedParametersParameter<PARAMETERS> copy = new AdvancedParametersParameter<>(name,
+        description, embeddedParametersClone);
     copy.setValue(this.getValue());
     return copy;
   }
 
-  @Override
-  public void setValueFromComponent(AdvancedParametersComponent component) {
-    this.value = component.isSelected();
-    component.getValue();
-  }
-
-  @Override
-  public void setValueToComponent(AdvancedParametersComponent component, Boolean newValue) {
-    component.setSelected(Objects.requireNonNullElse(newValue, false));
-    component.setValue(embeddedParameters);
-  }
-
-  @Override
-  public void loadValueFromXML(Element xmlElement) {
-    embeddedParameters.loadValuesFromXML(xmlElement);
-    String selectedAttr = xmlElement.getAttribute("selected");
-    this.value = Objects.requireNonNullElse(Boolean.valueOf(selectedAttr), false);
-  }
-
-  @Override
-  public void saveValueToXML(Element xmlElement) {
-    xmlElement.setAttribute("selected", String.valueOf(value));
-    embeddedParameters.saveValuesToXML(xmlElement);
-  }
-
-  @Override
-  public boolean checkValue(Collection<String> errorMessages) {
-    if (!value) {
-      return true;
-    }
-    return embeddedParameters.checkParameterValues(errorMessages);
-  }
-
-  @Override
-  public void setSkipSensitiveParameters(boolean skipSensitiveParameters) {
-    // delegate skipSensitiveParameters to embedded ParameterSet
-    embeddedParameters.setSkipSensitiveParameters(skipSensitiveParameters);
-  }
-
-  @Override
-  public boolean valueEquals(Parameter<?> that) {
-    if (!(that instanceof AdvancedParametersParameter thatOpt)) {
-      return false;
-    }
-
-    if (value != thatOpt.getValue()) {
-      return false;
-    }
-
-    return ParameterUtils.equalValues(getEmbeddedParameters(), thatOpt.getEmbeddedParameters(),
-        false, false);
-  }
-
-  @Override
-  public boolean isSelected() {
-    return value;
-  }
 }

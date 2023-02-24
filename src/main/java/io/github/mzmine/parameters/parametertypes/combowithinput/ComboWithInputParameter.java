@@ -27,6 +27,7 @@ package io.github.mzmine.parameters.parametertypes.combowithinput;
 
 import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.UserParameter;
+import io.github.mzmine.parameters.parametertypes.EmbeddedParameter;
 import java.util.Collection;
 import java.util.Objects;
 import javafx.collections.FXCollections;
@@ -43,45 +44,26 @@ import org.w3c.dom.Element;
  * @param <EnumType>  the enum type is selectable in a combobox
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-public abstract class ComboWithInputParameter<ValueType extends ComboWithInputValue<EnumType, ?>, EnumType, EmbeddedParameterType extends UserParameter<?, ?>> implements
-    UserParameter<ValueType, ComboWithInputComponent<EnumType>>,
-    EmbeddedParameter<EmbeddedParameterType> {
+public abstract class ComboWithInputParameter<ValueType extends ComboWithInputValue<EnumType, ?>, EnumType, EmbeddedParameterType extends UserParameter<?, ?>> extends
+    EmbeddedParameter<ValueType, EmbeddedParameterType, ComboWithInputComponent<EnumType>> {
 
-  protected final EmbeddedParameterType embeddedParameter;
   protected final ObservableList<EnumType> choices;
   private final EnumType inputTrigger;
   protected EnumType selectedChoice;
 
   public ComboWithInputParameter(EmbeddedParameterType embeddedParameter, final EnumType[] values,
-      final EnumType selected, final EnumType inputTrigger) {
-    this(embeddedParameter, FXCollections.observableArrayList(values), selected, inputTrigger);
+      final EnumType selected, final EnumType inputTrigger, ValueType defaultValue) {
+    this(embeddedParameter, FXCollections.observableArrayList(values), selected, inputTrigger,
+        defaultValue);
   }
 
   public ComboWithInputParameter(EmbeddedParameterType embeddedParameter,
-      final ObservableList<EnumType> values, final EnumType selected, final EnumType inputTrigger) {
-    this.embeddedParameter = embeddedParameter;
+      final ObservableList<EnumType> values, final EnumType selected, final EnumType inputTrigger,
+      ValueType defaultValue) {
+    super(null, embeddedParameter);
     choices = FXCollections.observableArrayList(values);
     selectedChoice = selected;
     this.inputTrigger = inputTrigger;
-  }
-
-  @Override
-  public EmbeddedParameterType getEmbeddedParameter() {
-    return embeddedParameter;
-  }
-
-  public Object getEmbeddedValue() {
-    return embeddedParameter.getValue();
-  }
-
-  @Override
-  public String getName() {
-    return embeddedParameter.getName();
-  }
-
-  @Override
-  public String getDescription() {
-    return embeddedParameter.getDescription();
   }
 
   @Override

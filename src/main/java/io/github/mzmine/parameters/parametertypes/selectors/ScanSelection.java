@@ -49,6 +49,12 @@ public record ScanSelection(Range<Integer> scanNumberRange, Integer baseFilterin
                             MsLevelFilter msLevel, String scanDefinition) {
 
   /**
+   * Includes all scans
+   */
+  public static final ScanSelection ALL = new ScanSelection(null);
+  public static final ScanSelection MS1 = new ScanSelection(1);
+
+  /**
    * Uses MS level 1 only
    */
   public ScanSelection() {
@@ -87,7 +93,7 @@ public record ScanSelection(Range<Integer> scanNumberRange, Integer baseFilterin
     return spectrumType;
   }
 
-  public MsLevelFilter getMsLevel() {
+  public MsLevelFilter getMsLevelFilter() {
     return msLevel;
   }
 
@@ -306,8 +312,8 @@ public record ScanSelection(Range<Integer> scanNumberRange, Integer baseFilterin
     return Objects.equals(getScanNumberRange(), that.getScanNumberRange()) && Objects.equals(
         getScanMobilityRange(), that.getScanMobilityRange()) && Objects.equals(getScanRTRange(),
         that.getScanRTRange()) && getPolarity() == that.getPolarity()
-        && getSpectrumType() == that.getSpectrumType() && Objects.equals(getMsLevel(),
-        that.getMsLevel()) && Objects.equals(getBaseFilteringInteger(),
+        && getSpectrumType() == that.getSpectrumType() && Objects.equals(getMsLevelFilter(),
+        that.getMsLevelFilter()) && Objects.equals(getBaseFilteringInteger(),
         that.getBaseFilteringInteger()) && Objects.equals(getScanDefinition(),
         that.getScanDefinition());
   }
@@ -315,7 +321,7 @@ public record ScanSelection(Range<Integer> scanNumberRange, Integer baseFilterin
   @Override
   public int hashCode() {
     return Objects.hash(getScanNumberRange(), getScanMobilityRange(), getScanRTRange(),
-        getPolarity(), getSpectrumType(), getMsLevel(), getBaseFilteringInteger(),
+        getPolarity(), getSpectrumType(), getMsLevelFilter(), getBaseFilteringInteger(),
         getScanDefinition());
   }
 
@@ -357,7 +363,7 @@ public record ScanSelection(Range<Integer> scanNumberRange, Integer baseFilterin
 
   public ScanSelection cloneWithNewRtRange(Range<Double> rtRange) {
     return new ScanSelection(getScanNumberRange(), getBaseFilteringInteger(), rtRange,
-        getScanMobilityRange(), getPolarity(), getSpectrumType(), getMsLevel(),
+        getScanMobilityRange(), getPolarity(), getSpectrumType(), getMsLevelFilter(),
         getScanDefinition());
   }
 }

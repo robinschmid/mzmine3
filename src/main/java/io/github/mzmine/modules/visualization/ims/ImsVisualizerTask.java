@@ -97,7 +97,7 @@ public class ImsVisualizerTask extends AbstractTask {
     paintScaleParameter = parameters.getParameter(ImsVisualizerParameters.paintScale).getValue();
 
     parameterSet = parameters;
-    scans = parameters.getParameter(ImsVisualizerParameters.scanSelection).getValue()
+    scans = parameters.getParameter(ImsVisualizerParameters.scanSelection).createFilter()
         .getMatchingScans(dataFiles[0]);
     for (int i = 0; i < scans.length; i++) {
       if (scans[i].getMobility() < 0) {

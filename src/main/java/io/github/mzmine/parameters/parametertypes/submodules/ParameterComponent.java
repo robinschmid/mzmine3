@@ -22,26 +22,26 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+
 package io.github.mzmine.parameters.parametertypes.submodules;
 
-import io.github.mzmine.parameters.ParameterSet;
-import javafx.scene.control.Accordion;
-import javafx.scene.control.TitledPane;
-
 /**
- * Titled pane accordion
+ * Basis for parameter components
  *
- * @author Robin Schmid <a href="https://github.com/robinschmid">https://github.com/robinschmid</a>
+ * @param <ValueType> value of this parameter
  */
-public class AdvancedParametersComponent extends OptionalEmbeddedParametersComponent {
+public interface ParameterComponent<ValueType> {
 
-  public AdvancedParametersComponent(final ParameterSet parameters, String title, boolean state) {
-    super(parameters, title, state);
+  /**
+   * @return value from component
+   */
+  ValueType getValue();
 
-    TitledPane titledPane = new TitledPane("", paramPane.getParamsPane());
-    titledPane.setGraphic(checkBox);
-
-    setCenter(new Accordion(titledPane));
-  }
+  /**
+   * set value to component
+   *
+   * @param value new value
+   */
+  void setValue(ValueType value);
 
 }

@@ -53,44 +53,46 @@ import org.jetbrains.annotations.Nullable;
 
 public class ChromatogramBuilderTask extends AbstractTask {
 
-  private Logger logger = Logger.getLogger(this.getClass().getName());
+  private final Logger logger = Logger.getLogger(this.getClass().getName());
 
-  private MZmineProject project;
-  private RawDataFile dataFile;
+  private final MZmineProject project;
+  private final RawDataFile dataFile;
 
   // scan counter
   private int processedScans = 0, totalScans;
-  private ScanSelection scanSelection;
+  private final ScanSelection scanSelection;
   private int newPeakID = 1;
   private Scan[] scans;
 
   // User parameters
-  private String suffix;
-  private MZTolerance mzTolerance;
-  private double minimumTimeSpan, minimumHeight;
+  private final String suffix;
+  private final MZTolerance mzTolerance;
+  private final double minimumTimeSpan;
+  private final double minimumHeight;
 
   private ModularFeatureList newPeakList;
-  private ParameterSet parameters;
+  private final ParameterSet parameters;
 
   /**
    * @param dataFile
    * @param parameters
    */
   public ChromatogramBuilderTask(MZmineProject project, RawDataFile dataFile,
-      ParameterSet parameters, @Nullable MemoryMapStorage storage, @NotNull Instant moduleCallDate) {
+      ParameterSet parameters, @Nullable MemoryMapStorage storage,
+      @NotNull Instant moduleCallDate) {
     super(storage, moduleCallDate);
 
     this.project = project;
     this.dataFile = dataFile;
-    this.scanSelection =
-        parameters.getParameter(ChromatogramBuilderParameters.scanSelection).getValue();
+    this.scanSelection = parameters.getParameter(ChromatogramBuilderParameters.scanSelection)
+        .createFilter();
 
-    this.mzTolerance =
-        parameters.getParameter(ChromatogramBuilderParameters.mzTolerance).getValue();
-    this.minimumTimeSpan =
-        parameters.getParameter(ChromatogramBuilderParameters.minimumTimeSpan).getValue();
-    this.minimumHeight =
-        parameters.getParameter(ChromatogramBuilderParameters.minimumHeight).getValue();
+    this.mzTolerance = parameters.getParameter(ChromatogramBuilderParameters.mzTolerance)
+        .getValue();
+    this.minimumTimeSpan = parameters.getParameter(ChromatogramBuilderParameters.minimumTimeSpan)
+        .getValue();
+    this.minimumHeight = parameters.getParameter(ChromatogramBuilderParameters.minimumHeight)
+        .getValue();
 
     this.suffix = parameters.getParameter(ChromatogramBuilderParameters.suffix).getValue();
     this.parameters = parameters;
@@ -107,10 +109,11 @@ public class ChromatogramBuilderTask extends AbstractTask {
    * @see io.github.mzmine.taskcontrol.Task#getFinishedPercentage()
    */
   public double getFinishedPercentage() {
-    if (totalScans == 0)
+    if (totalScans == 0) {
       return 0;
-    else
+    } else {
       return (double) processedScans / totalScans;
+    }
   }
 
   public RawDataFile getDataFile() {
@@ -148,28 +151,30 @@ public class ChromatogramBuilderTask extends AbstractTask {
     newPeakList = new ModularFeatureList(dataFile + " " + suffix, getMemoryMapStorage(), dataFile);
 
     Chromatogram[] chromatograms;
-    HighestDataPointConnector massConnector = new HighestDataPointConnector(dataFile,
-        scans, minimumTimeSpan, minimumHeight, mzTolerance);
+    HighestDataPointConnector massConnector = new HighestDataPointConnector(dataFile, scans,
+        minimumTimeSpan, minimumHeight, mzTolerance);
 
     for (Scan scan : scans) {
 
-      if (isCanceled())
+      if (isCanceled()) {
         return;
+      }
 
       MassList massList = scan.getMassList();
       if (massList == null) {
         setStatus(TaskStatus.ERROR);
-        setErrorMessage("Scan " + dataFile + " #" + scan.getScanNumber()
-            + " does not have a mass list");
+        setErrorMessage(
+            "Scan " + dataFile + " #" + scan.getScanNumber() + " does not have a mass list");
         return;
       }
 
-      DataPoint mzValues[] = massList.getDataPoints();
+      DataPoint[] mzValues = massList.getDataPoints();
 
       if (mzValues == null) {
         setStatus(TaskStatus.ERROR);
-        setErrorMessage("Mass list does not contain m/z values for scan #"
-            + scan.getScanNumber() + " of file " + dataFile);
+        setErrorMessage(
+            "Mass list does not contain m/z values for scan #" + scan.getScanNumber() + " of file "
+                + dataFile);
         return;
       }
 
@@ -197,8 +202,9 @@ public class ChromatogramBuilderTask extends AbstractTask {
 
     dataFile.getAppliedMethods().forEach(m -> newPeakList.getAppliedMethods().add(m));
     // Add new peaklist to the project
-    newPeakList.getAppliedMethods().add(new SimpleFeatureListAppliedMethod(
-        ChromatogramBuilderModule.class, parameters, getModuleCallDate()));
+    newPeakList.getAppliedMethods().add(
+        new SimpleFeatureListAppliedMethod(ChromatogramBuilderModule.class, parameters,
+            getModuleCallDate()));
     project.addFeatureList(newPeakList);
 
     // Add quality parameters to peaks

@@ -79,10 +79,10 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
 
     assert allFiles != null;
 
-    final ChromatogramVisualizerModule myInstance =
-        MZmineCore.getModuleInstance(ChromatogramVisualizerModule.class);
-    final TICVisualizerParameters myParameters = (TICVisualizerParameters) MZmineCore
-        .getConfiguration().getModuleParameters(ChromatogramVisualizerModule.class);
+    final ChromatogramVisualizerModule myInstance = MZmineCore.getModuleInstance(
+        ChromatogramVisualizerModule.class);
+    final TICVisualizerParameters myParameters = (TICVisualizerParameters) MZmineCore.getConfiguration()
+        .getModuleParameters(ChromatogramVisualizerModule.class);
     myParameters.getParameter(TICVisualizerParameters.PLOT_TYPE).setValue(TICPlotType.BASEPEAK);
 
     if (scanSelection != null) {
@@ -93,8 +93,8 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
       myParameters.getParameter(TICVisualizerParameters.MZ_RANGE).setValue(mzRange);
     }
 
-    if (myParameters.showSetupDialog(true, allFiles, selectedFiles, allPeaks,
-        selectedPeaks) == ExitCode.OK) {
+    if (myParameters.showSetupDialog(true, allFiles, selectedFiles, allPeaks, selectedPeaks)
+        == ExitCode.OK) {
 
       final TICVisualizerParameters p = (TICVisualizerParameters) myParameters.cloneParameterSet();
 
@@ -112,8 +112,8 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
       final Feature[] selectionPeaks, final Map<Feature, String> peakLabels,
       final ScanSelection scanSelection, final TICPlotType plotType, final Range<Double> mzRange) {
 
-    TICVisualizerTab window = new TICVisualizerTab(dataFiles, plotType, scanSelection,
-        mzRange, Arrays.asList(selectionPeaks), peakLabels);
+    TICVisualizerTab window = new TICVisualizerTab(dataFiles, plotType, scanSelection, mzRange,
+        Arrays.asList(selectionPeaks), peakLabels);
     MZmineCore.getDesktop().addTab(window);
   }
 
@@ -121,8 +121,8 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
       final List<Feature> selectionPeaks, final Map<Feature, String> peakLabels,
       final ScanSelection scanSelection, final TICPlotType plotType, final Range<Double> mzRange) {
 
-    TICVisualizerTab window = new TICVisualizerTab(dataFiles, plotType, scanSelection,
-        mzRange, selectionPeaks, peakLabels);
+    TICVisualizerTab window = new TICVisualizerTab(dataFiles, plotType, scanSelection, mzRange,
+        selectionPeaks, peakLabels);
     MZmineCore.getDesktop().addTab(window);
   }
 
@@ -135,7 +135,7 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
     for (ModularFeatureListRow row : rows) {
       for (final Feature f : row.getFeatures()) {
         final ModularFeature feature = (ModularFeature) f;
-        if(feature == null || feature.getFeatureStatus() == FeatureStatus.UNKNOWN) {
+        if (feature == null || feature.getFeatureStatus() == FeatureStatus.UNKNOWN) {
           continue;
         }
         if (mzRange == null) {
@@ -178,8 +178,8 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
     final ArrayList<Feature> allFeatures = new ArrayList<>();
     final ArrayList<Feature> selectedFeatures = new ArrayList<>();
     final Set<RawDataFile> allFiles = new HashSet<>();
-    allFiles.addAll(rows.stream().flatMap(row -> row.getRawDataFiles().stream()).
-        collect(Collectors.toSet()));
+    allFiles.addAll(
+        rows.stream().flatMap(row -> row.getRawDataFiles().stream()).collect(Collectors.toSet()));
 
     for (final ModularFeatureListRow row : rows) {
 
@@ -187,7 +187,7 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
       final FeatureIdentity identity = row.getPreferredFeatureIdentity();
 
       for (final Feature feature : row.getFeatures()) {
-        if(feature == null || feature.getFeatureStatus() == FeatureStatus.UNKNOWN) {
+        if (feature == null || feature.getFeatureStatus() == FeatureStatus.UNKNOWN) {
           continue;
         }
 
@@ -211,22 +211,19 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
 
     ScanSelection scanSelection = new ScanSelection(1);
 
-    setupNewTICVisualizer(
-        MZmineCore.getProjectManager().getCurrentProject().getDataFiles(),
+    setupNewTICVisualizer(MZmineCore.getProjectManager().getCurrentProject().getDataFiles(),
         allFiles.toArray(new RawDataFile[0]), allFeatures.toArray(new Feature[allFeatures.size()]),
-        selectedFeatures.toArray(new Feature[selectedFeatures.size()]), labelsMap,
-        scanSelection, mzRange);
+        selectedFeatures.toArray(new Feature[selectedFeatures.size()]), labelsMap, scanSelection,
+        mzRange);
   }
 
   @Override
-  public @NotNull
-  String getName() {
+  public @NotNull String getName() {
     return MODULE_NAME;
   }
 
   @Override
-  public @NotNull
-  String getDescription() {
+  public @NotNull String getDescription() {
     return MODULE_DESCRIPTION;
   }
 
@@ -236,28 +233,28 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
       @NotNull Collection<Task> tasks, @NotNull Instant moduleCallDate) {
     final RawDataFile[] dataFiles = parameters.getParameter(TICVisualizerParameters.DATA_FILES)
         .getValue().getMatchingRawDataFiles();
-    final Range<Double> mzRange =
-        parameters.getParameter(TICVisualizerParameters.MZ_RANGE).getValue();
-    final ScanSelection scanSelection =
-        parameters.getParameter(TICVisualizerParameters.scanSelection).getValue();
-    final TICPlotType plotType =
-        parameters.getParameter(TICVisualizerParameters.PLOT_TYPE).getValue();
-    final List<Feature> selectionPeaks =
-        parameters.getParameter(TICVisualizerParameters.PEAKS).getValue();
+    final Range<Double> mzRange = parameters.getParameter(TICVisualizerParameters.MZ_RANGE)
+        .getValue();
+    final ScanSelection scanSelection = parameters.getParameter(
+        TICVisualizerParameters.scanSelection).createFilter();
+    final TICPlotType plotType = parameters.getParameter(TICVisualizerParameters.PLOT_TYPE)
+        .getValue();
+    final List<Feature> selectionPeaks = parameters.getParameter(TICVisualizerParameters.PEAKS)
+        .getValue();
 
     // Add the window to the desktop only if we actually have any raw
     // data to show.
     boolean weHaveData = false;
     for (RawDataFile dataFile : dataFiles) {
-      Scan selectedScans[] = scanSelection.getMatchingScans(dataFile);
+      Scan[] selectedScans = scanSelection.getMatchingScans(dataFile);
       if (selectedScans.length > 0) {
         weHaveData = true;
       }
     }
 
     if (weHaveData) {
-      TICVisualizerTab window = new TICVisualizerTab(dataFiles, plotType, scanSelection,
-          mzRange, selectionPeaks, ((TICVisualizerParameters) parameters).getPeakLabelMap());
+      TICVisualizerTab window = new TICVisualizerTab(dataFiles, plotType, scanSelection, mzRange,
+          selectionPeaks, ((TICVisualizerParameters) parameters).getPeakLabelMap());
       MZmineCore.getDesktop().addTab(window);
 
     } else {
@@ -269,14 +266,12 @@ public class ChromatogramVisualizerModule implements MZmineRunnableModule {
   }
 
   @Override
-  public @NotNull
-  MZmineModuleCategory getModuleCategory() {
+  public @NotNull MZmineModuleCategory getModuleCategory() {
     return MZmineModuleCategory.VISUALIZATIONRAWDATA;
   }
 
   @Override
-  public @NotNull
-  Class<? extends ParameterSet> getParameterSetClass() {
+  public @NotNull Class<? extends ParameterSet> getParameterSetClass() {
     return TICVisualizerParameters.class;
   }
 }

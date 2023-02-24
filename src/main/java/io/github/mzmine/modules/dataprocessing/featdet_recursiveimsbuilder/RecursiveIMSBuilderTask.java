@@ -93,45 +93,43 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
   private final int numConsecutiveFrames;
   private final int numDataPoints;
   private final int binWidth;
-  private AtomicInteger stepProcessed = new AtomicInteger(0);
+  private final AtomicInteger stepProcessed = new AtomicInteger(0);
   private int stepTotal = 0;
   private int currentStep = 0;
 
   public RecursiveIMSBuilderTask(@Nullable MemoryMapStorage storage,
-      @NotNull final IMSRawDataFile file,
-      @NotNull final ParameterSet parameters, MZmineProject project, @NotNull Instant moduleCallDate) {
+      @NotNull final IMSRawDataFile file, @NotNull final ParameterSet parameters,
+      MZmineProject project, @NotNull Instant moduleCallDate) {
     super(storage, moduleCallDate);
 
     this.file = file;
     this.parameters = parameters;
-    scanSelection = parameters.getParameter(RecursiveIMSBuilderParameters.scanSelection).getValue();
+    scanSelection = parameters.getParameter(RecursiveIMSBuilderParameters.scanSelection)
+        .createFilter();
     tolerance = parameters.getParameter(RecursiveIMSBuilderParameters.mzTolerance).getValue();
     numConsecutiveFrames = parameters.getParameter(RecursiveIMSBuilderParameters.minNumConsecutive)
         .getValue();
     numDataPoints = parameters.getParameter(RecursiveIMSBuilderParameters.minNumDatapoints)
         .getValue();
 
-    final var advancedParam = parameters
-        .getParameter(RecursiveIMSBuilderParameters.advancedParameters).getValue();
+    final var advancedParam = parameters.getParameter(
+        RecursiveIMSBuilderParameters.advancedParameters).getValue();
     binWidth = switch (file.getMobilityType()) {
       case TIMS ->
           advancedParam.getParameter(RecursiveIMSBuilderAdvancedParameters.timsBinningWidth)
-              .getValue() ? advancedParam
-              .getParameter(RecursiveIMSBuilderAdvancedParameters.timsBinningWidth)
-              .getEmbeddedParameter().getValue()
-              : BinningMobilogramDataAccess.getRecommendedBinWidth(file);
+              .getValue() ? advancedParam.getParameter(
+                  RecursiveIMSBuilderAdvancedParameters.timsBinningWidth).getEmbeddedParameter()
+              .getValue() : BinningMobilogramDataAccess.getRecommendedBinWidth(file);
       case DRIFT_TUBE ->
           advancedParam.getParameter(RecursiveIMSBuilderAdvancedParameters.dtimsBinningWidth)
-              .getValue() ? advancedParam
-              .getParameter(RecursiveIMSBuilderAdvancedParameters.dtimsBinningWidth)
-              .getEmbeddedParameter().getValue()
-              : BinningMobilogramDataAccess.getRecommendedBinWidth(file);
+              .getValue() ? advancedParam.getParameter(
+                  RecursiveIMSBuilderAdvancedParameters.dtimsBinningWidth).getEmbeddedParameter()
+              .getValue() : BinningMobilogramDataAccess.getRecommendedBinWidth(file);
       case TRAVELING_WAVE ->
           advancedParam.getParameter(RecursiveIMSBuilderAdvancedParameters.twimsBinningWidth)
-              .getValue() ? advancedParam
-              .getParameter(RecursiveIMSBuilderAdvancedParameters.twimsBinningWidth)
-              .getEmbeddedParameter().getValue()
-              : BinningMobilogramDataAccess.getRecommendedBinWidth(file);
+              .getValue() ? advancedParam.getParameter(
+                  RecursiveIMSBuilderAdvancedParameters.twimsBinningWidth).getEmbeddedParameter()
+              .getValue() : BinningMobilogramDataAccess.getRecommendedBinWidth(file);
       default -> 1;
     };
 
@@ -141,10 +139,10 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
   private static int findMostFrequentMobilityScanNumber(List<IonMobilitySeries> mobilograms) {
     List<MobilityScan> scans = mobilograms.stream().flatMap(mob -> mob.getSpectra().stream())
         .collect(Collectors.toList());
-    Map<Integer, Long> count = scans.stream().collect(Collectors
-        .groupingBy(MobilityScan::getMobilityScanNumber, Collectors.counting()));
-    Entry<Integer, Long> mostFrequent = count.entrySet().stream().max(
-        Comparator.comparingLong(Entry::getValue)).get();
+    Map<Integer, Long> count = scans.stream()
+        .collect(Collectors.groupingBy(MobilityScan::getMobilityScanNumber, Collectors.counting()));
+    Entry<Integer, Long> mostFrequent = count.entrySet().stream()
+        .max(Comparator.comparingLong(Entry::getValue)).get();
     return mostFrequent.getKey();
   }
 
@@ -162,8 +160,8 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
   public void run() {
     setStatus(TaskStatus.PROCESSING);
 
-    final MobilityScanDataAccess access = EfficientDataAccess
-        .of(file, MobilityScanDataType.CENTROID, scanSelection);
+    final MobilityScanDataAccess access = EfficientDataAccess.of(file,
+        MobilityScanDataType.CENTROID, scanSelection);
 
     logger.finest(() -> "Extracting data points from mobility scans and building mobilograms...");
     stepProcessed.set(0);
@@ -179,8 +177,7 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
     currentStep++;
     stepProcessed.set(0);
     stepTotal = sortedMobilograms.size();
-    final List<TempIMTrace> ionMobilityTraces = createTempIMTraces(
-        sortedMobilograms, tolerance);
+    final List<TempIMTrace> ionMobilityTraces = createTempIMTraces(sortedMobilograms, tolerance);
     if (isCanceled()) {
       return;
     }
@@ -217,8 +214,8 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
         file);
     flist.setSelectedScans(file, access.getEligibleFrames());
     logger.finest(() -> "Creation BinningMobilogramDataAccess for raw data file " + file.getName());
-    final BinningMobilogramDataAccess binningMobilogramDataAccess = EfficientDataAccess
-        .of(file, binWidth);
+    final BinningMobilogramDataAccess binningMobilogramDataAccess = EfficientDataAccess.of(file,
+        binWidth);
     int id = 0;
     final List<TempIMTrace> sortedTraces = validTraces.stream()
         .sorted(Comparator.comparingDouble(TempIMTrace::getCenterMz)).collect(Collectors.toList());
@@ -264,8 +261,7 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
       int reqConsecutive, int numDataPoints) {
 
     final int numDp = trace.getNumberOfDataPoints();
-    if (numDp < numDataPoints
-        || trace.getMobilograms().size() < reqConsecutive) {
+    if (numDp < numDataPoints || trace.getMobilograms().size() < reqConsecutive) {
       return false;
     }
 
@@ -294,21 +290,21 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
 
       // remove noise signals
       if (i == 0) {
-        if (mobilograms.get(i + 1).getSpectrum(0).getFrame() != eligibleFrames
-            .get(allFramesIndex + 1)) {
+        if (mobilograms.get(i + 1).getSpectrum(0).getFrame() != eligibleFrames.get(
+            allFramesIndex + 1)) {
           // first signal is noise
           noise.add(mobilogram);
         }
       } else if (i == mobilogramsSize - 1) {
-        if (mobilograms.get(i - 1).getSpectrum(0).getFrame() != eligibleFrames
-            .get(allFramesIndex - 1)) {
+        if (mobilograms.get(i - 1).getSpectrum(0).getFrame() != eligibleFrames.get(
+            allFramesIndex - 1)) {
           // last mobilogram is noise
           noise.add(mobilogram);
         }
-      } else if (mobilograms.get(i - 1).getSpectrum(0).getFrame() != eligibleFrames
-          .get(allFramesIndex - 1)
-          && mobilograms.get(i + 1).getSpectrum(0).getFrame() != eligibleFrames
-          .get(allFramesIndex + 1)) {
+      } else if (
+          mobilograms.get(i - 1).getSpectrum(0).getFrame() != eligibleFrames.get(allFramesIndex - 1)
+              && mobilograms.get(i + 1).getSpectrum(0).getFrame() != eligibleFrames.get(
+              allFramesIndex + 1)) {
         // some mobilogram is noise
         noise.add(mobilogram);
       }
@@ -332,59 +328,58 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
 
   private void addZerosForFrames(Collection<TempIMTrace> traces, List<Frame> eligibleFrames) {
     traces.parallelStream().forEach(trace -> {
-          int mostFrequentIndex = // most frequent mobility scan index, corrected by the first scans index.
-              findMostFrequentMobilityScanNumber(trace.getMobilograms()) - eligibleFrames.get(0)
-                  .getMobilityScans().get(0).getMobilityScanNumber();
+      int mostFrequentIndex = // most frequent mobility scan index, corrected by the first scans index.
+          findMostFrequentMobilityScanNumber(trace.getMobilograms()) - eligibleFrames.get(0)
+              .getMobilityScans().get(0).getMobilityScanNumber();
 
-          // add a 0 for the first scan
-          if (trace.getMobilograms().get(0).getSpectra().get(0).getFrame() != eligibleFrames.get(0)) {
-            trace.tryToAddMobilogram(
-                new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d},
-                    List.of(eligibleFrames.get(0).getMobilityScan(mostFrequentIndex))));
-          }
+      // add a 0 for the first scan
+      if (trace.getMobilograms().get(0).getSpectra().get(0).getFrame() != eligibleFrames.get(0)) {
+        trace.tryToAddMobilogram(
+            new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d},
+                List.of(eligibleFrames.get(0).getMobilityScan(mostFrequentIndex))));
+      }
 
-          // it's a tree map, so it's sorted
-          Frame[] detected = new Frame[trace.getMobilograms().size()];
-          for (int i = 0; i < detected.length; i++) {
-            detected[i] = trace.getMobilograms().get(i).getSpectrum(0).getFrame();
-          }
-          int allFramesIndex = 0;
-          int lastDetectedIndex = eligibleFrames.indexOf(detected[0]);
-          for (final Frame frame : detected) {
-            // find the next frame we have a datapoint for
-            while (allFramesIndex < eligibleFrames.size() && frame != eligibleFrames
-                .get(allFramesIndex)) {
-              allFramesIndex++;
-            }
-
-            if (allFramesIndex - lastDetectedIndex > 1) {
-              final Frame firstZeroFrame = eligibleFrames.get(lastDetectedIndex + 1);
-              trace.tryToAddMobilogram(
-                  new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d},
-                      List.of(firstZeroFrame.getMobilityScan(
-                          Math.min(mostFrequentIndex, firstZeroFrame.getNumberOfMobilityScans())))));
-
-              final Frame lastZeroFrame = eligibleFrames.get(allFramesIndex - 1);
-              if (firstZeroFrame != lastZeroFrame) {
-                trace.tryToAddMobilogram(
-                    new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d},
-                        List.of(lastZeroFrame.getMobilityScan(
-                            Math.min(mostFrequentIndex, lastZeroFrame.getNumberOfMobilityScans())))));
-              }
-            }
-            lastDetectedIndex = allFramesIndex;
-          }
-
-          if (lastDetectedIndex < eligibleFrames.size() - 1) {
-            final Frame firstZeroFrame = eligibleFrames.get(lastDetectedIndex + 1);
-            trace.tryToAddMobilogram(
-                new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d},
-                    List.of(firstZeroFrame.getMobilityScan(
-                        Math.min(mostFrequentIndex, firstZeroFrame.getNumberOfMobilityScans())))));
-          }
-          stepProcessed.getAndIncrement();
+      // it's a tree map, so it's sorted
+      Frame[] detected = new Frame[trace.getMobilograms().size()];
+      for (int i = 0; i < detected.length; i++) {
+        detected[i] = trace.getMobilograms().get(i).getSpectrum(0).getFrame();
+      }
+      int allFramesIndex = 0;
+      int lastDetectedIndex = eligibleFrames.indexOf(detected[0]);
+      for (final Frame frame : detected) {
+        // find the next frame we have a datapoint for
+        while (allFramesIndex < eligibleFrames.size() && frame != eligibleFrames.get(
+            allFramesIndex)) {
+          allFramesIndex++;
         }
-    );
+
+        if (allFramesIndex - lastDetectedIndex > 1) {
+          final Frame firstZeroFrame = eligibleFrames.get(lastDetectedIndex + 1);
+          trace.tryToAddMobilogram(
+              new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d}, List.of(
+                  firstZeroFrame.getMobilityScan(
+                      Math.min(mostFrequentIndex, firstZeroFrame.getNumberOfMobilityScans())))));
+
+          final Frame lastZeroFrame = eligibleFrames.get(allFramesIndex - 1);
+          if (firstZeroFrame != lastZeroFrame) {
+            trace.tryToAddMobilogram(
+                new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d}, List.of(
+                    lastZeroFrame.getMobilityScan(
+                        Math.min(mostFrequentIndex, lastZeroFrame.getNumberOfMobilityScans())))));
+          }
+        }
+        lastDetectedIndex = allFramesIndex;
+      }
+
+      if (lastDetectedIndex < eligibleFrames.size() - 1) {
+        final Frame firstZeroFrame = eligibleFrames.get(lastDetectedIndex + 1);
+        trace.tryToAddMobilogram(
+            new BuildingIonMobilitySeries(null, new double[]{0d}, new double[]{0d}, List.of(
+                firstZeroFrame.getMobilityScan(
+                    Math.min(mostFrequentIndex, firstZeroFrame.getNumberOfMobilityScans())))));
+      }
+      stepProcessed.getAndIncrement();
+    });
   }
 
   private TreeSet<BuildingIonMobilitySeries> buildFrameMobilograms(MobilityScanDataAccess access) {
@@ -398,13 +393,12 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
 
         final Frame frame = access.nextFrame();
 
-        final TreeSet<RetentionTimeMobilityDataPoint> dps = new TreeSet<>(
-            (o1, o2) -> {
-              if (o1.getIntensity() > o2.getIntensity()) {
-                return -1;
-              }
-              return 1;
-            });
+        final TreeSet<RetentionTimeMobilityDataPoint> dps = new TreeSet<>((o1, o2) -> {
+          if (o1.getIntensity() > o2.getIntensity()) {
+            return -1;
+          }
+          return 1;
+        });
         // get all datapoints
         while (access.hasNextMobilityScan()) {
           final MobilityScan currentMobilityScan = access.nextMobilityScan();
@@ -426,13 +420,12 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
 
     // now sort chromatograms like the adap builder
     logger.finest(() -> "Sorting mobilograms");
-    final TreeSet<BuildingIonMobilitySeries> sortedMobilograms = new TreeSet<>(
-        (o1, o2) -> {
-          if (o1.getSummedIntensity() > o2.getSummedIntensity()) {
-            return -1;
-          }
-          return 1;
-        });
+    final TreeSet<BuildingIonMobilitySeries> sortedMobilograms = new TreeSet<>((o1, o2) -> {
+      if (o1.getSummedIntensity() > o2.getSummedIntensity()) {
+        return -1;
+      }
+      return 1;
+    });
     sortedMobilograms.addAll(buildingTraces);
 
     logger.finest(() -> "Mobilograms sorted");
@@ -507,8 +500,8 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
 
       TempIMTrace trace = map.get(mobilogram.getAvgMZ());
       if (trace == null) {
-        final Range<Double> mzRange = SpectraMerging
-            .createNewNonOverlappingRange(map, tolerance.getToleranceRange(mobilogram.getAvgMZ()));
+        final Range<Double> mzRange = SpectraMerging.createNewNonOverlappingRange(map,
+            tolerance.getToleranceRange(mobilogram.getAvgMZ()));
         trace = new TempIMTrace();
         map.put(mzRange, trace);
       }
@@ -528,8 +521,9 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
       if (enableRecursive && leftoverMobilograms.size() > RECURSIVE_THRESHOLD) {
         List<TempIMTrace> recursiveTraces = createTempIMTraces(leftoverMobilograms, tolerance);
         if (recursiveTraces != null) {
-          logger.finest(() -> "Created additional " + recursiveTraces.size()
-              + " traces recursively from " + leftoverMobilograms.size() + " mobilograms.");
+          logger.finest(
+              () -> "Created additional " + recursiveTraces.size() + " traces recursively from "
+                  + leftoverMobilograms.size() + " mobilograms.");
           traces.addAll(recursiveTraces);
         }
       }
@@ -559,7 +553,7 @@ public class RecursiveIMSBuilderTask extends AbstractTask {
       return (Unsafe) theUnsafe;
 
     } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
-        NoSuchFieldException | ClassCastException e) {
+             NoSuchFieldException | ClassCastException e) {
       // jdk.internal.misc.Unsafe doesn't yet have an invokeCleaner() method,
       // but that method should be added if sun.misc.Unsafe is removed.
       e.printStackTrace();

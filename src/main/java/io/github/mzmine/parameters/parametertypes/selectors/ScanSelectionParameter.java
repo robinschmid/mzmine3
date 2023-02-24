@@ -25,103 +25,29 @@
 
 package io.github.mzmine.parameters.parametertypes.selectors;
 
-import com.google.common.collect.Range;
-import io.github.mzmine.datamodel.MassSpectrumType;
-import io.github.mzmine.datamodel.PolarityType;
 import io.github.mzmine.parameters.Parameter;
-import io.github.mzmine.parameters.parametertypes.combowithinput.MsLevelFilter;
-import io.github.mzmine.parameters.parametertypes.submodules.AdvancedParametersParameter;
+import io.github.mzmine.parameters.parametertypes.submodules.EmbeddedParametersParameter;
+import io.github.mzmine.parameters.parametertypes.submodules.OptionalModuleComponent;
 import io.github.mzmine.parameters.parametertypes.submodules.ParameterSetComponent;
-import io.github.mzmine.util.RangeUtils;
-import io.github.mzmine.util.XMLUtils;
 import java.util.Collection;
+import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
 public class ScanSelectionParameter extends
-    AdvancedParametersParameter<ScanSelectionFiltersParameters> {
+    EmbeddedParametersParameter<ScanSelection, ScanSelectionFiltersParameters, OptionalModuleComponent<ScanSelection>> {
+
+  private boolean active = false;
 
   public ScanSelectionParameter() {
     this(null);
   }
 
   public ScanSelectionParameter(ScanSelection defaultValue) {
-    this("Scan filters",
+    super("Scan filters",
         "Select scans that should be included. Needs to be activated to actually filter.",
-        defaultValue);
-  }
-
-  public ScanSelectionParameter(String name, String description, ScanSelection defaultValue) {
-    super(name, description, new ScanSelectionFiltersParameters(defaultValue));
-  }
-
-  @Override
-  public boolean checkValue(Collection<String> errorMessages) {
-
-    return true;
-  }
-
-  @Override
-  public void loadValueFromXML(Element xmlElement) {
-    // changed this parameter to a ParameterSetParameter
-    // before all parameters were manually saved
-    // Load parent first for new versions and then try to see if old version was saved below
-    clearFilters();
-    super.loadValueFromXML(xmlElement);
-
-    // try to load values from old format
-    Range<Integer> scanNumberRange = null;
-    Integer baseFilteringInteger = null;
-    Range<Double> scanMobilityRange = null;
-    Range<Float> scanRTRange = null;
-    PolarityType polarity = null;
-    MassSpectrumType spectrumType = null;
-    Integer msLevel = null;
-    String scanDefinition = null;
-
-    scanNumberRange = XMLUtils.parseIntegerRange(xmlElement, "scan_numbers");
-    scanMobilityRange = XMLUtils.parseDoubleRange(xmlElement, "mobility");
-    scanRTRange = XMLUtils.parseFloatRange(xmlElement, "retention_time");
-
-    NodeList items = xmlElement.getElementsByTagName("ms_level");
-    for (int i = 0; i < items.getLength(); i++) {
-      msLevel = Integer.valueOf(items.item(i).getTextContent());
-    }
-
-    items = xmlElement.getElementsByTagName("polarity");
-    for (int i = 0; i < items.getLength(); i++) {
-      try {
-        polarity = PolarityType.valueOf(items.item(i).getTextContent());
-      } catch (Exception e) {
-        polarity = PolarityType.fromSingleChar(items.item(i).getTextContent());
-      }
-    }
-
-    items = xmlElement.getElementsByTagName("spectrum_type");
-    for (int i = 0; i < items.getLength(); i++) {
-      spectrumType = MassSpectrumType.valueOf(items.item(i).getTextContent());
-    }
-
-    items = xmlElement.getElementsByTagName("scan_definition");
-    for (int i = 0; i < items.getLength(); i++) {
-      scanDefinition = items.item(i).getTextContent();
-    }
-
-    // apply if not null
-    setParameterIfNotNull(ScanSelectionFiltersParameters.scanNumParameter, scanNumberRange);
-    setParameterIfNotNull(ScanSelectionFiltersParameters.baseFilteringIntegerParameter,
-        baseFilteringInteger);
-    setParameterIfNotNull(ScanSelectionFiltersParameters.rtParameter,
-        RangeUtils.toDoubleRange(scanRTRange));
-    setParameterIfNotNull(ScanSelectionFiltersParameters.mobilityParameter, scanMobilityRange);
-    setParameterIfNotNull(ScanSelectionFiltersParameters.polarityParameter, polarity);
-    setParameterIfNotNull(ScanSelectionFiltersParameters.spectrumTypeParameter, spectrumType);
-    setParameterIfNotNull(ScanSelectionFiltersParameters.scanDefinitionParameter, scanDefinition);
-    setParameterIfNotNull(ScanSelectionFiltersParameters.msLevelParameter,
-        MsLevelFilter.of(msLevel));
-
+        defaultValue, new ScanSelectionFiltersParameters(defaultValue));
   }
 
   private <T> void setParameterIfNotNull(Parameter<T> parameter, T value) {
@@ -148,21 +74,76 @@ public class ScanSelectionParameter extends
   }
 
   public void clearFilters(@Nullable final ParameterSetComponent component) {
-    setFilter(null);
+    setValue(null);
     if (component != null) {
       component.setValue(getEmbeddedParameters());
     }
-  }
-
-  public void setFilter(@Nullable ScanSelection selection) {
-    getEmbeddedParameters().setFilter(selection);
   }
 
   /**
    * @return ScanSelection from the current dataset
    */
   public @NotNull ScanSelection createFilter() {
-    return getValue() ? getEmbeddedParameters().createFilter();
+    return active ? getEmbeddedParameters().createFilter() : ScanSelection.ALL;
   }
 
+  public void setValue(final boolean active, final ScanSelection value) {
+    this.active = active;
+    setValue(value);
+  }
+
+  @Override
+  public ScanSelection getValue() {
+    return createFilter();
+  }
+
+  @Override
+  public void setValue(final ScanSelection newValue) {
+    getEmbeddedParameters().setFilter(newValue);
+  }
+
+  @Override
+  public void setValueFromComponent(OptionalModuleComponent component) {
+    this.active = component.isSelected();
+    component.updateParametersFromComponent();
+  }
+
+  @Override
+  public void setValueToComponent(OptionalModuleComponent component, ScanSelection newValue) {
+    component.setValue(active);
+    component.setParameterValuesToComponents();
+  }
+
+  @Override
+  public ScanSelectionParameter cloneParameter() {
+    return new ScanSelectionParameter(getValue());
+  }
+
+
+  @Override
+  public OptionalModuleComponent<ScanSelection> createEditingComponent() {
+    return new OptionalModuleComponent<>(embeddedParameters, active);
+  }
+
+
+  @Override
+  public void loadValueFromXML(Element xmlElement) {
+    embeddedParameters.loadValuesFromXML(xmlElement);
+    String selectedAttr = xmlElement.getAttribute("selected");
+    this.active = Objects.requireNonNullElse(Boolean.valueOf(selectedAttr), false);
+  }
+
+  @Override
+  public void saveValueToXML(Element xmlElement) {
+    xmlElement.setAttribute("selected", String.valueOf(active));
+    embeddedParameters.saveValuesToXML(xmlElement);
+  }
+
+  @Override
+  public boolean checkValue(Collection<String> errorMessages) {
+    if (!active) {
+      return true;
+    }
+    return embeddedParameters.checkParameterValues(errorMessages);
+  }
 }

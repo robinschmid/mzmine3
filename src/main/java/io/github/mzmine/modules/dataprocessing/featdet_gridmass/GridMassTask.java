@@ -81,7 +81,7 @@ public class GridMassTask extends AbstractTask {
   private double rtPerScan;
   private int tolScans;
   private int maxTolScans;
-  private int debug;
+  private final int debug;
 
   private double minMass = 0;
   private double maxMass = 0;
@@ -101,7 +101,7 @@ public class GridMassTask extends AbstractTask {
 
     this.project = project;
     this.dataFile = dataFile;
-    this.scanSelection = parameters.getParameter(GridMassParameters.scanSelection).getValue();
+    this.scanSelection = parameters.getParameter(GridMassParameters.scanSelection).createFilter();
     this.mzTol = parameters.getParameter(GridMassParameters.mzTolerance).getValue();
     this.minimumTimeSpan = parameters.getParameter(GridMassParameters.timeSpan).getValue()
         .lowerEndpoint();
@@ -336,7 +336,8 @@ public class GridMassTask extends AbstractTask {
     }
 
     // Create new feature list
-    newFeatureList = new ModularFeatureList(dataFile + " " + suffix, getMemoryMapStorage(), dataFile);
+    newFeatureList = new ModularFeatureList(dataFile + " " + suffix, getMemoryMapStorage(),
+        dataFile);
     newFeatureList.setSelectedScans(dataFile, List.of(scans));
 
     // minimumTimeSpan
@@ -386,7 +387,7 @@ public class GridMassTask extends AbstractTask {
     logger.info(
         "Smoothing data points on " + dataFile + " (Time min=" + smoothTimeSpan + "; Time m/z="
             + smoothTimeMZ + ")");
-    IndexedDataPoint[][] data = smoothDataPoints( 0);
+    IndexedDataPoint[][] data = smoothDataPoints(0);
 
     logger.info("Determining intensities (mass sum) per scan on " + dataFile);
     for (i = 0; i < totalScans; i++) {
@@ -788,8 +789,9 @@ public class GridMassTask extends AbstractTask {
 
   }
 
-private IndexedDataPoint[][] smoothDataPoints(int scanSpan) {
-    List<Scan> scanNumbers = dataFile.getScanNumbers(1); //TODO Can the method potentially work with other MS levels?
+  private IndexedDataPoint[][] smoothDataPoints(int scanSpan) {
+    List<Scan> scanNumbers = dataFile.getScanNumbers(
+        1); //TODO Can the method potentially work with other MS levels?
 
     DataPoint[][] mzValues = null; // [relative scan][j value]
     DataPoint[] mzValuesJ;

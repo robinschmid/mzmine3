@@ -78,6 +78,19 @@ public record MsLevelFilter(Options filter, int specificLevel) implements
     };
   }
 
+  /**
+   * @return a single MS level if not MSn or ALL option - then null
+   */
+  @Nullable
+  public Integer getSingleMsLevelOrNull() {
+    return switch (filter) {
+      case ALL, MSn -> null;
+      case MS1 -> 1;
+      case MS2 -> 2;
+      case SPECIFIC_LEVEL -> specificLevel;
+    };
+  }
+
   enum Options {
     ALL, MS1, MSn, MS2, SPECIFIC_LEVEL;
 

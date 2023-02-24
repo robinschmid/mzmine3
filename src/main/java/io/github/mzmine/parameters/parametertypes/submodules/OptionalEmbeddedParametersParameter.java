@@ -24,71 +24,79 @@
  */
 package io.github.mzmine.parameters.parametertypes.submodules;
 
-import io.github.mzmine.parameters.AbstractParameter;
-import io.github.mzmine.parameters.Parameter;
+import io.github.mzmine.parameters.OptionalParameterContainer;
 import io.github.mzmine.parameters.ParameterSet;
-import io.github.mzmine.parameters.ParameterUtils;
-import io.github.mzmine.parameters.parametertypes.EmbeddedParameterSet;
 import java.util.Collection;
 import java.util.Objects;
+import org.w3c.dom.Element;
 
 /**
- * Base class for parameter that hold an embedded parameter set and optionally a value type like
- * boolean for the {@link OptionalEmbeddedParametersParameter}
+ * parameter with optional use of sub ParameterSet
  *
  * @author Robin Schmid <a href="https://github.com/robinschmid">https://github.com/robinschmid</a>
  */
-public abstract class EmbeddedParametersParameter<ValueType, PARAMETERS extends ParameterSet, EditorComponent extends EmbeddedParametersComponent<ValueType>> extends
-    AbstractParameter<ValueType, EditorComponent> implements
-    EmbeddedParameterSet<PARAMETERS, ValueType> {
+public abstract class OptionalEmbeddedParametersParameter<PARAMETERS extends ParameterSet, EditorComponent extends OptionalEmbeddedParametersComponent> extends
+    EmbeddedParametersParameter<Boolean, PARAMETERS, EditorComponent> implements
+    OptionalParameterContainer {
 
-  protected PARAMETERS embeddedParameters;
+  protected boolean value;
 
-  public EmbeddedParametersParameter(String name, String description, ValueType defaultVal,
+  public OptionalEmbeddedParametersParameter(String name, String description, boolean defaultVal,
       PARAMETERS embeddedParameters) {
-    super(name, description, defaultVal);
-    this.embeddedParameters = embeddedParameters;
+    super(name, description, defaultVal, embeddedParameters);
   }
 
   @Override
-  public PARAMETERS getEmbeddedParameters() {
-    return embeddedParameters;
+  public boolean isSelected() {
+    return value;
   }
-
-  public void setEmbeddedParameters(PARAMETERS embeddedParameters) {
-    this.embeddedParameters = embeddedParameters;
-  }
-
 
   @Override
-  public boolean checkValue(Collection<String> errorMessages) {
-    return embeddedParameters.checkParameterValues(errorMessages);
+  public void setSelected(boolean state) {
+    value = state;
+  }
+
+  @Override
+  public Boolean getValue() {
+    return value;
+  }
+
+  @Override
+  public void setValue(Boolean value) {
+    this.value = Objects.requireNonNullElse(value, false);
   }
 
   @Override
   public void setValueFromComponent(EditorComponent component) {
-    setValue(component.getValue());
+    this.value = component.isSelected();
     component.updateParametersFromComponent();
   }
 
   @Override
-  public void setValueToComponent(EditorComponent component, ValueType newValue) {
-    component.setValue(newValue);
+  public void setValueToComponent(EditorComponent component, Boolean newValue) {
+    component.setValue(newValue != null && newValue);
     component.setParameterValuesToComponents();
   }
 
   @Override
-  public boolean valueEquals(Parameter<?> that) {
-    if (!(that instanceof EmbeddedParametersParameter thatOpt)) {
-      return false;
-    }
+  public void loadValueFromXML(Element xmlElement) {
+    embeddedParameters.loadValuesFromXML(xmlElement);
+    String selectedAttr = xmlElement.getAttribute("selected");
+    this.value = Objects.requireNonNullElse(Boolean.valueOf(selectedAttr), false);
+  }
 
-    if (!Objects.equals(getValue(), thatOpt.getValue())) {
-      return false;
-    }
+  @Override
+  public void saveValueToXML(Element xmlElement) {
+    xmlElement.setAttribute("selected", String.valueOf(value));
+    embeddedParameters.saveValuesToXML(xmlElement);
+  }
 
-    return ParameterUtils.equalValues(getEmbeddedParameters(), thatOpt.getEmbeddedParameters(),
-        false, false);
+  @Override
+  public boolean checkValue(Collection<String> errorMessages) {
+    if (!value) {
+      return true;
+    }
+    return embeddedParameters.checkParameterValues(errorMessages);
   }
 
 }

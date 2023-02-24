@@ -70,7 +70,7 @@ public class MsnPeakPickingTask extends AbstractTask {
     this.project = project;
     this.dataFile = dataFile;
 
-    scanSelection = parameters.getParameter(MsnPeakPickerParameters.scanSelection).getValue();
+    scanSelection = parameters.getParameter(MsnPeakPickerParameters.scanSelection).createFilter();
     msLevel = parameters.getParameter(MsnPeakPickerParameters.msLevel).getValue();
     mzTolerance = parameters.getParameter(MsnPeakPickerParameters.mzDifference).getValue();
     rtTolerance = parameters.getParameter(MsnPeakPickerParameters.rtTolerance).getValue();
@@ -112,7 +112,7 @@ public class MsnPeakPickingTask extends AbstractTask {
       return;
     }
 
-    final Scan scans[] = scanSelection.getMatchingScans(dataFile);
+    final Scan[] scans = scanSelection.getMatchingScans(dataFile);
     totalScans = scans.length;
 
     // No scans in selection range.

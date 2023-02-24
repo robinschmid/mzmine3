@@ -84,7 +84,8 @@ public class MassDetectionTask extends AbstractTask {
 
     this.massDetector = parameters.getParameter(MassDetectionParameters.massDetector).getValue();
 
-    this.scanSelection = parameters.getParameter(MassDetectionParameters.scanSelection).getValue();
+    this.scanSelection = parameters.getParameter(MassDetectionParameters.scanSelection)
+        .createFilter();
 
     this.saveToCDF = parameters.getParameter(MassDetectionParameters.outFilenameOption).getValue();
     this.scanTypes = parameters.getParameter(MassDetectionParameters.scanTypes).getValue();

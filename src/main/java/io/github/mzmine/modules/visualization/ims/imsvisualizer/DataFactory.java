@@ -71,7 +71,7 @@ public class DataFactory {
     RawDataFile[] dataFiles =
         param.getParameter(ImsVisualizerParameters.dataFiles).getValue().getMatchingRawDataFiles();
 
-    scans = param.getParameter(ImsVisualizerParameters.scanSelection).getValue()
+    scans = param.getParameter(ImsVisualizerParameters.scanSelection).createFilter()
         .getMatchingScans(dataFiles[0]);
 
     mzRange = param.getParameter(ImsVisualizerParameters.mzRange).getValue();

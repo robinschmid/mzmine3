@@ -37,11 +37,9 @@ import org.w3c.dom.Element;
  * Parameter represented by check box with an additional sub-parameter
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-public class OptionalParameter<EmbeddedParameterType extends UserParameter<?, ?>> implements
-    UserParameter<Boolean, OptionalParameterComponent<?>>, OptionalParameterContainer,
-    EmbeddedParameter<EmbeddedParameterType> {
-
-  private final EmbeddedParameterType embeddedParameter;
+public class OptionalParameter<EmbeddedParameterType extends UserParameter<?, ?>> extends
+    EmbeddedParameter<Boolean, EmbeddedParameterType, OptionalParameterComponent<?>> implements
+    OptionalParameterContainer {
 
   private boolean value;
 
@@ -50,24 +48,9 @@ public class OptionalParameter<EmbeddedParameterType extends UserParameter<?, ?>
   }
 
   public OptionalParameter(EmbeddedParameterType embeddedParameter, boolean defaultValue) {
-    this.embeddedParameter = embeddedParameter;
-    value = defaultValue;
+    super(defaultValue, embeddedParameter);
   }
 
-  @Override
-  public EmbeddedParameterType getEmbeddedParameter() {
-    return embeddedParameter;
-  }
-
-  @Override
-  public String getName() {
-    return embeddedParameter.getName();
-  }
-
-  @Override
-  public String getDescription() {
-    return embeddedParameter.getDescription();
-  }
 
   @Override
   public OptionalParameterComponent<?> createEditingComponent() {
@@ -80,6 +63,16 @@ public class OptionalParameter<EmbeddedParameterType extends UserParameter<?, ?>
   }
 
   @Override
+  public boolean isSelected() {
+    return value;
+  }
+
+  @Override
+  public void setSelected(boolean state) {
+    value = state;
+  }
+
+  @Override
   public void setValue(Boolean value) {
     this.value = Objects.requireNonNullElse(value, false);
   }
@@ -87,8 +80,7 @@ public class OptionalParameter<EmbeddedParameterType extends UserParameter<?, ?>
   @Override
   public OptionalParameter cloneParameter() {
     final UserParameter<?, ?> embeddedParameterClone = embeddedParameter.cloneParameter();
-    final OptionalParameter copy = new OptionalParameter(embeddedParameterClone);
-    copy.setValue(this.getValue());
+    final OptionalParameter copy = new OptionalParameter(embeddedParameterClone, this.getValue());
     return copy;
   }
 
@@ -144,8 +136,4 @@ public class OptionalParameter<EmbeddedParameterType extends UserParameter<?, ?>
     return getEmbeddedParameter().valueEquals(thatOpt.embeddedParameter);
   }
 
-  @Override
-  public boolean isSelected() {
-    return value;
-  }
 }

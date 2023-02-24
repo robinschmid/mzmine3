@@ -46,12 +46,10 @@ public class IMSRawDataOverviewTab extends MZmineTab {
   public IMSRawDataOverviewTab(ParameterSet parameterSet) {
     super("Ion mobility raw data overview", true, false);
     pane = new IMSRawDataOverviewPane(
-        parameterSet.getParameter(IMSRawDataOverviewParameters.summedFrameNoiseLevel)
-            .getValue(),
-        parameterSet.getParameter(IMSRawDataOverviewParameters.mobilityScanNoiseLevel)
-            .getValue(),
+        parameterSet.getParameter(IMSRawDataOverviewParameters.summedFrameNoiseLevel).getValue(),
+        parameterSet.getParameter(IMSRawDataOverviewParameters.mobilityScanNoiseLevel).getValue(),
         parameterSet.getParameter(IMSRawDataOverviewParameters.mzTolerance).getValue(),
-        parameterSet.getParameter(IMSRawDataOverviewParameters.scanSelection).getValue(),
+        parameterSet.getParameter(IMSRawDataOverviewParameters.scanSelection).createFilter(),
         parameterSet.getParameter(IMSRawDataOverviewParameters.rtWidth).getValue().floatValue(),
         parameterSet.getParameter(IMSRawDataOverviewParameters.binWidth).getValue());
     setContent(pane);

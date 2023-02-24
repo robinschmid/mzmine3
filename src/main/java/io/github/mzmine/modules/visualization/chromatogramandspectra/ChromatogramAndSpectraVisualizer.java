@@ -41,6 +41,7 @@ import io.github.mzmine.modules.visualization.spectra.simplespectra.SpectrumCurs
 import io.github.mzmine.modules.visualization.spectra.simplespectra.SpectrumPlotType;
 import io.github.mzmine.modules.visualization.spectra.simplespectra.datasets.ScanDataSet;
 import io.github.mzmine.parameters.ParameterSet;
+import io.github.mzmine.parameters.parametertypes.combowithinput.MsLevelFilter;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
 import io.github.mzmine.taskcontrol.TaskStatus;
@@ -166,7 +167,7 @@ public class ChromatogramAndSpectraVisualizer extends SplitPane {
     chromPosition = new SimpleObjectProperty<>();
     spectrumPosition = new SimpleObjectProperty<>();
     scanSelection = new SimpleObjectProperty<>(
-        new ScanSelection(null, null, null, null, null, null, 1, null));
+        new ScanSelection(null, null, null, null, null, null, MsLevelFilter.of(1), null));
     mzRange = new SimpleObjectProperty<>();
 
     // initialise controls
@@ -280,7 +281,7 @@ public class ChromatogramAndSpectraVisualizer extends SplitPane {
     MZTolerance tol = parameterSet.getParameter(
         ChromatogramAndSpectraVisualizerParameters.chromMzTolerance).getValue();
     ScanSelection sel = parameterSet.getParameter(
-        ChromatogramAndSpectraVisualizerParameters.scanSelection).getValue();
+        ChromatogramAndSpectraVisualizerParameters.scanSelection).createFilter();
     if (sel != null) {
       scanSelection.set(sel);
     }
@@ -709,10 +710,9 @@ public class ChromatogramAndSpectraVisualizer extends SplitPane {
     if (this == o) {
       return true;
     }
-    if (!(o instanceof ChromatogramAndSpectraVisualizer)) {
+    if (!(o instanceof ChromatogramAndSpectraVisualizer that)) {
       return false;
     }
-    ChromatogramAndSpectraVisualizer that = (ChromatogramAndSpectraVisualizer) o;
     return showSpectraOfEveryRawFile == that.showSpectraOfEveryRawFile && chromPlot.equals(
         that.chromPlot) && spectrumPlot.equals(that.spectrumPlot) && Objects.equals(
         scanSelection.get(), that.scanSelection.get()) && Objects.equals(mzRange.get(),

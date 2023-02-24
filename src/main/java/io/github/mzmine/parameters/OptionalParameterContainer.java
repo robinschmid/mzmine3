@@ -28,4 +28,6 @@ package io.github.mzmine.parameters;
 public interface OptionalParameterContainer {
 
   boolean isSelected();
+
+  void setSelected(boolean state);
 }

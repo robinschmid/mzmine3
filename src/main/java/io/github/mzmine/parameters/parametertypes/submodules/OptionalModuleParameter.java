@@ -25,136 +25,41 @@
 
 package io.github.mzmine.parameters.parametertypes.submodules;
 
-import io.github.mzmine.parameters.OptionalParameterContainer;
-import io.github.mzmine.parameters.Parameter;
-import io.github.mzmine.parameters.ParameterContainer;
 import io.github.mzmine.parameters.ParameterSet;
-import io.github.mzmine.parameters.ParameterUtils;
-import io.github.mzmine.parameters.UserParameter;
-import io.github.mzmine.parameters.parametertypes.EmbeddedParameterSet;
-import java.util.Collection;
-import java.util.Objects;
-import org.w3c.dom.Element;
+import javafx.scene.layout.Priority;
 
 /**
  * Parameter represented by check box with additional sub-module
  */
-public class OptionalModuleParameter<T extends ParameterSet> implements
-    UserParameter<Boolean, OptionalModuleComponent>, OptionalParameterContainer, ParameterContainer,
-    EmbeddedParameterSet<T, Boolean> {
+public class OptionalModuleParameter<PARAMETERS extends ParameterSet> extends
+    OptionalEmbeddedParametersParameter<PARAMETERS, OptionalModuleComponent> {
 
-  private final String name;
-  private final String description;
-  private T embeddedParameters;
-  private boolean value;
-
-  public OptionalModuleParameter(String name, String description, T embeddedParameters,
+  public OptionalModuleParameter(String name, String description, PARAMETERS embeddedParameters,
       boolean defaultVal) {
-    this.name = name;
-    this.description = description;
-    this.embeddedParameters = embeddedParameters;
-    value = defaultVal;
+    super(name, description, defaultVal, embeddedParameters);
   }
 
-  public OptionalModuleParameter(String name, String description, T embeddedParameters) {
+  public OptionalModuleParameter(String name, String description, PARAMETERS embeddedParameters) {
     this(name, description, embeddedParameters, false);
-  }
-
-  public T getEmbeddedParameters() {
-    return embeddedParameters;
-  }
-
-  public void setEmbeddedParameters(T embeddedParameters) {
-    this.embeddedParameters = embeddedParameters;
-  }
-
-  @Override
-  public String getName() {
-    return name;
-  }
-
-  @Override
-  public String getDescription() {
-    return description;
   }
 
   @Override
   public OptionalModuleComponent createEditingComponent() {
-    return new OptionalModuleComponent(embeddedParameters);
+    return new OptionalModuleComponent(embeddedParameters, isSelected());
   }
 
   @Override
-  public Boolean getValue() {
-    return value;
+  public Priority getComponentVgrowPriority() {
+    return Priority.SOMETIMES;
   }
 
   @Override
-  public void setValue(Boolean value) {
-    this.value = Objects.requireNonNullElse(value, false);
-  }
-
-  @Override
-  public OptionalModuleParameter<T> cloneParameter() {
-    final T embeddedParametersClone = (T) embeddedParameters.cloneParameterSet();
-    final OptionalModuleParameter<T> copy = new OptionalModuleParameter<>(name, description,
-        embeddedParametersClone);
+  public OptionalModuleParameter<PARAMETERS> cloneParameter() {
+    final PARAMETERS embeddedParametersClone = (PARAMETERS) embeddedParameters.cloneParameterSet();
+    final OptionalModuleParameter<PARAMETERS> copy = new OptionalModuleParameter<>(name,
+        description, embeddedParametersClone);
     copy.setValue(this.getValue());
     return copy;
   }
 
-  @Override
-  public void setValueFromComponent(OptionalModuleComponent component) {
-    this.value = component.isSelected();
-  }
-
-  @Override
-  public void setValueToComponent(OptionalModuleComponent component, Boolean newValue) {
-    component.setSelected(Objects.requireNonNullElse(newValue, false));
-  }
-
-  @Override
-  public void loadValueFromXML(Element xmlElement) {
-    embeddedParameters.loadValuesFromXML(xmlElement);
-    String selectedAttr = xmlElement.getAttribute("selected");
-    this.value = Objects.requireNonNullElse(Boolean.valueOf(selectedAttr), false);
-  }
-
-  @Override
-  public void saveValueToXML(Element xmlElement) {
-    xmlElement.setAttribute("selected", String.valueOf(value));
-    embeddedParameters.saveValuesToXML(xmlElement);
-  }
-
-  @Override
-  public boolean checkValue(Collection<String> errorMessages) {
-    if (value) {
-      return embeddedParameters.checkParameterValues(errorMessages);
-    }
-    return true;
-  }
-
-  @Override
-  public void setSkipSensitiveParameters(boolean skipSensitiveParameters) {
-    // delegate skipSensitiveParameters to embedded ParameterSet
-    embeddedParameters.setSkipSensitiveParameters(skipSensitiveParameters);
-  }
-
-  @Override
-  public boolean valueEquals(Parameter<?> that) {
-    if (!(that instanceof OptionalModuleParameter thatOpt)) {
-      return false;
-    }
-
-    if (value != thatOpt.getValue()) {
-      return false;
-    }
-
-    return ParameterUtils.equalValues(getEmbeddedParameters(), thatOpt.getEmbeddedParameters(),
-        false, false);
-  }
-
-  @Override
-  public boolean isSelected() {
-    return value;
-  }
 }

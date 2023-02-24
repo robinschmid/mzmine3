@@ -73,7 +73,8 @@ public class MobilityScanMergerTask extends AbstractTask {
     mzTolerance = parameters.getParameter(MobilityScanMergerParameters.mzTolerance).getValue();
     mergingType = parameters.getParameter(MobilityScanMergerParameters.mergingType).getValue();
     weighting = parameters.getParameter(MobilityScanMergerParameters.weightingType).getValue();
-    scanSelection = parameters.getParameter(MobilityScanMergerParameters.scanSelection).getValue();
+    scanSelection = parameters.getParameter(MobilityScanMergerParameters.scanSelection)
+        .createFilter();
     noiseLevel = parameters.getParameter(MobilityScanMergerParameters.noiseLevel).getValue();
   }
 

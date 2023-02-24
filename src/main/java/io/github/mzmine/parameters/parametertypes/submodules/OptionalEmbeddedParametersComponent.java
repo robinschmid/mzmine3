@@ -26,40 +26,52 @@
 package io.github.mzmine.parameters.parametertypes.submodules;
 
 import io.github.mzmine.parameters.ParameterSet;
-import javafx.scene.control.Button;
-import javafx.scene.layout.FlowPane;
+import io.github.mzmine.parameters.dialogs.ParameterSetupPane;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Tooltip;
 
 /**
- *
+ * Basis for parameter components with sub parameters and optional with checkbox
  */
-public abstract class OptionalModuleComponent<ValueType> extends
-    OptionalEmbeddedParametersComponent<ValueType> {
+public abstract class OptionalEmbeddedParametersComponent<ValueType> extends
+    EmbeddedParametersComponent<ValueType> {
 
-  private final Button setButton;
-  private boolean hidden = true;
+  protected final CheckBox checkBox;
 
+  public OptionalEmbeddedParametersComponent(final ParameterSet parameters, String title,
+      boolean state) {
+    super(parameters);
 
-  public OptionalModuleComponent(ParameterSet embeddedParameters, boolean active) {
-    super(embeddedParameters, "", active);
+    checkBox = new CheckBox(title);
+    setSelected(state);
 
-    setButton = new Button("Show");
-    setButton.setOnAction(e -> {
-      hidden = !hidden;
-      // change text
-      setButton.setText(hidden ? "Show" : "Hide");
-      setTop(hidden ? null : paramPane);
-    });
-    setButton.setDisable(true);
-
-    var pane = new FlowPane();
-    pane.setHgap(7d);
-    pane.getChildren().addAll(checkBox, setButton);
-
-    setTop(pane);
+    checkBox.selectedProperty().addListener((ob, ov, nv) -> applyCheckBoxState());
+    applyCheckBoxState();
   }
 
-  @Override
+  protected ParameterSetupPane createParamPane(final ParameterSet parameters) {
+    paramPane = new ParameterSetupPane(true, parameters, false, false, null, true, false);
+    return paramPane;
+  }
+
+  public boolean isSelected() {
+    return checkBox.isSelected();
+  }
+
+  public void setSelected(boolean state) {
+    checkBox.setSelected(state);
+  }
+
+  public void setToolTipText(String toolTip) {
+    checkBox.setTooltip(new Tooltip(toolTip));
+  }
+
+  public CheckBox getCheckbox() {
+    return checkBox;
+  }
+
   protected void applyCheckBoxState() {
-    setButton.setDisable(!checkBox.isSelected());
+    paramPane.getParametersAndComponents().values()
+        .forEach(node -> node.setDisable(!checkBox.isSelected()));
   }
 }

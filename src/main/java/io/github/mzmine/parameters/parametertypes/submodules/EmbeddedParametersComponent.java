@@ -22,26 +22,37 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+
 package io.github.mzmine.parameters.parametertypes.submodules;
 
 import io.github.mzmine.parameters.ParameterSet;
-import javafx.scene.control.Accordion;
-import javafx.scene.control.TitledPane;
+import io.github.mzmine.parameters.dialogs.ParameterSetupPane;
+import javafx.scene.layout.BorderPane;
 
 /**
- * Titled pane accordion
+ * Basis for parameter components with sub parameters
  *
- * @author Robin Schmid <a href="https://github.com/robinschmid">https://github.com/robinschmid</a>
+ * @param <ValueType> value of parameter
  */
-public class AdvancedParametersComponent extends OptionalEmbeddedParametersComponent {
+public abstract class EmbeddedParametersComponent<ValueType> extends BorderPane implements
+    ParameterComponent<ValueType> {
 
-  public AdvancedParametersComponent(final ParameterSet parameters, String title, boolean state) {
-    super(parameters, title, state);
+  protected ParameterSetupPane paramPane;
 
-    TitledPane titledPane = new TitledPane("", paramPane.getParamsPane());
-    titledPane.setGraphic(checkBox);
+  public EmbeddedParametersComponent(final ParameterSet parameters) {
+    paramPane = new ParameterSetupPane(true, parameters, false, false, null, true, false);
+  }
 
-    setCenter(new Accordion(titledPane));
+  public void setParameterValuesToComponents() {
+    paramPane.setParameterValuesToComponents();
+  }
+
+  public ParameterSet getEmbeddedParameters() {
+    return paramPane.updateParameterSetFromComponents();
+  }
+
+  public ParameterSet updateParametersFromComponent() {
+    return getEmbeddedParameters();
   }
 
 }
