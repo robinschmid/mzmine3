@@ -114,7 +114,8 @@ public class MassDetectionParameters extends SimpleParameterSet {
       Denormalize MS2 (MSn) scans by multiplying with the injection time. Encouraged before spectral merging.
       (only available in trap-based systems, like Orbitraps, trapped ion mobility spectrometry (tims), etc)
       This reduces the intensity differences between spectra acquired with different injection times
-      and reverts to "raw" intensities.""", false);
+      and reverts to "raw" intensities.
+      ONLY APPLIED to MS2..MSn scans automatically.""", false);
 
   private final Logger logger = Logger.getLogger(this.getClass().getName());
 

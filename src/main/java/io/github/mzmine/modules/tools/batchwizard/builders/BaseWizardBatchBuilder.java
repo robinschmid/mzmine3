@@ -175,6 +175,9 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
   protected final MobilityTolerance imsFwhmMobTolerance;
 
   // MS parameters currently all the same
+  protected final boolean useFactorOfLowestDetector = false; // add noise levels and use for orbi
+  protected final Double factorNoiseLevelMS1;
+  protected final Double factorNoiseLevelMSn;
   protected final Double noiseLevelMsn;
   protected final Double noiseLevelMs1;
   protected final Double minFeatureHeight;
@@ -772,6 +775,8 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
     param.setParameter(MassDetectionParameters.scanSelection,
         new ScanSelection(msLevel < 1 ? null : msLevel));
     param.setParameter(MassDetectionParameters.scanTypes, scanTypes);
+    // can always be on. is only applied to MS2 .. MSn
+    param.setParameter(MassDetectionParameters.denormalizeMSnScans, useFactorOfLowestDetector);
     param.setParameter(MassDetectionParameters.massDetector,
         new MZmineProcessingStepImpl<>(MZmineCore.getModuleInstance(AutoMassDetector.class),
             detectorParam));
@@ -977,10 +982,8 @@ public abstract class BaseWizardBatchBuilder extends WizardBatchBuilder {
     ParameterSet weightedCosineParam = MZmineCore.getConfiguration()
         .getModuleParameters(WeightedCosineSpectralSimilarity.class).cloneParameterSet();
     weightedCosineParam.setParameter(WeightedCosineSpectralSimilarityParameters.weight,
-        Weights.MASSBANK);
-    weightedCosineParam.setParameter(WeightedCosineSpectralSimilarityParameters.weight,
-        Weights.MASSBANK);
-    weightedCosineParam.setParameter(WeightedCosineSpectralSimilarityParameters.minCosine, 0.65);
+        Weights.SQRT);
+    weightedCosineParam.setParameter(WeightedCosineSpectralSimilarityParameters.minCosine, 0.7);
     weightedCosineParam.setParameter(WeightedCosineSpectralSimilarityParameters.handleUnmatched,
         HandleUnmatchedSignalOptions.KEEP_ALL_AND_MATCH_TO_ZERO);
 
