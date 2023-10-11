@@ -141,6 +141,18 @@ ext {
 }
 
 dependencies {
+    implementation 'org.keycloak:keycloak-installed-adapter:22.0.3'
+    // https://mvnrepository.com/artifact/com.github.scribejava/scribejava-core
+    implementation 'com.github.scribejava:scribejava-apis:8.3.3'
+    runtimeOnly 'org.pac4j:pac4j-oauth:5.7.1'
+    runtimeOnly 'com.nimbusds:oauth2-oidc-sdk:11.1'
+
+    implementation 'com.javax0.license3j:license3j:3.2.0'
+
+
+    implementation 'org.apache.logging.log4j:log4j-jul:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+
     // MZmine version parsing
     implementation 'com.vdurmont:semver4j:3.1.0'
 //    implementation "org.graphstream:gs-core:2.0"

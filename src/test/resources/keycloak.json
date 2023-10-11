@@ -1,0 +1,10 @@
+{
+  "realm": "user_realm",
+  "auth-server-url": "http://localhost:8080/",
+  "ssl-required": "external",
+  "resource": "mzmine",
+  "public-client": true,
+  "confidential-port": 0,
+  "use-resource-role-mappings": true,
+  "enable-pkce": true
+}
