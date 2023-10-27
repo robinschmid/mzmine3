@@ -36,6 +36,7 @@ import io.github.mzmine.parameters.parametertypes.BooleanParameter;
 import io.github.mzmine.parameters.parametertypes.ComboParameter;
 import io.github.mzmine.parameters.parametertypes.HiddenParameter;
 import io.github.mzmine.parameters.parametertypes.OptOutParameter;
+import io.github.mzmine.parameters.parametertypes.StringParameter;
 import io.github.mzmine.parameters.parametertypes.WindowSettingsParameter;
 import io.github.mzmine.parameters.parametertypes.colorpalette.ColorPaletteParameter;
 import io.github.mzmine.parameters.parametertypes.filenames.DirectoryParameter;
@@ -134,24 +135,24 @@ public class MZminePreferences extends SimpleParameterSet {
   public static final HiddenParameter<Map<String, Boolean>> imsModuleWarnings = new HiddenParameter<>(
       new OptOutParameter("Ion mobility compatibility warnings",
           "Shows a warning message when a module without explicit ion mobility support is "
-              + "used to process ion mobility data."));
+          + "used to process ion mobility data."));
 
   public static final DirectoryParameter tempDirectory = new DirectoryParameter(
       "Temporary file directory", "Directory where temporary files"
-      + " will be stored. Directory should be located on a drive with fast read and write "
-      + "(e.g., an SSD). Requires a restart of MZmine to take effect (the program argument --temp "
-      + "overrides this parameter, if set: --temp D:\\your_tmp_dir\\)",
+                                  + " will be stored. Directory should be located on a drive with fast read and write "
+                                  + "(e.g., an SSD). Requires a restart of MZmine to take effect (the program argument --temp "
+                                  + "overrides this parameter, if set: --temp D:\\your_tmp_dir\\)",
       System.getProperty("java.io.tmpdir"));
 
   public static final ComboParameter<KeepInMemory> memoryOption = new ComboParameter<>(
       "Keep in memory", String.format(
       "Specifies the objects that are kept in memory rather than memory mapping "
-          + "them into temp files in the temp directory. Parameter is overriden by the program "
-          + "argument --memory. Depending on the read/write speed of the temp directory,"
-          + " memory mapping is a fast and memory efficient way to handle data, therefore, the "
-          + "default is to memory map all spectral data and feature data with the option %s. On "
-          + "systems where memory (RAM) is no concern, viable options are %s and %s, to keep all in memory "
-          + "or to keep mass lists and feauture data in memory, respectively.", KeepInMemory.NONE,
+      + "them into temp files in the temp directory. Parameter is overriden by the program "
+      + "argument --memory. Depending on the read/write speed of the temp directory,"
+      + " memory mapping is a fast and memory efficient way to handle data, therefore, the "
+      + "default is to memory map all spectral data and feature data with the option %s. On "
+      + "systems where memory (RAM) is no concern, viable options are %s and %s, to keep all in memory "
+      + "or to keep mass lists and feauture data in memory, respectively.", KeepInMemory.NONE,
       KeepInMemory.ALL, KeepInMemory.MASSES_AND_FEATURES), KeepInMemory.values(),
       KeepInMemory.NONE);
 
@@ -173,8 +174,14 @@ public class MZminePreferences extends SimpleParameterSet {
   public static final ComboParameter<ImageNormalization> imageNormalization = new ComboParameter<ImageNormalization>(
       "Normalize images",
       "Specifies if displayed images shall be normalized to the average TIC or shown according to the raw data."
-          + "only applies to newly generated plots.", ImageNormalization.values(),
+      + "only applies to newly generated plots.", ImageNormalization.values(),
       ImageNormalization.NO_NORMALIZATION);
+  /**
+   * Last active user
+   */
+  public static final HiddenParameter<String> lastActiveUserFileName = new HiddenParameter<>(
+      new StringParameter("Last active user", "Only used to restore user on startup"));
+
   private static final NumberFormats exportFormat = new NumberFormats(new DecimalFormat("0.#####"),
       new DecimalFormat("0.####"), new DecimalFormat("0.####"), new DecimalFormat("0.##"),
       new DecimalFormat("0.###E0"), new DecimalFormat("0.##"), new DecimalFormat("0.##"),
@@ -196,7 +203,7 @@ public class MZminePreferences extends SimpleParameterSet {
         defaultColorPalette, defaultPaintScale, chartParam, theme, presentationMode,
         imageNormalization, showPrecursorWindow, imsModuleWarnings, windowSetttings, sendErrorEMail,
         // silent parameters without controls
-        showTempFolderAlert);
+        showTempFolderAlert, lastActiveUserFileName);
   }
 
   @Override
@@ -219,7 +226,7 @@ public class MZminePreferences extends SimpleParameterSet {
         new Parameter[]{defaultColorPalette, defaultPaintScale, chartParam, theme, presentationMode,
             showPrecursorWindow, imageNormalization});
     dialog.addParameterGroup("Other", new Parameter[]{sendErrorEMail,
-        // imsModuleWarnings, showTempFolderAlert, windowSetttings  are hidden parameters
+        // imsModuleWarnings, showTempFolderAlert, windowSetttings, lastActiveUser are hidden parameters
     });
     dialog.setFilterText(filterParameters);
 

@@ -54,6 +54,8 @@ import io.github.mzmine.project.impl.ProjectChangeEvent;
 import io.github.mzmine.project.impl.ProjectChangeListener;
 import io.github.mzmine.taskcontrol.Task;
 import io.github.mzmine.taskcontrol.impl.WrappedTask;
+import io.github.mzmine.users.UserAuthenticatorService;
+import io.github.mzmine.users.UserFileReader;
 import io.github.mzmine.util.ExitCode;
 import io.github.mzmine.util.GUIUtils;
 import io.github.mzmine.util.javafx.FxColorUtil;
@@ -304,6 +306,15 @@ public class MZmineGUI extends Application implements Desktop {
     if (dragboard.hasFiles()) {
       hasFileDropped = true;
 
+      // install users
+      List<File> userFiles = dragboard.getFiles().stream()
+          .filter(file -> file.getName().toLowerCase().endsWith(UserFileReader.USER_EXTENSION))
+          .toList();
+      if (!userFiles.isEmpty()) {
+        UserAuthenticatorService.addUserFiles(userFiles, true);
+      }
+
+      // load files
       final List<String> rawExtensions = List.of("mzml", "mzxml", "raw", "cdf", "netcdf", "nc",
           "mzdata", "imzml", "tdf", "d", "tsf", "zip", "gz");
       final List<String> libraryExtensions = List.of("json", "mgf", "msp", "jdx");

@@ -658,6 +658,7 @@
 
   <!-- HELP -->
   <Menu text="Help">
+    <MenuItem text="User sign in/sign up" onAction="#showUserTab"/>
     <MenuItem text="About MZmine" onAction="#showAbout"/>
     <MenuItem text="Open documentation (MZmine 3)" onAction="#openLink"
       userData="https://mzmine.github.io/mzmine_documentation/"/>

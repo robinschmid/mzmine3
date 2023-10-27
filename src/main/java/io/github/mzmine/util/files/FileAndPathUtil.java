@@ -30,6 +30,7 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
@@ -37,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javafx.stage.FileChooser.ExtensionFilter;
 import org.apache.commons.io.FileUtils;
@@ -51,6 +54,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class FileAndPathUtil {
 
+  private static final Logger logger = Logger.getLogger(FileAndPathUtil.class.getName());
   private final static File USER_MZMINE_DIR = new File(FileUtils.getUserDirectory(), ".mzmine/");
   private static File MZMINE_TEMP_DIR = new File(System.getProperty("java.io.tmpdir"));
 
@@ -392,8 +396,24 @@ public class FileAndPathUtil {
    */
   public static File[] findFilesInDirFlat(File dir, ExtensionFilter fileFilter,
       boolean searchSubdir) {
+    return streamFilesInDirFlat(dir, fileFilter, searchSubdir).toArray(File[]::new);
+  }
+
+
+  /**
+   * Flat stream of all files in directory and sub directories that match the filter
+   *
+   * @param dir          parent directory
+   * @param fileFilter   filter for file extensions
+   * @param searchSubdir include all sub directories
+   */
+  public static @NotNull Stream<File> streamFilesInDirFlat(File dir, ExtensionFilter fileFilter,
+      boolean searchSubdir) {
+    if (dir == null) {
+      return Stream.of();
+    }
     return findFilesInDir(dir, new FileTypeFilter(fileFilter, ""), searchSubdir, false).stream()
-        .flatMap(Arrays::stream).toArray(File[]::new);
+        .filter(Objects::nonNull).flatMap(Arrays::stream).filter(Objects::nonNull);
   }
 
   /**
@@ -539,6 +559,18 @@ public class FileAndPathUtil {
     return USER_MZMINE_DIR;
   }
 
+  @Nullable
+  public static File getUserSettingsDir(String subDirectory) {
+    File prefPath = FileAndPathUtil.getUserSettingsDir();
+    if (prefPath == null) {
+      logger.warning("Cannot find default location in user folder");
+    } else {
+      prefPath = new File(prefPath, subDirectory);
+      FileAndPathUtil.createDirectory(prefPath);
+    }
+    return prefPath;
+  }
+
 
   public static File getUniqueFilename(final File parent, final String fileName) {
     final File dir = parent.isDirectory() ? parent : parent.getParentFile();
@@ -657,5 +689,22 @@ public class FileAndPathUtil {
    */
   public static Path createTempDirectory(String name) throws IOException {
     return Files.createTempDirectory(MZMINE_TEMP_DIR.toPath(), name);
+  }
+
+  /**
+   * Delete a file
+   *
+   * @param file to delete
+   * @return true if deleted or not present false on IOException
+   */
+  public static boolean delete(final File file) {
+    try {
+      Files.delete(file.toPath());
+      return true;
+    } catch (NoSuchFileException nfe) {
+      return true;
+    } catch (IOException e) {
+      return false;
+    }
   }
 }

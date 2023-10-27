@@ -39,6 +39,8 @@ import io.github.mzmine.modules.tools.batchwizard.BatchWizardModule;
 import io.github.mzmine.modules.visualization.projectmetadata.ProjectMetadataTab;
 import io.github.mzmine.modules.visualization.spectra.msn_tree.MSnTreeVisualizerModule;
 import io.github.mzmine.modules.visualization.spectra.simplespectra.mirrorspectra.MirrorScanWindowFXML;
+import io.github.mzmine.users.ActiveUser;
+import io.github.mzmine.users.fx.UserPaneController;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -146,6 +148,12 @@ public class MainMenuController {
     final String moduleClass = (String) menuItem.getUserData();
     assert moduleClass != null;
 
+    if (ActiveUser.isInvalid()) {
+      logger.warning(ActiveUser.getRequiredUserInfo());
+      showUserTab(event);
+      return;
+    }
+
     logger.info("Menu item activated for module " + moduleClass);
     Class<? extends MZmineRunnableModule> moduleJavaClass;
     try {
@@ -236,6 +244,10 @@ public class MainMenuController {
 
   public void openQuickSearch(final ActionEvent e) {
     ModuleQuickSelectDialog.openQuickSearch();
+  }
+
+  public void showUserTab(final Event actionEvent) {
+    UserPaneController.showUserTab();
   }
 }
 

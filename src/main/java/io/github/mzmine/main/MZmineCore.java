@@ -50,6 +50,10 @@ import io.github.mzmine.taskcontrol.AllTasksFinishedListener;
 import io.github.mzmine.taskcontrol.Task;
 import io.github.mzmine.taskcontrol.TaskController;
 import io.github.mzmine.taskcontrol.impl.TaskControllerImpl;
+import io.github.mzmine.users.ActiveUser;
+import io.github.mzmine.users.MZmineUser;
+import io.github.mzmine.users.UserFileReader;
+import io.github.mzmine.users.fx.UserPaneController;
 import io.github.mzmine.util.ExitCode;
 import io.github.mzmine.util.MemoryMapStorage;
 import io.github.mzmine.util.files.FileAndPathUtil;
@@ -159,6 +163,41 @@ public final class MZmineCore {
         logger.log(Level.WARNING, "Cannot read configuration " + prefFile.getAbsolutePath());
       }
 
+      // load user after loading the preferences file
+      UserFileReader reader = new UserFileReader();
+      File userFile = argsParser.getUserFile();
+      if (userFile != null) {
+        // read CLI argument user file
+        MZmineUser user = reader.readUserFile(userFile);
+        ActiveUser.setUser(user);
+        if (user == null) {
+          logger.warning("""
+              Could not load user from command line arguments.
+              Make sure this user file is in the correct location and is still valid (see extended logs): %s""".formatted(
+              userFile));
+          exit(ExitCode.ERROR);
+          return;
+        }
+        if (!user.isValid()) {
+          // TODO finalize text
+          logger.warning("""
+              User defined as CLI argument %s is invalid. Obtain a new user file by logging into the system in the graphical user interface.
+              User files can then be transferred""".formatted(userFile));
+          exit(ExitCode.ERROR);
+          return;
+        }
+      } else {
+        // read last user from config
+        String lastActiveUserFileName = getConfiguration().getPreferences()
+            .getValue(MZminePreferences.lastActiveUserFileName);
+        if (lastActiveUserFileName == null || lastActiveUserFileName.isBlank()) {
+          logger.fine("No last active user. Starting with default services");
+        } else {
+          ActiveUser.setUser(reader.readUserByFileName(lastActiveUserFileName));
+          logger.info("Loaded user is: " + ActiveUser.getUserDescription());
+        }
+      }
+
       // override temp directory
       final File tempDirectory = argsParser.getTempDirectory();
       if (tempDirectory != null) {
@@ -217,9 +256,17 @@ public final class MZmineCore {
           e.printStackTrace();
           logger.log(Level.SEVERE, "Could not initialize GUI", e);
           System.exit(1);
+          return;
         }
       } else {
         getInstance().desktop = getInstance().defaultHeadlessDesktop;
+
+        // check user status
+        if (ActiveUser.isInvalid()) {
+          logger.warning(ActiveUser.getRequiredUserInfo());
+          exit(ExitCode.ERROR);
+          return;
+        }
 
         // Tracker
         GoogleAnalyticsTracker.track("MZmine Loaded (Headless mode)", "/JAVA/Main/HEADLESS");
@@ -228,7 +275,8 @@ public final class MZmineCore {
           // load batch
           if ((!batchFile.exists()) || (!batchFile.canRead())) {
             logger.severe("Cannot read batch file " + batchFile);
-            System.exit(1);
+            exit(ExitCode.ERROR);
+            return;
           }
 
           // run batch file
@@ -286,12 +334,23 @@ public final class MZmineCore {
    * Exit MZmine (usually used in headless mode)
    */
   public static void exit() {
-    if(isHeadLessMode() && isFxInitialized) {
+    exit(ExitCode.OK);
+  }
+
+  /**
+   * Exit MZmine (usually used in headless mode)
+   */
+  public static void exit(ExitCode code) {
+    logger.info("Shutting down MZmine");
+    if (isHeadLessMode() && isFxInitialized) {
       // fx might be initialized for graphics export in headless mode - shut it down
       // in GUI mode it is shut down automatically
       Platform.exit();
     }
-    if (instance.batchExitCode == ExitCode.OK || instance.batchExitCode == null) {
+    // external exit code - e.g., error during initialization
+    if (code != ExitCode.OK) {
+      System.exit(1);
+    } else if (instance.batchExitCode == ExitCode.OK || instance.batchExitCode == null) {
       System.exit(0);
     } else {
       System.exit(1);
@@ -403,6 +462,14 @@ public final class MZmineCore {
           "Cannot setup parameters in headless mode. This needs the parameter setup dialog");
     }
 
+    if (ActiveUser.isInvalid()) {
+      logger.warning(ActiveUser.getRequiredUserInfo());
+      if (!isHeadLessMode()) {
+        UserPaneController.showUserTab();
+      }
+      return ExitCode.CANCEL;
+    }
+
     MZmineModule module = MZmineCore.getModuleInstance(moduleClass);
 
     if (module == null) {
@@ -502,6 +569,14 @@ public final class MZmineCore {
   public static List<Task> runMZmineModule(
       @NotNull Class<? extends MZmineRunnableModule> moduleClass,
       @NotNull ParameterSet parameters) {
+
+    if (ActiveUser.isInvalid()) {
+      logger.warning(ActiveUser.getRequiredUserInfo());
+      if (!isHeadLessMode()) {
+        UserPaneController.showUserTab();
+      }
+      return List.of();
+    }
 
     MZmineRunnableModule module = getModuleInstance(moduleClass);
 

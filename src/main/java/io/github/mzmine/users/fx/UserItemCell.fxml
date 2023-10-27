@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?><?import javafx.scene.layout.StackPane?>
+
+<BorderPane fx:id="rootPane" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="io.github.mzmine.users.fx.UserItemCell">
+   <left>
+      <StackPane fx:id="pnCurrentUser" minWidth="40"/>
+   </left>
+   <center>
+      <VBox spacing="5">
+      <GridPane fx:id="pnIcons" hgap="5.0" vgap="5.0">
+      </GridPane>
+         <HBox spacing="5">
+           <Label fx:id="lbNickname" styleClass="bold-title-label" text="Alter ego name" />
+        </HBox>
+         <Label fx:id="lbActiveUntil" text="Active until DATE (XY days)" />
+         <BorderPane.margin>
+            <Insets bottom="8.0" left="8.0" right="10.0" top="8.0" />
+         </BorderPane.margin>
+      </VBox>
+   </center>
+</BorderPane>

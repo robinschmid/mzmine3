@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2022 The MZmine Development Team
+ * Copyright (c) 2004-2023 The MZmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -54,6 +54,7 @@ public class MZmineArgumentParser {
   private @Nullable File[] overrideSpectralLibrariesFiles;
   private File preferencesFile;
   private File tempDirectory;
+  private File userFile;
   private boolean isKeepRunningAfterBatch = false;
   private boolean loadTdfPseudoProfile = false;
   private boolean loadTsfProfile = false;
@@ -75,6 +76,13 @@ public class MZmineArgumentParser {
     Option batch = new Option("b", "batch", true, "batch mode file");
     batch.setRequired(false);
     options.addOption(batch);
+
+    // introduced in MZmine 3.10
+    Option user = new Option("u", "user", true, """
+        .mzuser file to load and override the active user in this session
+        """);
+    user.setRequired(false);
+    options.addOption(user);
 
     // introduced in MZmine version v3.5.0
     Option input = new Option("i", "input", true, """
@@ -179,6 +187,12 @@ public class MZmineArgumentParser {
         preferencesFile = new File(spref);
       }
 
+      String suser = cmd.getOptionValue(user.getLongOpt());
+      if (suser != null) {
+        logger.info(() -> "User file set by command line: " + suser);
+        userFile = new File(suser);
+      }
+
       String stemp = cmd.getOptionValue(tmpFolder.getLongOpt());
       if (stemp != null) {
         logger.info(
@@ -242,6 +256,16 @@ public class MZmineArgumentParser {
   }
 
   /**
+   * Override active user for this session
+   *
+   * @return user file or null if not specified
+   */
+  @Nullable
+  public File getUserFile() {
+    return userFile;
+  }
+
+  /**
    * After batch is finished, keep mzmine running
    *
    * @return true if -r or --running was set as argument
@@ -281,8 +305,8 @@ public class MZmineArgumentParser {
   }
 
   /**
-   * Defines spectral library files that will be used in headless mode. Those files will replace the input files
-   * in the {@link AllSpectralDataImportModule}
+   * Defines spectral library files that will be used in headless mode. Those files will replace the
+   * input files in the {@link AllSpectralDataImportModule}
    *
    * @return spectral library files if specified as argument else null
    */
