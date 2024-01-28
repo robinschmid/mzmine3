@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2023 The MZmine Development Team
+ * Copyright (c) 2004-2024 The MZmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -198,10 +198,10 @@ public class GraphStreamUtils {
         .map(nodes -> new NetworkCluster(nodes, nextClusterId.getAndIncrement())).toList();
 
     if (addAttribute) {
-      for (NetworkCluster(List<Node> nodes, int id) : sortedClusters) {
-        for (final Node node : nodes) {
-          node.setAttribute(NodeAtt.CLUSTER_ID.toString(), id);
-          node.setAttribute(NodeAtt.CLUSTER_SIZE.toString(), nodes.size());
+      for (NetworkCluster cluster : sortedClusters) {
+        for (final Node node : cluster.nodes()) {
+          node.setAttribute(NodeAtt.CLUSTER_ID.toString(), cluster.id());
+          node.setAttribute(NodeAtt.CLUSTER_SIZE.toString(), cluster.nodes().size());
         }
       }
     }
