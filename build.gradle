@@ -33,14 +33,13 @@ import java.nio.file.StandardCopyOption
 import java.util.function.Consumer
 
 plugins {
-    id "java"
-    id "application"
-    id "org.openjfx.javafxplugin" version "0.0.14"
-    id "org.beryx.runtime" version "1.12.7"
+    id("buildlogic.java-application-conventions")
+    id("buildlogic.javafx-conventions")
+    alias(libs.plugins.beryx.runtime)
 
     // versioning now in version.properties file
     // https://github.com/ethauvin/semver-gradle
-    id "net.thauvin.erik.gradle.semver" version "1.0.4"
+    alias(libs.plugins.semver)
 }
 
 // save version to main resources
