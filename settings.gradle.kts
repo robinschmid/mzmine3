@@ -1,3 +1,5 @@
+rootProject.name = "mzmine3"
+
 dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
@@ -6,4 +8,3 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "mzmine3"

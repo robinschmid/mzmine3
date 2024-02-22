@@ -55,12 +55,12 @@ semver {
 group = "io.github.mzmine"
 description = "MZmine"
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+//java {
+//    toolchain {
+//        languageVersion = JavaLanguageVersion.of(21)
 //        vendor = JvmVendorSpec.ADOPTIUM  // force use ADOPTIUM TEMURIN JDK
-    }
-}
+//    }
+//}
 defaultTasks "test", "jpackage", "notarizeApp"
 
 // Check the OS
