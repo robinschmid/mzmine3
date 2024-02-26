@@ -305,21 +305,6 @@ configurations.all {
 }
 
 
-/*
- * Include JavaFX modules
- */
-javafx {
-// currently there is an issue with the jfx>16 and the feature table on windows
-// scrolling lets the table jump
-// jfx19 fixes remote connection issues though
-    version = "21"
-    modules = ["javafx.controls",
-               "javafx.swing",
-               "javafx.fxml",
-               "javafx.web",
-               "javafx.graphics"]
-}
-
 tasks.withType(JavaCompile) {
     options.encoding = "UTF-8"
     options.compilerArgs += ['--enable-preview']
