@@ -29,6 +29,7 @@ import io.github.mzmine.datamodel.features.FeatureList;
 import io.github.mzmine.gui.framework.fx.mvci.FxController;
 import io.github.mzmine.gui.framework.fx.mvci.FxInteractor;
 import io.github.mzmine.gui.framework.fx.mvci.FxViewBuilder;
+import io.github.mzmine.taskcontrol.TaskPriority;
 import java.util.List;
 import javafx.collections.FXCollections;
 import javafx.scene.layout.Region;
@@ -66,7 +67,8 @@ public class VolcanoPlotController extends FxController<VolcanoPlotModel> {
   }
 
   private void computeDataset() {
-    interactor.computeDataset();
+    onTaskThread("compute_dataset", TaskPriority.NORMAL, interactor::computeDataset,
+        interactor::updateModel);
   }
 
   public void setFeatureList(FeatureList flist) {

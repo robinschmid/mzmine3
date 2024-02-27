@@ -41,8 +41,6 @@ import io.github.mzmine.modules.dataanalysis.significance.RowSignificanceTestPro
 import io.github.mzmine.modules.dataanalysis.significance.RowSignificanceTestResult;
 import io.github.mzmine.modules.dataanalysis.significance.StatisticUtils;
 import io.github.mzmine.modules.dataanalysis.significance.ttest.StudentTTest;
-import io.github.mzmine.taskcontrol.SimpleCalculationTask;
-import io.github.mzmine.taskcontrol.Task;
 import io.github.mzmine.util.DataTypeUtils;
 import io.github.mzmine.util.color.SimpleColorPalette;
 import java.awt.Color;
@@ -55,8 +53,8 @@ import org.apache.commons.math.util.MathUtils;
 
 public class VolcanoPlotInteractor extends FxInteractor<VolcanoPlotModel> {
 
-  private Task lastTask = null;
-  private List<ProviderAndRenderer> temporaryDatasets;
+
+  private List<ProviderAndRenderer> datasets;
 
   public VolcanoPlotInteractor(VolcanoPlotModel model) {
     super(model);
@@ -64,8 +62,8 @@ public class VolcanoPlotInteractor extends FxInteractor<VolcanoPlotModel> {
 
   @Override
   public void updateModel() {
-    model.setDatasets(temporaryDatasets);
-    temporaryDatasets = null;
+    model.setDatasets(datasets);
+    datasets = null; // clear
   }
 
   public void computeDataset() {
@@ -79,26 +77,10 @@ public class VolcanoPlotInteractor extends FxInteractor<VolcanoPlotModel> {
       return;
     }
 
-    if (lastTask != null) {
-      lastTask.cancel();
-    }
-
-    RowSignificanceTestProcessor<?> processor = new RowSignificanceTestProcessor<>(flist.getRows(),
+    RowSignificanceTestProcessor processor = new RowSignificanceTestProcessor(
         model.getAbundanceMeasure(), test);
-    SimpleCalculationTask<RowSignificanceTestProcessor<?>> task = new SimpleCalculationTask<>(
-        processor);
-
-    MZmineCore.getTaskController().addTask(task);
-    lastTask = task;
-    task.setOnFinished(() -> {
-      prepareTestResultsForPresentation(task, test);
-    });
-  }
-
-  private void prepareTestResultsForPresentation(
-      SimpleCalculationTask<RowSignificanceTestProcessor<?>> task, RowSignificanceTest test) {
-    lastTask = null;
-    final List<RowSignificanceTestResult> rowSignificanceTestResults = task.getProcessor().get();
+    final List<RowSignificanceTestResult> rowSignificanceTestResults = processor.apply(
+        flist.getRows());
     final Map<DataType<?>, List<RowSignificanceTestResult>> dataTypeMap = DataTypeUtils.groupByBestDataType(
         rowSignificanceTestResults, RowSignificanceTestResult::row, true,
         FeatureAnnotationPriority.getDataTypesInOrder());
@@ -111,18 +93,16 @@ public class VolcanoPlotInteractor extends FxInteractor<VolcanoPlotModel> {
     final List<RawDataFile> groupBFiles = ttest.getGroupBFiles();
 
     final SimpleColorPalette colors = MZmineCore.getConfiguration().getDefaultColorPalette();
-    temporaryDatasets = new ArrayList<>();
+    List<ProviderAndRenderer> datasets = new ArrayList<>();
     colors.resetColorCounter(); // set color index to 0
     for (Entry<DataType<?>, List<RowSignificanceTestResult>> entry : dataTypeMap.entrySet()) {
       final DataType<?> type = entry.getKey();
       final List<RowSignificanceTestResult> testResults = entry.getValue();
 
-      final double pValue = model.getpValue();
-
       final List<RowSignificanceTestResult> significantRows = testResults.stream()
-          .filter(result -> result.pValue() < pValue).toList();
+          .filter(result -> result.pValue() < 0.05).toList();
       final List<RowSignificanceTestResult> insignificantRows = testResults.stream()
-          .filter(result -> result.pValue() >= pValue).toList();
+          .filter(result -> result.pValue() >= 0.05).toList();
 
       final Color color = colors.getNextColorAWT();
       if (!significantRows.isEmpty()) {
@@ -130,21 +110,22 @@ public class VolcanoPlotInteractor extends FxInteractor<VolcanoPlotModel> {
             groupAFiles, groupBFiles);
         var provider = new AnyXYProvider(color,
             STR."\{type.equals(DataTypes.get(MissingValueType.class)) ? "not annotated"
-                : type.getHeaderString()} (p < \{pValue})", significantRows.size(),
+                : type.getHeaderString()} (p < 0.05)", significantRows.size(),
             i -> log2FoldChangeSignificant[i], i -> -Math.log10(significantRows.get(i).pValue()));
-        temporaryDatasets.add(new ProviderAndRenderer(provider, new ColoredXYShapeRenderer(false)));
+        datasets.add(new ProviderAndRenderer(provider, new ColoredXYShapeRenderer(false)));
       }
       if (!insignificantRows.isEmpty()) {
         final double[] log2FoldChangeInsignificant = calculateLog2FoldChange(insignificantRows,
             groupAFiles, groupBFiles);
         var provider = new AnyXYProvider(color,
             STR."\{type.equals(DataTypes.get(MissingValueType.class)) ? "not annotated"
-                : type.getHeaderString()} (p ≥ \{pValue})", insignificantRows.size(),
+                : type.getHeaderString()} (p ≥ 0.05)", insignificantRows.size(),
             i -> log2FoldChangeInsignificant[i],
             i -> -Math.log10(insignificantRows.get(i).pValue()));
-        temporaryDatasets.add(new ProviderAndRenderer(provider, new ColoredXYShapeRenderer(true)));
+        datasets.add(new ProviderAndRenderer(provider, new ColoredXYShapeRenderer(true)));
       }
     }
+    this.datasets = datasets;
   }
 
   private double[] calculateLog2FoldChange(List<RowSignificanceTestResult> testResults,

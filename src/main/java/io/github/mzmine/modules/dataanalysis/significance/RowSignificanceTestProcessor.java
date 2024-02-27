@@ -27,30 +27,26 @@ package io.github.mzmine.modules.dataanalysis.significance;
 
 import io.github.mzmine.datamodel.AbundanceMeasure;
 import io.github.mzmine.datamodel.features.FeatureListRow;
-import io.github.mzmine.taskcontrol.operations.AbstractTaskSubProcessor;
-import io.github.mzmine.taskcontrol.operations.TaskSubSupplier;
-import java.util.ArrayList;
+import io.github.mzmine.taskcontrol.operations.AbstractTaskSubFunction;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import org.jetbrains.annotations.NotNull;
 
-public class RowSignificanceTestProcessor<T> extends AbstractTaskSubProcessor implements
-    TaskSubSupplier<List<RowSignificanceTestResult>> {
+public class RowSignificanceTestProcessor extends
+    AbstractTaskSubFunction<List<FeatureListRow>, List<RowSignificanceTestResult>> {
 
   private static final Logger logger = Logger.getLogger(
       RowSignificanceTestProcessor.class.getName());
 
-  private final List<FeatureListRow> rows;
   private final AbundanceMeasure abundanceMeasure;
   private final RowSignificanceTest test;
-  private List<RowSignificanceTestResult> results = new ArrayList<>();
-  private AtomicLong processedRows = new AtomicLong(0);
+  private final AtomicLong processedRows = new AtomicLong(0);
+  private final AtomicLong totalRows = new AtomicLong(0);
 
-  public RowSignificanceTestProcessor(@NotNull List<FeatureListRow> rows,
-      AbundanceMeasure abundanceMeasure, RowSignificanceTest test) {
-    this.rows = rows;
+
+  public RowSignificanceTestProcessor(AbundanceMeasure abundanceMeasure, RowSignificanceTest test) {
     this.abundanceMeasure = abundanceMeasure;
     this.test = test;
   }
@@ -62,26 +58,20 @@ public class RowSignificanceTestProcessor<T> extends AbstractTaskSubProcessor im
 
   @Override
   public double getFinishedPercentage() {
-    return rows.isEmpty() ? 0 : (double) processedRows.get() / rows.size();
+    return totalRows.get() == 0 ? 0 : (double) processedRows.get() / totalRows.get();
   }
 
   @Override
-  public void process() {
-    final List<RowSignificanceTestResult> results = rows.stream().map(r -> {
+  public List<RowSignificanceTestResult> apply(final List<FeatureListRow> rows) {
+    totalRows.set(rows.size());
+
+    return rows.stream().map(r -> {
       processedRows.getAndIncrement();
       if (isCanceled()) {
         return null;
       }
       return test.test(r, abundanceMeasure);
     }).filter(Objects::nonNull).toList();
-    this.results = results;
   }
 
-  @Override
-  public List<RowSignificanceTestResult> get() {
-    if (isCanceled()) {
-      return List.of();
-    }
-    return results;
-  }
 }
