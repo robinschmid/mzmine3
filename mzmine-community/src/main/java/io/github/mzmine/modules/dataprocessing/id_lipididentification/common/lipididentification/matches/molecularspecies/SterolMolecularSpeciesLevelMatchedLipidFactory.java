@@ -23,11 +23,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.matchedlipidannotations;
+package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.matches.molecularspecies;
 
-public enum MatchedLipidStatus {
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.matches.species.GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory;
 
-  MATCHED,//
-  ESTIMATED//
+public class SterolMolecularSpeciesLevelMatchedLipidFactory extends
+    GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implements
+    IMolecularSpeciesLevelMatchedLipidFactory {
 
 }

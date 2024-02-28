@@ -23,21 +23,26 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.matchedlipidannotations.specieslevellipidmatches;
+package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification;
 
-import io.github.mzmine.datamodel.DataPoint;
-import io.github.mzmine.datamodel.IonizationType;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.matchedlipidannotations.MatchedLipid;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.ILipidAnnotation;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidFragment;
-import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
-import java.util.Set;
+public enum LipidFragmentationRuleRating {
+  MINOR("minor", "Fragmentation rule alone is not enough to identify a lipid"),//
+  MAJOR("major", "Fragmentation rule can identify lipid");//
 
-public interface ISpeciesLevelMatchedLipidFactory {
+  private final String name;
+  private final String description;
 
-  MatchedLipid validateSpeciesLevelAnnotation(double accurateMz,
-      ILipidAnnotation speciesLevelAnnotation, Set<LipidFragment> annotatedFragments,
-      DataPoint[] massList, double minMsMsScore, MZTolerance mzTolRangeMSMS,
-      IonizationType ionizationType);
+  LipidFragmentationRuleRating(String name, String description) {
+    this.name = name;
+    this.description = description;
+  }
 
+  public String getName() {
+    return name;
+  }
+
+  public String getDescription() {
+    return description;
+  }
 }
+

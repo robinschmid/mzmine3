@@ -23,7 +23,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools;
+package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification;
 
 public enum LipidFragmentationRuleType {
 
