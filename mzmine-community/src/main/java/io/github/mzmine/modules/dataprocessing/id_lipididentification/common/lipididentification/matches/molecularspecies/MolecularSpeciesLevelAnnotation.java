@@ -23,50 +23,48 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.matchedlipidannotations.specieslevellipidmatches;
+package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.matches.molecularspecies;
 
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.ILipidAnnotation;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.ILipidClass;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidAnnotationLevel;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidClasses;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.customlipidclass.CustomLipidClass;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.lipidchain.ILipidChain;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.lipidchain.LipidChain;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipidutils.LipidParsingUtils;
+import io.github.mzmine.modules.io.projectload.version_3_0.CONST;
 import io.github.mzmine.util.FormulaUtils;
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 import org.openscience.cdk.interfaces.IMolecularFormula;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
-public class SpeciesLevelAnnotation implements ILipidAnnotation {
+public class MolecularSpeciesLevelAnnotation implements ILipidAnnotation {
 
   private static final String XML_ELEMENT = "lipidannotation";
   private static final String XML_LIPID_CLASS = "lipidclass";
   private static final String XML_NAME = "name";
   private static final String XML_LIPID_ANNOTAION_LEVEL = "lipidannotationlevel";
   private static final String XML_LIPID_FORMULA = "molecularformula";
-  private static final String XML_NUMBER_OF_CARBONS = "numberOfCarbons";
-  private static final String XML_NUMBER_OF_DBES = "numberofdbes";
-  private static final String XML_NUMBER_OF_OXYGENS = "numberofoxygens";
+  private static final String XML_LIPID_CHAINS = "lipidchains";
 
   private ILipidClass lipidClass;
   private String annotation;
-  private static final LipidAnnotationLevel LIPID_ANNOTATION_LEVEL = LipidAnnotationLevel.SPECIES_LEVEL;
+  private static final LipidAnnotationLevel LIPID_ANNOTATION_LEVEL =
+      LipidAnnotationLevel.MOLECULAR_SPECIES_LEVEL;
   private final IMolecularFormula molecularFormula;
-  private final int numberOfCarbons;
-  private final int numberOfDBEs;
-  private final int numberOfOxygens;
+  private List<ILipidChain> lipidChains;
 
-  public SpeciesLevelAnnotation(ILipidClass lipidClass, String annotation,
-      IMolecularFormula molecularFormula, int numberOfCarbons, int numberOfDBEs,
-      int numberOfOxygens) {
+  public MolecularSpeciesLevelAnnotation(ILipidClass lipidClass, String annotation,
+      IMolecularFormula molecularFormula, List<ILipidChain> lipidChains) {
     this.lipidClass = lipidClass;
     this.annotation = annotation;
     this.molecularFormula = molecularFormula;
-    this.numberOfCarbons = numberOfCarbons;
-    this.numberOfDBEs = numberOfDBEs;
-    this.numberOfOxygens = numberOfOxygens;
+    this.lipidChains = lipidChains;
   }
 
   @Override
@@ -99,40 +97,42 @@ public class SpeciesLevelAnnotation implements ILipidAnnotation {
     return molecularFormula;
   }
 
-  public int getNumberOfCarbons() {
-    return numberOfCarbons;
+  public List<ILipidChain> getLipidChains() {
+    return lipidChains;
   }
 
-  public int getNumberOfDBEs() {
-    return numberOfDBEs;
-  }
-
-  public int getNumberOfOxygens() {
-    return numberOfOxygens;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-    SpeciesLevelAnnotation that = (SpeciesLevelAnnotation) o;
-    return numberOfCarbons == that.numberOfCarbons && numberOfDBEs == that.numberOfDBEs
-        && numberOfOxygens == that.numberOfOxygens && Objects.equals(lipidClass, that.lipidClass)
-        && Objects.equals(annotation, that.annotation) && Objects.equals(molecularFormula,
-        that.molecularFormula);
+  public void setLipidChains(List<ILipidChain> lipidChains) {
+    this.lipidChains = lipidChains;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(lipidClass, annotation, molecularFormula, numberOfCarbons, numberOfDBEs,
-        numberOfOxygens);
+    final int prime = 31;
+    int result = 1;
+    result = prime * result + ((annotation == null) ? 0 : annotation.hashCode());
+    result = prime * result + ((lipidChains == null) ? 0 : lipidChains.hashCode());
+    return result;
   }
 
   @Override
+  public boolean equals(Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    MolecularSpeciesLevelAnnotation other = (MolecularSpeciesLevelAnnotation) obj;
+    if (annotation == null) {
+      if (other.annotation != null)
+        return false;
+    } else if (!annotation.equals(other.annotation))
+      return false;
+    if (lipidChains == null) {
+      return other.lipidChains == null;
+    } else
+      return lipidChains.equals(other.lipidChains);
+  }
 
   public void saveToXML(XMLStreamWriter writer) throws XMLStreamException {
     writer.writeStartElement(XML_ELEMENT);
@@ -147,16 +147,17 @@ public class SpeciesLevelAnnotation implements ILipidAnnotation {
     writer.writeStartElement(XML_LIPID_FORMULA);
     writer.writeCharacters(MolecularFormulaManipulator.getString(molecularFormula));
     writer.writeEndElement();
-    writer.writeStartElement(XML_NUMBER_OF_CARBONS);
-    writer.writeCharacters(String.valueOf(numberOfCarbons));
+    writer.writeStartElement(XML_LIPID_CHAINS);
+    if (lipidChains != null) {
+      for (ILipidChain lipidChain : lipidChains) {
+        lipidChain.saveToXML(writer);
+      }
+    } else {
+      writer.writeCharacters(CONST.XML_NULL_VALUE);
+    }
     writer.writeEndElement();
-    writer.writeStartElement(XML_NUMBER_OF_DBES);
-    writer.writeCharacters(String.valueOf(numberOfDBEs));
     writer.writeEndElement();
-    writer.writeStartElement(XML_NUMBER_OF_OXYGENS);
-    writer.writeCharacters(String.valueOf(numberOfOxygens));
-    writer.writeEndElement();
-    writer.writeEndElement();
+
   }
 
   public static ILipidAnnotation loadFromXML(XMLStreamReader reader) throws XMLStreamException {
@@ -169,9 +170,7 @@ public class SpeciesLevelAnnotation implements ILipidAnnotation {
     String annotation = null;
     LipidAnnotationLevel lipidAnnotationLevel = null;
     IMolecularFormula molecularFormula = null;
-    Integer numberOfCarbons = null;
-    Integer numberOfDBEs = null;
-    Integer numberOfOxygens = null;
+    List<ILipidChain> lipidChains = null;
     while (reader.hasNext()
         && !(reader.isEndElement() && reader.getLocalName().equals(XML_ELEMENT))) {
       reader.next();
@@ -181,11 +180,8 @@ public class SpeciesLevelAnnotation implements ILipidAnnotation {
 
       switch (reader.getLocalName()) {
         case XML_LIPID_CLASS:
-          if (reader.getAttributeValue(null, XML_LIPID_CLASS)
-              .equals(LipidClasses.class.getSimpleName())) {
-            lipidClass = LipidClasses.loadFromXML(reader);
-          } else if (reader.getAttributeValue(null, XML_LIPID_CLASS)
-              .equals(CustomLipidClass.class.getSimpleName())) {
+          lipidClass = LipidClasses.loadFromXML(reader);
+          if (lipidClass == null) {
             lipidClass = CustomLipidClass.loadFromXML(reader);
           }
           break;
@@ -199,26 +195,37 @@ public class SpeciesLevelAnnotation implements ILipidAnnotation {
         case XML_LIPID_FORMULA:
           molecularFormula = FormulaUtils.createMajorIsotopeMolFormula(reader.getElementText());
           break;
-        case XML_NUMBER_OF_CARBONS:
-          numberOfCarbons = Integer.parseInt(reader.getElementText());
-          break;
-        case XML_NUMBER_OF_DBES:
-          numberOfDBEs = Integer.parseInt(reader.getElementText());
-          break;
-        case XML_NUMBER_OF_OXYGENS:
-          numberOfOxygens = Integer.parseInt(reader.getElementText());
+        case XML_LIPID_CHAINS:
+          lipidChains = loadLipidChainsFromXML(reader);
           break;
         default:
           break;
       }
     }
-
     if (lipidAnnotationLevel != null
-        && lipidAnnotationLevel.equals(LipidAnnotationLevel.SPECIES_LEVEL)) {
-      return new SpeciesLevelAnnotation(lipidClass, annotation, molecularFormula, numberOfCarbons,
-          numberOfDBEs, numberOfOxygens);
+        && lipidAnnotationLevel.equals(LipidAnnotationLevel.MOLECULAR_SPECIES_LEVEL)) {
+      return new MolecularSpeciesLevelAnnotation(lipidClass, annotation, molecularFormula,
+          lipidChains);
     }
     return null;
+  }
+
+  private static List<ILipidChain> loadLipidChainsFromXML(XMLStreamReader reader)
+      throws XMLStreamException {
+    if (!(reader.isStartElement() && reader.getLocalName().equals(XML_LIPID_CHAINS))) {
+      throw new IllegalStateException(
+          "Cannot load lipid chains from the current element. Wrong name.");
+    }
+
+    List<ILipidChain> lipidChains = new ArrayList<>();
+    while (reader.hasNext()
+        && !(reader.isEndElement() && reader.getLocalName().equals(XML_LIPID_CHAINS))) {
+      reader.next();
+      if (reader.isStartElement()) {
+        lipidChains.add(LipidChain.loadFromXML(reader));
+      }
+    }
+    return lipidChains;
   }
 
 }

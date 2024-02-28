@@ -23,7 +23,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools;
+package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification;
 
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidFragment;

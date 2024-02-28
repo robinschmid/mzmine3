@@ -25,8 +25,8 @@
 
 package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipidutils;
 
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.LipidFragmentationRuleRating;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.LipidFragmentationRuleType;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.LipidFragmentationRuleRating;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.LipidFragmentationRuleType;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidAnnotationLevel;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidCategories;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidClasses;

@@ -23,13 +23,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.matchedlipidannotations.molecularspecieslevelidentities;
+package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.matches.molecularspecies;
 
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.datamodel.IonizationType;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.MSMSLipidTools;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.matchedlipidannotations.MatchedLipid;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.matchedlipidannotations.specieslevellipidmatches.SpeciesLevelAnnotation;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.MSMSLipidTools;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.matches.MatchedLipid;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.matches.species.SpeciesLevelAnnotation;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.ILipidAnnotation;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.ILipidClass;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidAnnotationLevel;
@@ -45,14 +45,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.openscience.cdk.interfaces.IMolecularFormula;
 
-public class GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implements
+public class FattyAcylMolecularSpeciesLevelMatchedLipidFactory implements
     IMolecularSpeciesLevelMatchedLipidFactory {
 
   private static final MSMSLipidTools MSMS_LIPID_TOOLS = new MSMSLipidTools();
@@ -94,13 +93,6 @@ public class GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implement
     Set<LipidFragment> detectedFragmentsWithChainInformation = detectedFragments.stream().filter(
         fragment -> fragment.getLipidFragmentInformationLevelType()
             .equals(LipidAnnotationLevel.MOLECULAR_SPECIES_LEVEL)).collect(Collectors.toSet());
-    Set<LipidFragment> detectedFragmentsWithCombinedChainInformation = null;
-    if (detectedFragmentsWithChainInformation.stream().anyMatch(
-        lipidFragment -> lipidFragment.getLipidChainType()
-            .equals(LipidChainType.TWO_ACYL_CHAINS_COMBINED))) {
-      detectedFragmentsWithCombinedChainInformation = extractFragmentsWithCombinedChainInformation(
-          detectedFragmentsWithChainInformation);
-    }
     List<ILipidChain> chains = getChainsFromFragments(detectedFragmentsWithChainInformation);
     Set<MatchedLipid> matchedMolecularSpeciesLevelAnnotations = new HashSet<>();
 
@@ -199,108 +191,17 @@ public class GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implement
       }
     }
 
-    //ILS allows alkyl chain assumption based on detected acyl chain for ether lipids, only allowed for 2 chains in total
-    LipidChainType[] chainTypesArray = lipidAnnotation.getLipidClass().getChainTypes();
-    List<LipidChainType> chainTypes = new ArrayList<>();
-    Collections.addAll(chainTypes, chainTypesArray);
-
-    boolean containsAlkylChain = chainTypes.contains(LipidChainType.ALKYL_CHAIN);
-    if (matchedMolecularSpeciesLevelAnnotations.isEmpty() && containsAlkylChain
-        && chainsInLipid <= 2) {
-      Set<MatchedLipid> matchedEtherLipids = constructPossibleEtherLipidMolecularSpeciesLevelAnnotations(
+    //Fall back to Species Level if construction was not possible
+    if (matchedMolecularSpeciesLevelAnnotations.isEmpty() && chainsInLipid <= 2) {
+      Set<MatchedLipid> matchedEtherLipids = constructPossibleSpeciesLevelAnnotations(
           detectedFragmentsWithChainInformation, chains, lipidAnnotation, accurateMz, massList,
           minMsMsScore, mzTolRangeMSMS, ionizationType, totalNumberOfCAtoms, totalNumberOfDBEs);
       matchedMolecularSpeciesLevelAnnotations.addAll(matchedEtherLipids);
     }
-
-    // check for fragments with combined chains
-    if (detectedFragmentsWithCombinedChainInformation != null
-        && !detectedFragmentsWithCombinedChainInformation.isEmpty()) {
-      handleCombinedChainFragments(lipidAnnotation, accurateMz, massList, minMsMsScore,
-          mzTolRangeMSMS, ionizationType, detectedFragmentsWithChainInformation,
-          detectedFragmentsWithCombinedChainInformation, matchedMolecularSpeciesLevelAnnotations,
-          totalNumberOfCAtoms, totalNumberOfDBEs, chainTypesArray);
-    }
-
     return matchedMolecularSpeciesLevelAnnotations;
   }
 
-  private void handleCombinedChainFragments(ILipidAnnotation lipidAnnotation, Double accurateMz,
-      DataPoint[] massList, double minMsMsScore, MZTolerance mzTolRangeMSMS,
-      IonizationType ionizationType, Set<LipidFragment> detectedFragmentsWithChainInformation,
-      Set<LipidFragment> detectedFragmentsWithCombinedChainInformation,
-      Set<MatchedLipid> matchedMolecularSpeciesLevelAnnotations, int totalNumberOfCAtoms,
-      int totalNumberOfDBEs, LipidChainType[] chainTypesArray) {
-    addAnnotationSupportingFragments(matchedMolecularSpeciesLevelAnnotations,
-        detectedFragmentsWithCombinedChainInformation);
-
-    // if no annotations detected, check if combined chain annotations can be found
-    if (matchedMolecularSpeciesLevelAnnotations.isEmpty() && Arrays.stream(
-            lipidAnnotation.getLipidClass().getChainTypes())
-        .allMatch(lipidChainType -> lipidChainType.equals(LipidChainType.ACYL_CHAIN))) {
-      List<ILipidChain> combinedChainsFromFragments = getChainsFromFragments(
-          detectedFragmentsWithCombinedChainInformation);
-      int numberOfChains = chainTypesArray.length;
-      if (numberOfChains == 4) {
-        for (ILipidChain combinedChainOne : combinedChainsFromFragments) {
-          for (ILipidChain combinedChainTwo : combinedChainsFromFragments) {
-            int combinedCarbons =
-                combinedChainOne.getNumberOfCarbons() + combinedChainTwo.getNumberOfCarbons();
-            int combinedDbes =
-                combinedChainOne.getNumberOfDBEs() + combinedChainTwo.getNumberOfDBEs();
-            if (combinedCarbons == totalNumberOfCAtoms && combinedDbes == totalNumberOfDBEs) {
-              List<ILipidChain> predictedChains = List.of(combinedChainOne, combinedChainTwo);
-              Set<LipidFragment> extractFragmentsForFittingChains = extractFragmentsForFittingChains(
-                  predictedChains, detectedFragmentsWithCombinedChainInformation);
-              matchedMolecularSpeciesLevelAnnotations.add(
-                  buildNewSpeciesLevelMatch(extractFragmentsForFittingChains, lipidAnnotation,
-                      accurateMz, massList, predictedChains, minMsMsScore, mzTolRangeMSMS,
-                      ionizationType));
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private void addAnnotationSupportingFragments(
-      Set<MatchedLipid> matchedMolecularSpeciesLevelAnnotations,
-      Set<LipidFragment> detectedFragmentsWithCombinedChainInformation) {
-    for (MatchedLipid matchedLipid : matchedMolecularSpeciesLevelAnnotations) {
-      if (matchedLipid.getLipidAnnotation() instanceof MolecularSpeciesLevelAnnotation lipidAnnotation) {
-        List<ILipidChain> lipidChains = lipidAnnotation.getLipidChains();
-        for (LipidFragment fragmentWithCombinedChainInformation : detectedFragmentsWithCombinedChainInformation) {
-          for (ILipidChain lipidChainOne : lipidChains) {
-            for (ILipidChain lipidChainTwo : lipidChains) {
-              int carbons = lipidChainOne.getNumberOfCarbons() + lipidChainTwo.getNumberOfCarbons();
-              int dbes = lipidChainOne.getNumberOfDBEs() + lipidChainTwo.getNumberOfDBEs();
-              if (carbons == fragmentWithCombinedChainInformation.getChainLength()
-                  && dbes == fragmentWithCombinedChainInformation.getNumberOfDBEs()) {
-                matchedLipid.getMatchedFragments().add(fragmentWithCombinedChainInformation);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private Set<LipidFragment> extractFragmentsWithCombinedChainInformation(
-      Set<LipidFragment> detectedFragmentsWithChainInformation) {
-    Set<LipidFragment> detectedChainFragmentsWithCombinedChainInformation = new HashSet<>();
-    Iterator<LipidFragment> iterator = detectedFragmentsWithChainInformation.iterator();
-    while (iterator.hasNext()) {
-      LipidFragment fragment = iterator.next();
-      if (fragment.getLipidChainType().equals(LipidChainType.TWO_ACYL_CHAINS_COMBINED)) {
-        detectedChainFragmentsWithCombinedChainInformation.add(fragment);
-        iterator.remove();
-      }
-    }
-    return detectedChainFragmentsWithCombinedChainInformation;
-  }
-
-
-  private Set<MatchedLipid> constructPossibleEtherLipidMolecularSpeciesLevelAnnotations(
+  private Set<MatchedLipid> constructPossibleSpeciesLevelAnnotations(
       Set<LipidFragment> detectedFragmentsWithChainInformation, List<ILipidChain> chains,
       ILipidAnnotation lipidAnnotation, Double accurateMz, DataPoint[] massList,
       double minMsMsScore, MZTolerance mzTolRangeMSMS, IonizationType ionizationType,
@@ -321,14 +222,8 @@ public class GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implement
     for (Map.Entry<ILipidChain, Set<LipidFragment>> entry : chainFragmentsMap.entrySet()) {
       ILipidChain chain = entry.getKey();
       if (chain != null) {
-        int carbonEstimateEtherChain = totalNumberOfCAtoms - chain.getNumberOfCarbons();
-        int dbesEstimateEtherChain = totalNumberOfDBEs - chain.getNumberOfDBEs();
-        if (carbonEstimateEtherChain > 0 && totalNumberOfDBEs >= 0) {
-          ILipidChain alkylChain = LIPID_CHAIN_FACTORY.buildLipidChain(LipidChainType.ALKYL_CHAIN,
-              carbonEstimateEtherChain, dbesEstimateEtherChain);
-          if (alkylChain == null) {
-            continue;
-          }
+        int carbonEstimateSecondChain = totalNumberOfCAtoms - chain.getNumberOfCarbons();
+        if (carbonEstimateSecondChain > 0 && totalNumberOfDBEs >= 0) {
           //Fall back to Species Level annotation to avoid over annotation
           IMolecularFormula lipidFormula = null;
           try {
@@ -398,24 +293,6 @@ public class GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implement
       IonizationType ionizationType) {
     ILipidAnnotation molecularSpeciesLevelAnnotation = LIPID_FACTORY.buildMolecularSpeciesLevelLipidFromChains(
         lipidAnnotation.getLipidClass(), predictedChains);
-    if (molecularSpeciesLevelAnnotation != null) {
-      Double msMsScore = MSMS_LIPID_TOOLS.calculateMsMsScore(massList, detectedFragments,
-          minMsMsScore, mzTolRangeMSMS);
-      return new MatchedLipid(molecularSpeciesLevelAnnotation, accurateMz, ionizationType,
-          detectedFragments, msMsScore);
-    } else {
-      return null;
-    }
-  }
-
-  private MatchedLipid buildNewSpeciesLevelMatch(Set<LipidFragment> detectedFragments,
-      ILipidAnnotation lipidAnnotation, Double accurateMz, DataPoint[] massList,
-      List<ILipidChain> predictedChains, double minMsMsScore, MZTolerance mzTolRangeMSMS,
-      IonizationType ionizationType) {
-    ILipidAnnotation molecularSpeciesLevelAnnotation = LIPID_FACTORY.buildSpeciesLevelLipid(
-        lipidAnnotation.getLipidClass(),
-        predictedChains.stream().mapToInt(ILipidChain::getNumberOfCarbons).sum(),
-        predictedChains.stream().mapToInt(ILipidChain::getNumberOfDBEs).sum(), 0);
     if (molecularSpeciesLevelAnnotation != null) {
       Double msMsScore = MSMS_LIPID_TOOLS.calculateMsMsScore(massList, detectedFragments,
           minMsMsScore, mzTolRangeMSMS);

@@ -23,13 +23,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.lipidfragmentannotation;
+package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.matches.species;
 
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidFragment;
-import java.util.List;
-
-public interface ILipidFragmentFactory {
-
-  List<LipidFragment> findLipidFragments();
+public class SterolSpeciesLevelMatchedLipidFactory extends
+    GlyceroAndGlycerophosphoSpeciesLevelMatchedLipidFactory implements
+    ISpeciesLevelMatchedLipidFactory {
 
 }

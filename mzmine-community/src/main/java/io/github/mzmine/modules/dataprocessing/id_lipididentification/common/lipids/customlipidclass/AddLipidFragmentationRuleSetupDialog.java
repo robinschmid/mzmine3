@@ -27,7 +27,7 @@ package io.github.mzmine.modules.dataprocessing.id_lipididentification.common.li
 
 import io.github.mzmine.datamodel.IonizationType;
 import io.github.mzmine.datamodel.PolarityType;
-import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentificationtools.LipidFragmentationRuleType;
+import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipididentification.LipidFragmentationRuleType;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.LipidAnnotationLevel;
 import io.github.mzmine.modules.dataprocessing.id_lipididentification.common.lipids.customlipidclass.CustomLipidClassFragmentationRulesChoiceComponent.AddLipidFragmentationRuleParameters;
 import io.github.mzmine.parameters.ParameterSet;
