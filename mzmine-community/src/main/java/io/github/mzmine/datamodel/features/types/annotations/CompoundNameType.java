@@ -67,6 +67,6 @@ public class CompoundNameType extends StringType
 
   @Override
   public int getPrefColumnWidth() {
-    return 350;
+    return 100;
   }
 }
