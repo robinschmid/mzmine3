@@ -141,6 +141,7 @@ ext {
 }
 
 dependencies {
+    implementation("com.catwithawand:BorderlessSceneFX:1.0.0")
     // local dependencies - publish
     implementation(libs.bundles.mzio)
     // same project

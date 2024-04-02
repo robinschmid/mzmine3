@@ -179,6 +179,8 @@ public class MainWindowController {
   public FlowPane taskViewPane;
   @FXML
   public HBox bottomMenuBar;
+  @FXML
+  public BorderPane rootPane;
 
   @FXML
   private Scene mainScene;
@@ -1012,4 +1014,7 @@ public class MainWindowController {
     return notificationPane;
   }
 
+  public BorderPane getRootPane() {
+    return rootPane;
+  }
 }

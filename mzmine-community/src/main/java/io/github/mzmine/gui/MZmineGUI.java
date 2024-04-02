@@ -29,6 +29,7 @@ package io.github.mzmine.gui;
 import static io.github.mzmine.gui.WindowLocation.TAB;
 import static io.github.mzmine.modules.io.projectload.ProjectLoaderParameters.projectFile;
 
+import com.catwithawand.borderlessscenefx.scene.BorderlessScene;
 import com.google.common.collect.ImmutableList;
 import io.github.mzmine.datamodel.MZmineProject;
 import io.github.mzmine.datamodel.RawDataFile;
@@ -82,11 +83,13 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Dialog;
@@ -101,12 +104,14 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import javafx.stage.Window;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -447,6 +452,32 @@ public class MZmineGUI extends Application implements MZmineDesktop, JavaFxDeskt
 
   @Override
   public void start(Stage stage) {
+    // Our root node
+    BorderPane root = new BorderPane(new Label("Hello"));
+
+    // A close button
+    Button closeButton = new Button("x");
+    closeButton.setOnAction(event -> stage.close());
+    // Our top bar
+    HBox topBar = new HBox(closeButton);
+//    topBar.setMinHeight(50);
+//    topBar.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+    topBar.setStyle("-fx-background-color:#303030;");
+    topBar.setAlignment(Pos.CENTER_RIGHT);
+    root.setTop(topBar);
+
+
+    // Create the BorderlessScene scene
+    BorderlessScene scene = new BorderlessScene(stage, StageStyle.UNDECORATED, root, 800, 600);
+
+    // Make the top bar draggable, so we can move the stage
+    scene.setMoveControl(topBar);
+
+    stage.setScene(scene);
+    stage.show();
+    if (true) {
+      return;
+    }
 
     MZmineGUI.mainStage = stage;
 
@@ -462,8 +493,10 @@ public class MZmineGUI extends Application implements MZmineDesktop, JavaFxDeskt
 
       rootScene = loader.load();
       mainWindowController = loader.getController();
-      stage.setScene(rootScene);
-      preferences.getValue(MZminePreferences.theme).apply(rootScene.getStylesheets());
+      root.setCenter(mainWindowController.getRootPane());
+      // replaced by decorator free scene
+//      stage.setScene(rootScene);
+      preferences.getValue(MZminePreferences.theme).apply(scene.getStylesheets());
 
     } catch (Exception e) {
       logger.log(Level.SEVERE, "Error loading MZmine GUI from FXML: " + e.getMessage(), e);
