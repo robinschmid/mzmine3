@@ -43,7 +43,6 @@ import io.github.mzmine.datamodel.featuredata.IntensityTimeSeries;
 import io.github.mzmine.datamodel.featuredata.IonMobilogramTimeSeries;
 import io.github.mzmine.datamodel.featuredata.IonTimeSeries;
 import io.github.mzmine.datamodel.features.Feature;
-import io.github.mzmine.datamodel.features.FeatureList;
 import io.github.mzmine.datamodel.features.FeatureListRow;
 import io.github.mzmine.datamodel.features.ModularFeatureList;
 import io.github.mzmine.datamodel.features.SimpleFeatureListAppliedMethod;
@@ -79,10 +78,8 @@ import io.github.mzmine.util.scans.ScanUtils;
 import io.github.mzmine.util.scans.SpectraMerging;
 import io.github.mzmine.util.scans.SpectraMerging.IntensityMergingType;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
-import java.lang.foreign.ValueLayout;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -118,8 +115,7 @@ public class DiaMs2CorrTask extends AbstractTask {
 
   private String description = "";
 
-  private double isolationWindowMergingProgress = 0d;
-  private double adapTaskProgess = 0d;
+  private double chromatogramProgress = 0d;
 
   protected DiaMs2CorrTask(@Nullable MemoryMapStorage storage, @NotNull Instant moduleCallDate,
       ModularFeatureList flist, ParameterSet parameters) {
@@ -151,24 +147,6 @@ public class DiaMs2CorrTask extends AbstractTask {
     adapParameters.setParameter(ADAPChromatogramBuilderParameters.minHighestPoint, minMs2Intensity);
   }
 
-  private static @NotNull Map<IsolationWindow, RangeMap<Double, IonTimeSeries<?>>> mapIsoWindowToEics(
-      Map<IsolationWindow, FeatureList> ms2Flists) {
-    final Map<IsolationWindow, RangeMap<Double, IonTimeSeries<?>>> isoWindowEicsMap = new HashMap<>();
-
-    for (Entry<IsolationWindow, FeatureList> entry : ms2Flists.entrySet()) {
-      final RawDataFile file = entry.getValue().getRawDataFile(0);
-      // store feature data in TreeRangeMap, to query by m/z in ms2 spectra
-      var ms2Flist = entry.getValue();
-      final RangeMap<Double, IonTimeSeries<?>> ms2Eics = TreeRangeMap.create();
-      ms2Flist.getRows().stream().map(row -> row.getFeature(file)).filter(Objects::nonNull)
-          .sorted(Comparator.comparingDouble(Feature::getHeight).reversed()).forEach(
-              feature -> ms2Eics.put(SpectraMerging.createNewNonOverlappingRange(ms2Eics,
-                  feature.getRawDataPointsMZRange()), feature.getFeatureData()));
-      isoWindowEicsMap.put(entry.getKey(), ms2Eics);
-    }
-    return isoWindowEicsMap;
-  }
-
   @Override
   public String getTaskDescription() {
     return "DIA MS2 for feature list: " + flist.getName();
@@ -176,8 +154,7 @@ public class DiaMs2CorrTask extends AbstractTask {
 
   @Override
   public double getFinishedPercentage() {
-    return isolationWindowMergingProgress * 0.25 + adapTaskProgess * 0.25
-        + (currentRow / (double) numRows) * 0.5d;
+    return chromatogramProgress * 0.5 + (currentRow / (double) numRows) * 0.5d;
   }
 
   @Override
@@ -190,13 +167,15 @@ public class DiaMs2CorrTask extends AbstractTask {
     }
 
     final RawDataFile file = flist.getRawDataFile(0);
-    final Map<IsolationWindow, List<Scan>> isolationWindowScanMap = extractIsolationWindows(file);
-    final Map<IsolationWindow, RawDataFile> isolationWindowFileMap = buildIsolationWindowFiles(
-        isolationWindowScanMap);
-    final Map<IsolationWindow, FeatureList> ms2Flists = buildChromatograms(isolationWindowFileMap);
-    final Map<IsolationWindow, RangeMap<Double, IonTimeSeries<?>>> isoWindowEicsMap = mapIsoWindowToEics(
-        ms2Flists);
-    final Set<IsolationWindow> isolationWindows = isoWindowEicsMap.keySet();
+    final List<IsolationWindowChromatograms> isoWindowChromatograms = buildIsolationWindowChromatograms(
+        file);
+
+    if (isoWindowChromatograms.isEmpty()) {
+      logger.info(
+          "Did not find any isolation windows with multiple data points. Maybe this dataset is not DIA data.");
+      setStatus(TaskStatus.FINISHED);
+      return;
+    }
 
     for (FeatureListRow row : flist.getRows()) {
       currentRow++;
@@ -210,9 +189,8 @@ public class DiaMs2CorrTask extends AbstractTask {
         continue;
       }
 
-      final List<IsolationWindow> matchingWindows = getIsolationWindows(feature, isolationWindows);
-      final List<@NotNull PseudoSpectrum> correlatedMs2s = processIsolationWindows(feature,
-          matchingWindows, isoWindowEicsMap, isolationWindowScanMap);
+      final List<@NotNull PseudoSpectrum> correlatedMs2s = correlateIsolationWindowChromatograms(
+          feature, isoWindowChromatograms);
 
       PseudoSpectrum reoccurringIons = refineMs2s(correlatedMs2s);
       if (reoccurringIons != null) {
@@ -220,17 +198,12 @@ public class DiaMs2CorrTask extends AbstractTask {
       }
     }
 
-    if (ms2Flists.isEmpty()) {
+    if (!isoWindowChromatograms.isEmpty()) {
       flist.getAppliedMethods().add(
           new SimpleFeatureListAppliedMethod(DiaMs2CorrModule.class, parameters,
               getModuleCallDate()));
-      setStatus(TaskStatus.FINISHED);
-      return;
     }
 
-    flist.getAppliedMethods().add(
-        new SimpleFeatureListAppliedMethod(DiaMs2CorrModule.class, parameters,
-            getModuleCallDate()));
     setStatus(TaskStatus.FINISHED);
   }
 
@@ -288,15 +261,20 @@ public class DiaMs2CorrTask extends AbstractTask {
     }
 
     return new SimplePseudoSpectrum(mostIntense.getDataFile(), mostIntense.getMSLevel(),
-        mostIntense.getRetentionTime(), null, mzs.toDoubleArray(), mzs.toDoubleArray(),
+        mostIntense.getRetentionTime(), null, mzs.toDoubleArray(), intensities.toDoubleArray(),
         mostIntense.getPolarity(), mostIntense.getScanDefinition(),
         mostIntense.getPseudoSpectrumType());
   }
 
-  private @NotNull List<@NotNull PseudoSpectrum> processIsolationWindows(Feature feature,
-      List<IsolationWindow> matchingWindows,
-      Map<IsolationWindow, RangeMap<Double, IonTimeSeries<?>>> isoWindowEicsMap,
-      Map<IsolationWindow, List<Scan>> isoWindowScansMap) {
+  @NotNull
+  private List<PseudoSpectrum> correlateIsolationWindowChromatograms(final Feature feature,
+      final List<IsolationWindowChromatograms> isoWindowChromatograms) {
+    final List<IsolationWindowChromatograms> matchingWindows = isoWindowChromatograms.stream()
+        .filter(chrom -> chrom.isolationWindow().contains(feature)).toList();
+    if (matchingWindows.isEmpty()) {
+      return List.of();
+    }
+
     final IonTimeSeries<? extends Scan> ms1Eic = feature.getFeatureData();
     final double[][] shape = extractPointsAroundMaximum(feature.getHeight() * correlationThreshold,
         ms1Eic, feature.getRepresentativeScan());
@@ -311,16 +289,15 @@ public class DiaMs2CorrTask extends AbstractTask {
 
     final List<PseudoSpectrum> correlatedMs2s = new ArrayList<>();
 
-    for (IsolationWindow window : matchingWindows) {
-      var ms2Scans = isoWindowScansMap.get(window);
-      if (!checkMs2ScanRequirements(feature.getRT(), ms2Scans, correlationRange)) {
+    for (IsolationWindowChromatograms windowChrom : matchingWindows) {
+      List<Scan> ms2Scans = windowChrom.scans();
+      final Scan closestMs2 = checkRequirementsGetClosestMs2(feature.getRT(), ms2Scans,
+          correlationRange);
+      if (closestMs2 == null) {
         continue;
       }
 
-      final Scan closestMs2 = getClosestMs2(feature.getRT(), ms2Scans);
-      final RangeMap<Double, IonTimeSeries<?>> eics = isoWindowEicsMap.get(window);
-
-      final List<IonTimeSeries<?>> eligibleEics = getEligibleEics(closestMs2, eics);
+      final var eligibleEics = getEligibleEics(closestMs2, windowChrom.chromatograms());
       if (eligibleEics.isEmpty()) {
         continue;
       }
@@ -358,7 +335,6 @@ public class DiaMs2CorrTask extends AbstractTask {
     MergedMassSpectrum mergedMobilityScan = null; // lazy initialization
 
     for (IonTimeSeries<?> ms2Eic : eligibleEics) {
-      // todo: to make this efficient, merge PR #2016
       final IntensityTimeSeries subSeries = ms2Eic.subSeries(getMemoryMapStorage(),
           correlationRange.lowerEndpoint(), correlationRange.upperEndpoint());
       if (subSeries.getNumberOfValues() < minCorrPoints) {
@@ -369,9 +345,9 @@ public class DiaMs2CorrTask extends AbstractTask {
         rts[i] = subSeries.getRetentionTime(i);
       }
 
+      var intensities = subSeries.getIntensityValues(new double[subSeries.getNumberOfValues()]);
       final CorrelationData correlationData = DIA.corrFeatureShape(ms1Rts, ms1Intensities, rts,
-          subSeries.getIntensityValueBuffer().toArray(ValueLayout.JAVA_DOUBLE), minCorrPoints, 2,
-          minMs2Intensity / 5);
+          intensities, minCorrPoints, 2, minMs2Intensity / 5);
       if (correlationData == null || !correlationData.isValid()
           || correlationData.getPearsonR() < minPearson) {
         continue;
@@ -481,10 +457,10 @@ public class DiaMs2CorrTask extends AbstractTask {
     return SpectraMerging.mergeSpectra(mobilityScans, mzTolerance, MergingType.ALL_ENERGIES, null);
   }
 
+  @NotNull
   private List<IonTimeSeries<?>> getEligibleEics(Scan ms2,
       RangeMap<Double, IonTimeSeries<?>> eics) {
     final List<IonTimeSeries<?>> result = new ArrayList<>();
-
     for (int i = 0; i < ms2.getNumberOfDataPoints(); i++) {
       if (ms2.getIntensityValue(i) < minMs2Intensity) {
         continue;
@@ -497,93 +473,130 @@ public class DiaMs2CorrTask extends AbstractTask {
       }
     }
 
+    return result.stream().distinct().toList();
+  }
+
+  /**
+   * Checks minimum number of data points
+   *
+   * @return the closest scan if requirements are met, otherwise null
+   */
+  @Nullable
+  private Scan checkRequirementsGetClosestMs2(float featureRt, List<Scan> ms2Scans,
+      Range<Float> correlationRange) {
+
+    final List<Scan> ms2sInRtRange = BinarySearch.indexRange(correlationRange, ms2Scans,
+        Scan::getRetentionTime).sublist(ms2Scans);
+    if (ms2sInRtRange.size() < minCorrPoints) {
+      return null;
+    }
+    Scan closestMs2 = getClosestMs2(featureRt, ms2sInRtRange);
+    return closestMs2;
+  }
+
+  private List<IsolationWindowChromatograms> buildIsolationWindowChromatograms(
+      final RawDataFile raw) {
+    // extract all scans with the same isolation windows
+    final Map<IsolationWindow, List<Scan>> isolationWindowScanMap = extractIsolationWindows(raw);
+
+    final RawDataFile file = flist.getRawDataFile(0);
+
+    final List<IsolationWindowChromatograms> result = new ArrayList<>(
+        isolationWindowScanMap.size());
+
+    // progress
+    final double numIsolationWindows = isolationWindowScanMap.size();
+    double finishedIsolationWindows = 0;
+
+    if (file instanceof IMSRawDataFile && flist.hasFeatureType(MobilityType.class)) {
+      // merge to new frames
+      logger.finest(() -> "Merging isolation windows of frames to new frame");
+
+      for (Entry<IsolationWindow, List<Scan>> entry : isolationWindowScanMap.entrySet()) {
+        final List<Scan> scans = entry.getValue();
+        final IsolationWindow isolationWindow = entry.getKey();
+        // may take a longer time because scans need to be merged to frames
+        final IMSRawDataFileImpl tempImsFile = createTempMergedImsRawFile(file, isolationWindow,
+            scans);
+
+        RangeMap<Double, IonTimeSeries<?>> chromatograms = buildChromatogramsMapMzRange(
+            tempImsFile);
+        chromatogramProgress = (++finishedIsolationWindows) / numIsolationWindows;
+        if (chromatograms == null) {
+          continue;
+        }
+        result.add(new IsolationWindowChromatograms(entry.getKey(), chromatograms, scans));
+        logger.finest(
+            "Finished chromatogram building for IMS file %s (%.0f/%.0f)".formatted(tempImsFile,
+                finishedIsolationWindows, numIsolationWindows));
+      }
+
+    } else {
+      // just append to new file
+      for (Entry<IsolationWindow, List<Scan>> entry : isolationWindowScanMap.entrySet()) {
+        List<Scan> scans = entry.getValue();
+        final RawDataFile tempFile = createTempRawFile(file, entry.getKey(), scans);
+
+        RangeMap<Double, IonTimeSeries<?>> chromatograms = buildChromatogramsMapMzRange(tempFile);
+        chromatogramProgress = (++finishedIsolationWindows) / numIsolationWindows;
+        if (chromatograms == null) {
+          continue;
+        }
+        result.add(new IsolationWindowChromatograms(entry.getKey(), chromatograms, scans));
+        logger.finest("Finished chromatogram building for file %s (%.0f/%.0f)".formatted(tempFile,
+            finishedIsolationWindows, numIsolationWindows));
+      }
+    }
+
     return result;
   }
 
-  private boolean checkMs2ScanRequirements(float featureRt, List<Scan> ms2Scans,
-      Range<Float> correlationRange) {
-    final List<Scan> ms2sInRtRange = ms2Scans.stream()
-        .filter(scan -> correlationRange.contains(scan.getRetentionTime())).toList();
-    if (ms2sInRtRange.isEmpty()) {
-      return false;
-    }
-    Scan closestMs2 = getClosestMs2(featureRt, ms2sInRtRange);
-    if (closestMs2 == null || ms2sInRtRange.size() < minCorrPoints) {
-//      logger.fine(() -> "Could not find enough ms2s in rtRange %s".formatted(correlationRange));
-      return false;
-    }
-    return true;
+  private @NotNull RawDataFileImpl createTempRawFile(final RawDataFile originalFile,
+      final IsolationWindow isolationWindow, final List<Scan> scans) {
+    final RawDataFileImpl windowFile = new RawDataFileImpl(
+        originalFile.getName() + " %s".formatted(isolationWindow.toString()), null,
+        getMemoryMapStorage());
+    scans.forEach(windowFile::addScan);
+    return windowFile;
   }
 
   /**
    * Builds one dummy file per isolation window. For {@link IMSRawDataFile}s, the mobility scans
    * must be merged first, accounting for considerable processing time.
    */
-  private Map<IsolationWindow, RawDataFile> buildIsolationWindowFiles(
-      Map<IsolationWindow, List<Scan>> isolationWindowScanMap) {
+  private @NotNull IMSRawDataFileImpl createTempMergedImsRawFile(final RawDataFile originalFile,
+      final IsolationWindow isolationWindow, final List<Scan> scans) {
+    final IMSRawDataFileImpl windowFile = new IMSRawDataFileImpl(
+        originalFile.getName() + " %s".formatted(isolationWindow.toString()), null,
+        getMemoryMapStorage());
 
-    final Map<IsolationWindow, RawDataFile> result = new HashMap<>();
-    final RawDataFile file = flist.getRawDataFile(0);
-
-    if (file instanceof IMSRawDataFile && flist.hasFeatureType(MobilityType.class)) {
-      // merge to new frames
-      logger.finest(() -> "Merging isolation windows of frames to new frame");
-      final double numIsolationWindows = isolationWindowScanMap.size();
-      double finishedIsolationWindows = 0;
-
-      for (Entry<IsolationWindow, List<Scan>> entry : isolationWindowScanMap.entrySet()) {
-        final IsolationWindow isolationWindow = entry.getKey();
-        final IMSRawDataFileImpl windowFile = new IMSRawDataFileImpl(
-            file.getName() + " %s".formatted(isolationWindow.toString()), null,
-            getMemoryMapStorage());
-
-        for (Scan scan : entry.getValue()) {
-          if (!(scan instanceof Frame frame)) {
-            logger.warning(
-                () -> "Data file %s is an ims file but also contains scans without ims dimension %s.".formatted(
-                    file.getName(), ScanUtils.scanToString(scan)));
-            continue;
-          }
-
-          // merge scans from isolation window only
-          final List<MobilityScan> mobilityScansInWindow = frame.getMobilityScans().stream()
-              .filter(isolationWindow::contains).toList();
-          final double[][] mzIntensities = SpectraMerging.calculatedMergedMzsAndIntensities(
-              mobilityScansInWindow, mzTolerance, IntensityMergingType.SUMMED,
-              SpectraMerging.DEFAULT_CENTER_FUNCTION, null, null, 2);
-
-          final SimpleFrame newFrame = new SimpleFrame(windowFile, scan.getScanNumber(),
-              scan.getMSLevel(), scan.getRetentionTime(), mzIntensities[0], mzIntensities[1],
-              scan.getSpectrumType(), scan.getPolarity(), scan.getScanDefinition(),
-              scan.getScanningMZRange(), ((Frame) scan).getMobilityType(), null,
-              scan.getInjectionTime());
-          newFrame.addMassList(new ScanPointerMassList(newFrame));
-          windowFile.addScan(newFrame);
-        }
-
-        isolationWindowMergingProgress = (++finishedIsolationWindows) / numIsolationWindows;
-        /*logger.finest(
-            "File: %s - Finished merging isolation window %s (%.0f/%.0f)".formatted(file.getName(),
-                isolationWindow.toString(), finishedIsolationWindows, numIsolationWindows));*/
-
-        result.put(isolationWindow, windowFile);
+    for (Scan scan : scans) {
+      if (!(scan instanceof Frame frame)) {
+        logger.warning(
+            () -> "Data file %s is an ims file but also contains scans without ims dimension %s.".formatted(
+                originalFile.getName(), ScanUtils.scanToString(scan)));
+        continue;
       }
 
-    } else {
-      // just append to new file
-      for (Entry<IsolationWindow, List<Scan>> entry : isolationWindowScanMap.entrySet()) {
-        final RawDataFileImpl windowFile = new RawDataFileImpl(
-            file.getName() + " %s".formatted(entry.getKey().toString()), null,
-            getMemoryMapStorage());
-        entry.getValue().forEach(windowFile::addScan);
-        result.put(entry.getKey(), windowFile);
-      }
-      isolationWindowMergingProgress = 1d; // nothing to calculate
+      // merge scans from isolation window only
+      final List<MobilityScan> mobilityScansInWindow = frame.getMobilityScans().stream()
+          .filter(isolationWindow::contains).toList();
+      final double[][] mzIntensities = SpectraMerging.calculatedMergedMzsAndIntensities(
+          mobilityScansInWindow, mzTolerance, IntensityMergingType.SUMMED,
+          SpectraMerging.DEFAULT_CENTER_FUNCTION, null, null, 2);
+
+      final SimpleFrame newFrame = new SimpleFrame(windowFile, scan.getScanNumber(),
+          scan.getMSLevel(), scan.getRetentionTime(), mzIntensities[0], mzIntensities[1],
+          scan.getSpectrumType(), scan.getPolarity(), scan.getScanDefinition(),
+          scan.getScanningMZRange(), ((Frame) scan).getMobilityType(), null,
+          scan.getInjectionTime());
+      newFrame.addMassList(new ScanPointerMassList(newFrame));
+      windowFile.addScan(newFrame);
     }
-
-    return result;
+    return windowFile;
   }
 
+  @Nullable
   private Scan getClosestMs2(float rt, List<Scan> ms2sInRtRange) {
     if (ms2sInRtRange.getFirst().getRetentionTime() > rt
         || ms2sInRtRange.getLast().getRetentionTime() < rt) {
@@ -595,36 +608,44 @@ public class DiaMs2CorrTask extends AbstractTask {
     return ms2sInRtRange.get(index);
   }
 
-  private Map<IsolationWindow, FeatureList> buildChromatograms(
-      Map<IsolationWindow, RawDataFile> isolationWindowFilesMap) {
+  /**
+   * Apply chromatogram builder on Scan / Frame level
+   *
+   * @param isoWindowRaw a temporary intermediate raw data file of all scans with the same isolation
+   *                     window
+   * @return RangeMap of data point mz range (key) --> chromatogram data (sorted by highest feature
+   * first)
+   */
+  private RangeMap<Double, IonTimeSeries<?>> buildChromatogramsMapMzRange(
+      final RawDataFile isoWindowRaw) {
+    final MZmineProjectImpl dummyProject = new MZmineProjectImpl();
+    dummyProject.addFile(isoWindowRaw);
+    // currently the consecutive scans are used
+    var adapTask = ModularADAPChromatogramBuilderTask.forChromatography(dummyProject, isoWindowRaw,
+        adapParameters, getMemoryMapStorage(), getModuleCallDate(), DiaMs2CorrModule.class);
+    adapTask.run();
 
-    final double totalAdapTasks = isolationWindowFilesMap.size();
-    double finishedAdapTasks = 0;
-
-    final Map<IsolationWindow, FeatureList> result = new HashMap<>();
-    for (Entry<IsolationWindow, RawDataFile> entry : isolationWindowFilesMap.entrySet()) {
-      final MZmineProjectImpl dummyProject = new MZmineProjectImpl();
-      dummyProject.addFile(entry.getValue());
-      // currently the consecutive scans are used
-      var adapTask = ModularADAPChromatogramBuilderTask.forChromatography(dummyProject,
-          entry.getValue(), adapParameters, getMemoryMapStorage(), getModuleCallDate(),
-          DiaMs2CorrModule.class);
-      adapTask.run();
-
-      if (dummyProject.getCurrentFeatureLists().isEmpty()) {
-        // file name includes isolation window for merged.
-        logger.warning("Cannot find ms2 feature list for file %s".formatted(entry.getValue()));
-        continue;
-      }
-      var ms2Flist = dummyProject.getCurrentFeatureLists().get(0);
-
-      adapTaskProgess = (++finishedAdapTasks) / totalAdapTasks;
-      logger.finest(
-          "Finished chromatogram building for file %s (%.0f/%.0f)".formatted(entry.getValue(),
-              finishedAdapTasks, totalAdapTasks));
-      result.put(entry.getKey(), ms2Flist);
+    if (dummyProject.getCurrentFeatureLists().isEmpty()) {
+      // file name includes isolation window for merged.
+      logger.warning("Cannot find ms2 feature list for file %s".formatted(isoWindowRaw));
+      return null;
     }
-    return result;
+    var ms2Flist = dummyProject.getCurrentFeatureLists().getFirst();
+
+    if (ms2Flist.getNumberOfRows() == 0) {
+      logger.warning("No chromatograms detected in file %s".formatted(isoWindowRaw));
+      return null;
+    }
+
+    final RangeMap<Double, IonTimeSeries<?>> ms2Eics = TreeRangeMap.create();
+    ms2Flist.getRows().stream().map(row -> row.getFeature(isoWindowRaw)).filter(Objects::nonNull)
+        .sorted(Comparator.comparingDouble(Feature::getHeight).reversed()).forEach(feature -> {
+          Range<Double> mzRange = SpectraMerging.createNewNonOverlappingRange(ms2Eics,
+              feature.getRawDataPointsMZRange());
+          ms2Eics.put(mzRange, feature.getFeatureData());
+        });
+
+    return ms2Eics;
   }
 
   /**
@@ -636,8 +657,7 @@ public class DiaMs2CorrTask extends AbstractTask {
    * @param maximumScan             The maximum scan in the chromatogram.
    * @return a 2d array [0][] = rts, [1][] = intensities.
    */
-  @Nullable
-  private double[][] extractPointsAroundMaximum(final double minCorrelationIntensity,
+  private double @Nullable [][] extractPointsAroundMaximum(final double minCorrelationIntensity,
       final IonTimeSeries<? extends Scan> chromatogram, @Nullable final Scan maximumScan) {
     if (maximumScan == null) {
       return null;
@@ -683,6 +703,9 @@ public class DiaMs2CorrTask extends AbstractTask {
     super.cancel();
   }
 
+  /**
+   * extract all scans with the same isolation windows
+   */
   private Map<IsolationWindow, List<Scan>> extractIsolationWindows(
       @NotNull final RawDataFile file) {
     Map<IsolationWindow, List<Scan>> windowScanMap = new HashMap<>();
@@ -693,7 +716,7 @@ public class DiaMs2CorrTask extends AbstractTask {
         for (IonMobilityMsMsInfo info : imsMsMsInfos) {
           IsolationWindow window = new IsolationWindow(info.getIsolationWindow(),
               info.getMobilityRange());
-          final List<Scan> scans = windowScanMap.computeIfAbsent(window, w -> new ArrayList<>());
+          final List<Scan> scans = windowScanMap.computeIfAbsent(window, _ -> new ArrayList<>());
           // have to extract some mocked frames later
           scans.add(scan);
         }
@@ -705,22 +728,14 @@ public class DiaMs2CorrTask extends AbstractTask {
 
         final Range<Double> mzRange = msMsInfo.getIsolationWindow();
         IsolationWindow window = new IsolationWindow(mzRange, null);
-        final List<Scan> scans = windowScanMap.computeIfAbsent(window, w -> new ArrayList<>());
+        final List<Scan> scans = windowScanMap.computeIfAbsent(window, _ -> new ArrayList<>());
         scans.add(scan);
       }
     }
+    // TODO maybe filter out all windows that only have 1 scan?
+    // or maybe use a different algorithm then?
 
     return windowScanMap;
   }
 
-  private @Nullable List<IsolationWindow> getIsolationWindows(Feature feature,
-      Collection<IsolationWindow> windows) {
-    List<IsolationWindow> result = new ArrayList<>();
-    for (IsolationWindow window : windows) {
-      if (window.contains(feature)) {
-        result.add(window);
-      }
-    }
-    return result;
-  }
 }
