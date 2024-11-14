@@ -1,0 +1,87 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "io.mzio",
+    "module": "mzmine-test-utils",
+    "version": "1.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.10"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 22,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "mzmine-test-utils-1.0.0.jar",
+          "url": "mzmine-test-utils-1.0.0.jar",
+          "size": 2670,
+          "sha512": "834eb95f65ce24a1e062ff0eea4072c5f55371fb8fdc4cf47cdc3d5f12399286a13ea076c7a855ace9d3b60bc09b69e2babef7e2a7558c9b2499454bb9076519",
+          "sha256": "d4cf4245fb8e30869d1e7576d83dbbd48957660348aeed23e762b08d5e7dd805",
+          "sha1": "ef345bb54e2327fdfd7a086fa2f5e8e30b24f43d",
+          "md5": "276bf4c636aef8d3bcc37bd15eaaf2be"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 22,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains",
+          "module": "annotations",
+          "version": {
+            "requires": "22.0.0"
+          }
+        },
+        {
+          "group": "io.mzio",
+          "module": "taskcontroller",
+          "version": {
+            "requires": "1.0.0"
+          }
+        },
+        {
+          "group": "io.github.mzmine",
+          "module": "taskcontroller"
+        },
+        {
+          "group": "org.mockito",
+          "module": "mockito-junit-jupiter",
+          "version": {
+            "requires": "5.8.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "mzmine-test-utils-1.0.0.jar",
+          "url": "mzmine-test-utils-1.0.0.jar",
+          "size": 2670,
+          "sha512": "834eb95f65ce24a1e062ff0eea4072c5f55371fb8fdc4cf47cdc3d5f12399286a13ea076c7a855ace9d3b60bc09b69e2babef7e2a7558c9b2499454bb9076519",
+          "sha256": "d4cf4245fb8e30869d1e7576d83dbbd48957660348aeed23e762b08d5e7dd805",
+          "sha1": "ef345bb54e2327fdfd7a086fa2f5e8e30b24f43d",
+          "md5": "276bf4c636aef8d3bcc37bd15eaaf2be"
+        }
+      ]
+    }
+  ]
+}
