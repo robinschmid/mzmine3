@@ -28,9 +28,11 @@ package io.github.mzmine.modules.dataprocessing.featdet_spectraldeconvolutiongc;
 import com.google.common.collect.Range;
 import io.github.mzmine.datamodel.PseudoSpectrum;
 import io.github.mzmine.datamodel.PseudoSpectrumType;
+import io.github.mzmine.datamodel.featuredata.impl.AverageMzIonTimeSeries;
 import io.github.mzmine.datamodel.features.FeatureList;
 import io.github.mzmine.datamodel.features.FeatureListRow;
 import io.github.mzmine.datamodel.features.ModularFeature;
+import io.github.mzmine.datamodel.features.types.CollapsedOtherFeaturesDataType;
 import io.github.mzmine.datamodel.impl.SimplePseudoSpectrum;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -73,6 +75,10 @@ public class SpectralDeconvolutionUtils {
           mainFeature.getRT(), null, // No MsMsInfo for pseudo spectrum
           mzs, intensities, mainFeature.getRepresentativeScan().getPolarity(),
           "Correlated Features Pseudo Spectrum", PseudoSpectrumType.GC_EI);
+
+      List<AverageMzIonTimeSeries> collapsedFeaturesData = group.stream().map(f -> new AverageMzIonTimeSeries(f.getFeatureData(), f.getMZ(), f.getHeight())).toList();
+
+      mainFeature.set(CollapsedOtherFeaturesDataType.class, collapsedFeaturesData);
 
       mainFeature.setAllMS2FragmentScans(List.of(pseudoSpectrum));
       deconvolutedFeatureListRowsByRtOnly.add(mainFeature.getRow());
