@@ -32,7 +32,7 @@ import java.util.Arrays;
 public class NullableIntArrayColumn extends AbstractDataColumn<Integer> implements
     NullableIntDataColumn {
 
-  public int[] data;
+  public volatile int[] data;
 
   public NullableIntArrayColumn(int initialSize) {
     data = new int[initialSize];
@@ -41,6 +41,9 @@ public class NullableIntArrayColumn extends AbstractDataColumn<Integer> implemen
 
   @Override
   public int getInt(final int index) {
+    if(data[index] == -1) {
+      int i = 0;
+    }
     return data[index];
   }
 
@@ -55,7 +58,7 @@ public class NullableIntArrayColumn extends AbstractDataColumn<Integer> implemen
   protected boolean resizeTo(final int finalSize) {
     var oldSize = data.length;
     data = Arrays.copyOf(data, finalSize);
-    Arrays.fill(data, oldSize - 1, finalSize, NULL_VALUE);
+    Arrays.fill(data, oldSize, finalSize, NULL_VALUE);
     return true;
   }
 

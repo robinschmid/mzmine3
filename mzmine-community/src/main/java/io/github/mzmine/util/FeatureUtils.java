@@ -142,7 +142,8 @@ public class FeatureUtils {
     buf.append(row.getID());
 
     buf.append(" m/z ");
-    buf.append(mzFormat.format(row.getAverageMZ()));
+    final Double mz = row.getAverageMZ();
+    buf.append(mz != null ? mzFormat.format(mz) : mz);
 
     final Float averageRT = row.getAverageRT();
     if (averageRT != null) {

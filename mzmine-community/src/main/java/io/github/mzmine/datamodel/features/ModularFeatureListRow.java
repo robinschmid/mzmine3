@@ -138,6 +138,9 @@ public class ModularFeatureListRow extends ModularDataModelColumnarRow implement
   public ModularFeatureListRow(@NotNull ModularFeatureList flist, int id, ModularFeatureListRow row,
       boolean copyFeatures) {
     this(flist, id);
+    if(id == -1) {
+      logger.warning("Row ID is -1. This is not allowed. Using row ID 0 instead.");
+    }
 
     // copy all but features and id
     if (row != null) {

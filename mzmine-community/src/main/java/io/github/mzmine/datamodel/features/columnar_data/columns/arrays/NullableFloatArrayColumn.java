@@ -32,7 +32,7 @@ import java.util.Arrays;
 public class NullableFloatArrayColumn extends AbstractDataColumn<Float> implements
     NullableFloatDataColumn {
 
-  public float[] data;
+  public volatile float[] data;
 
   public NullableFloatArrayColumn(int initialSize) {
     data = new float[initialSize];
@@ -55,7 +55,7 @@ public class NullableFloatArrayColumn extends AbstractDataColumn<Float> implemen
   protected boolean resizeTo(final int finalSize) {
     var oldSize = data.length;
     data = Arrays.copyOf(data, finalSize);
-    Arrays.fill(data, oldSize - 1, finalSize, Float.NaN);
+    Arrays.fill(data, oldSize, finalSize, Float.NaN);
     return true;
   }
 

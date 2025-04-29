@@ -71,7 +71,7 @@ public class FeatureListRowSorter implements Comparator<FeatureListRow> {
 
   private double getValue(FeatureListRow row) {
     return switch (property) {
-      case Area -> {
+      case Area, Intensity -> {
         Feature[] areaPeaks = row.getFeatures().toArray(new Feature[0]);
         double[] peakAreas = new double[areaPeaks.length];
         for (int i = 0; i < peakAreas.length; i++) {
@@ -79,15 +79,6 @@ public class FeatureListRowSorter implements Comparator<FeatureListRow> {
         }
         double medianArea = MathUtils.calcQuantile(peakAreas, 0.5);
         yield medianArea;
-      }
-      case Intensity -> {
-        Feature[] intensityPeaks = row.getFeatures().toArray(new Feature[0]);
-        double[] peakIntensities = new double[intensityPeaks.length];
-        for (int i = 0; i < intensityPeaks.length; i++) {
-          peakIntensities[i] = intensityPeaks[i].getArea();
-        }
-        double medianIntensity = MathUtils.calcQuantile(peakIntensities, 0.5);
-        yield medianIntensity;
       }
       case Height -> {
         Feature[] heightPeaks = row.getFeatures().toArray(new Feature[0]);

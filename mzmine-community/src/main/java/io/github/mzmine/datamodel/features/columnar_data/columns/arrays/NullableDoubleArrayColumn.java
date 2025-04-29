@@ -32,7 +32,7 @@ import java.util.Arrays;
 public class NullableDoubleArrayColumn extends AbstractDataColumn<Double> implements
     NullableDoubleDataColumn {
 
-  public double[] data;
+  public volatile double[] data;
 
   public NullableDoubleArrayColumn(int initialSize) {
     data = new double[initialSize];
@@ -48,6 +48,11 @@ public class NullableDoubleArrayColumn extends AbstractDataColumn<Double> implem
   public double setDouble(final int index, final double value) {
     double old = data[index];
     data[index] = value;
+
+    if(Double.isNaN(value)) {
+      System.out.println("NaN detected at index " + index);
+    }
+
     return old;
   }
 
@@ -55,7 +60,7 @@ public class NullableDoubleArrayColumn extends AbstractDataColumn<Double> implem
   protected boolean resizeTo(final int finalSize) {
     var oldSize = data.length;
     data = Arrays.copyOf(data, finalSize);
-    Arrays.fill(data, oldSize - 1, finalSize, Double.NaN);
+    Arrays.fill(data, oldSize, finalSize, Double.NaN);
     return true;
   }
 

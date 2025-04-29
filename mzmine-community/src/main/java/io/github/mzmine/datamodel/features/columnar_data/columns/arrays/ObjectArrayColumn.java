@@ -31,7 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class ObjectArrayColumn<T> extends AbstractDataColumn<T> {
 
-  public Object[] data;
+  public volatile Object[] data;
 
   public ObjectArrayColumn(final int columnLength) {
     data = new Object[columnLength];
