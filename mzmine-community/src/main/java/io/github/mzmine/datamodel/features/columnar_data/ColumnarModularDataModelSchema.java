@@ -188,9 +188,12 @@ public class ColumnarModularDataModelSchema {
         return;
       }
       // resize
-      long success = columns.values().stream().parallel()
-          .filter(column -> column.ensureCapacity(finalSize)).count();
+//      long success = columns.values().stream()/*.parallel()*/.filter(
+//          column -> column.ensureCapacity(finalSize)).count();
 
+      for (DataColumn column : columns.values()) {
+        column.ensureCapacity(finalSize);
+      }
 //      logger.info("""
 //          Resized %d of %d columns in model %s to %d rows""".formatted(success, columns.size(),
 //          modelName, finalSize));
