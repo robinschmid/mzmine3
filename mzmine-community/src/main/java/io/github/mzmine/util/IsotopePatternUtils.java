@@ -39,6 +39,8 @@ import io.github.mzmine.modules.visualization.spectra.simplespectra.datapointpro
 import io.github.mzmine.modules.visualization.spectra.simplespectra.datapointprocessing.datamodel.results.DPPResult;
 import io.github.mzmine.modules.visualization.spectra.simplespectra.datapointprocessing.datamodel.results.DPPResult.ResultType;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
+import it.unimi.dsi.fastutil.doubles.DoubleList;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,9 +60,44 @@ public class IsotopePatternUtils {
 
   public static final double C13_MZ = 13.003355;
   public static final double C13_MZ_DELTA = 1.003355;
-  public static final double C13_REL_ABUNDANCE = 0.0108;
+  public static final double C13_REL_ABUNDANCE = 0.0107;
+  public static final double C12_REL_ABUNDANCE = 1 - C13_REL_ABUNDANCE;
   private static final Logger logger = Logger.getLogger(IsotopePatternUtils.class.getName());
   private static final NumberFormat format = MZmineCore.getConfiguration().getMZFormat();
+
+  public static double[] carbonIsotopePattern(int nCarbons) {
+    DoubleList probabilities = new DoubleArrayList();
+    final double minTerm = 0.001 / nCarbons;
+
+    // P(0) = q^n
+    double lastP = Math.pow(C12_REL_ABUNDANCE, nCarbons);
+    double max = lastP;
+    if (lastP > minTerm) {
+      probabilities.add(lastP);
+    }
+
+    double ratio = C13_REL_ABUNDANCE / C12_REL_ABUNDANCE;  // constant factor
+
+    // Recurrence: P(k+1) = P(k) * (n-k)/(k+1) * (p/q)
+    for (int k = 0; k < nCarbons; k++) {
+      lastP = lastP * (nCarbons - k) / (k + 1) * ratio;
+      if (lastP > minTerm) {
+        probabilities.add(lastP);
+      if(lastP>max){
+        max = lastP;
+      }
+      }
+    }
+
+    // Normalize (optional but recommended)
+    final double[] array = probabilities.toDoubleArray();
+    for (int i = 0; i < array.length; i++) {
+      array[i] /= max;
+    }
+    return array;
+  }
+
+
 
   /**
    * Finds data points with the best m/z differences (lowest) to a predicted isotope peak.
@@ -586,7 +623,7 @@ public class IsotopePatternUtils {
             // so we dont know the intensity ratios
             logger.info(
                 "possible overlap found: " + i + " * pattern dp = " + patternDataPoint.getMZ()
-                + "\toverlaps with " + isotope.getMassNumber() + isotope.getSymbol() + " (" + (
+                    + "\toverlaps with " + isotope.getMassNumber() + isotope.getSymbol() + " (" + (
                     isotopeBaseMass - isotope.getExactMass()) + ")\tdiff: " + Math.abs(
                     patternDataPoint.getMZ() * i - possiblemzdiff));
             add = false;
@@ -594,7 +631,7 @@ public class IsotopePatternUtils {
           i++;
           // logger.info("do");
         } while (patternDataPoint.getMZ() * i <= possiblemzdiff + mergeWidth
-                 && patternDataPoint.getMZ() != 0.0);
+            && patternDataPoint.getMZ() != 0.0);
       }
 
       if (add) {
@@ -633,10 +670,10 @@ public class IsotopePatternUtils {
    * @param maxCharge                 maximum allowed charge. will test charge 1<=max
    * @param excludeIfMainIs13CIsotope return false if mainMZ is found to be a 13C isotope. Checks
    *                                  the -1 signal mz and intensity
-   * @param excludedMzDiffs           option to exclude specific isotopes. {@link
-   *                                  IsotopesUtils#getIsotopeRecord(String, int)} Method will
-   *                                  return false when a preceding signal is found matching the
-   *                                  intensity and m/z difference of a provided isotope (m/z
+   * @param excludedMzDiffs           option to exclude specific isotopes.
+   *                                  {@link IsotopesUtils#getIsotopeRecord(String, int)} Method
+   *                                  will return false when a preceding signal is found matching
+   *                                  the intensity and m/z difference of a provided isotope (m/z
    *                                  difference to the maximum abundant isotope)
    * @param applyMinCEstimation       uses some estimates for minimum number of C atoms derived from
    *                                  COCONUT database. Should include at least 99.9 % of formulas
@@ -697,7 +734,7 @@ public class IsotopePatternUtils {
         double minRatio = excludedMzDiff.relativeIntensity() * 0.2;
         double maxRatio =
             estimateMaxXAtoms(excludedMzDiff, mainMZ, charge) * excludedMzDiff.relativeIntensity()
-            * 1.15;
+                * 1.15;
         double isotopeMZ = newMainMZ - (excludedMzDiff.deltaMass() / charge);
         Range<Double> estimatedIntensityRange = Range.closed(mainHeight / maxRatio,
             mainHeight / minRatio);

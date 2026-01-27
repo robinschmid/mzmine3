@@ -116,18 +116,17 @@ class IsotopesUtilsTest {
 
   @Test
   void findIsotopePatternInScan() throws URISyntaxException {
+    final File file = new File(
+        getClass().getClassLoader().getResource("rawdatafiles/single_scan.tsv").toURI());
+    final MassList scan = SingleSpectrumCsvParser.readFile(file);
+    assertNotNull(scan);
+
     int maxCharge = 5;
     List<Element> elements = Stream.of(Element.C, Element.H, Element.N, Element.O, Element.S)
         .map(n -> new Element(null, n)).toList();
 
     DoubleArrayList[] isoMzDiffsForCharge = IsotopesUtils.getIsotopesMzDiffsForCharge(elements,
         maxCharge);
-
-    final File file = new File(
-        getClass().getClassLoader().getResource("rawdatafiles/single_scan.tsv").toURI());
-    final MassList scan = SingleSpectrumCsvParser.readFile(file);
-
-    assertNotNull(scan);
 
     // example feature detected as charge 4 but is charge 1
     final SimpleDataPoint featureDp = new SimpleDataPoint(536.1654, 1.4E6);
@@ -143,6 +142,30 @@ class IsotopesUtilsTest {
       chargeCandidates.add(candidates);
     }
 
+    assertFalse(chargeCandidates.isEmpty());
+    assertEquals(5, chargeCandidates.get(0).size());
+    assertEquals(5, chargeCandidates.get(1).size());
+    assertEquals(1, chargeCandidates.get(2).size());
+    assertEquals(1, chargeCandidates.get(3).size());
+    assertEquals(1, chargeCandidates.get(4).size());
+
+    // try with Br and Cl
+    elements = Stream.of(Element.C, Element.H, Element.N, Element.O, Element.S, Element.Cl, Element.Br)
+        .map(n -> new Element(null, n)).toList();
+
+    isoMzDiffsForCharge = IsotopesUtils.getIsotopesMzDiffsForCharge(elements,
+        maxCharge);
+
+    chargeCandidates.clear();
+    for (int i = 0; i < maxCharge; i++) {
+      int charge = i + 1;
+
+      List<DataPoint> candidates = IsotopesUtils.findIsotopesInScan(isoMzDiffsForCharge[i], mzTol,
+          scan, featureDp);
+      chargeCandidates.add(candidates);
+    }
+
+    // no difference in found signals because there were no cl and br
     assertFalse(chargeCandidates.isEmpty());
     assertEquals(5, chargeCandidates.get(0).size());
     assertEquals(5, chargeCandidates.get(1).size());
