@@ -4,6 +4,7 @@ import io.github.mzmine.datamodel.structures.MolecularStructure;
 import io.github.mzmine.datamodel.structures.StructureInputType;
 import io.github.mzmine.datamodel.structures.StructureParser;
 import io.github.mzmine.modules.tools.cxsmiles_generator.CxSmilesResult;
+import io.github.mzmine.util.io.JsonUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -108,7 +109,10 @@ public class CxSmilesConverter {
         summary.add("R-group with %d candidate positions".formatted(candidateCount));
       }
     }
-    logger.info("CxSMILES generated: " + cxSmiles);
+    logger.info("""
+        CxSMILES generated: %s
+        Input was:
+        %s""".formatted(cxSmiles, JsonUtils.writeStringOrEmpty(smilesList)));
 
     return new CxSmilesResult(cxSmiles, scaffold, summary);
   }

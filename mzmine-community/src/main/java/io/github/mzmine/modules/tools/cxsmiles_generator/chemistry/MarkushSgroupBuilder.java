@@ -1,6 +1,8 @@
 package io.github.mzmine.modules.tools.cxsmiles_generator.chemistry;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,8 +30,14 @@ import org.openscience.cdk.sgroup.SgroupType;
  * {@link SgroupType#ExtMulticenter} to the scaffold. Once attached, {@code SmilesGenerator(
  * SmiFlavor.CxSmiles)} emits the {@code m:} positional-variation layer automatically.
  *
- * <p>The scaffold is mutated in-place: a {@code *} pseudo-atom and a single bond are added per
- * unique substituent type, and {@link CDKConstants#CTAB_SGROUPS} is set on the scaffold.</p>
+ * <p>The full substituent fragment is preserved: e.g. an acetyl group {@code -C(=O)CH3} attached
+ * to a scaffold OH at variable positions appears in the output as a disconnected
+ * {@code CC(=O)*} fragment plus an {@code m:} layer enumerating the candidate scaffold atoms,
+ * not just the first variable atom.</p>
+ *
+ * <p>The scaffold is mutated in-place: the substituent fragment + a {@code *} pseudo-atom and a
+ * single bond are added per unique substituent type, and {@link CDKConstants#CTAB_SGROUPS} is set
+ * on the scaffold.</p>
  */
 public class MarkushSgroupBuilder {
 
@@ -54,14 +62,14 @@ public class MarkushSgroupBuilder {
 
     // VF2 with element-only atom matching and any-bond matching — tolerates aromatic vs Kekule
     // bond representation differences between the MCS scaffold and the original aromatic mols.
-    // decision: BondMatcher.forAny() is required because UniversalIsomorphismTester.getOverlaps
-    // produces a scaffold whose bonds drop the AROMATIC flag (Kekule single/double), while the
-    // input mols still hold aromatic bonds — strict matching would never find the mapping.
+    // BondMatcher.forAny() is required because UniversalIsomorphismTester.getOverlaps produces
+    // a scaffold whose bonds drop the AROMATIC flag (Kekule single/double), while the input mols
+    // still hold aromatic bonds — strict matching would never find the mapping.
     final Pattern pattern = VentoFoggia.findSubstructure(scaffold,
         AtomMatcher.forElement(), BondMatcher.forAny());
 
-    // key = substituent symbol → (template variable atom, candidate scaffold atoms)
-    // template is used to copy valence / implicit-H properties when creating the * fragment
+    // assumption: positional isomers carry the same substituent type at different positions —
+    // grouping by the variable atom's element symbol is sufficient for the common case.
     Map<String, VariablePosition> substituents = new LinkedHashMap<>();
 
     for (IAtomContainer mol : mols) {
@@ -85,10 +93,9 @@ public class MarkushSgroupBuilder {
         IAtom scaffoldAtom = a1mapped ? molAtomToScaffold.get(a1) : molAtomToScaffold.get(a2);
         IAtom varAtom = a1mapped ? a2 : a1;
 
-        // assumption: positional isomers carry the same substituent type at different positions —
-        // atom symbol is sufficient as a grouping key for the common case.
         String subKey = varAtom.getSymbol();
-        substituents.computeIfAbsent(subKey, _ -> new VariablePosition(varAtom))
+        // Capture the variable bond so we can re-extract the full substituent fragment later.
+        substituents.computeIfAbsent(subKey, _ -> new VariablePosition(mol, varAtom, bond))
             .candidateScaffoldAtoms.add(scaffoldAtom);
       }
     }
@@ -109,30 +116,20 @@ public class MarkushSgroupBuilder {
         continue;
       }
 
-      // Markush convention: add the substituent as a DISCONNECTED Cl-* fragment.
-      // The m: layer encodes which scaffold atom * connects to (NO explicit scaffold bond).
-      // CDK Sgroup structure for this:
-      //   atoms = {*} + ALL scaffold candidate atoms
-      //   bond  = {substituent-* bond}; bond.begin = substituent (NOT in Sgroup atoms),
-      //                                 bond.end   = * (IS in Sgroup atoms)
-      Atom substituentAtom = new Atom(subKey);
-      // copy valence / implicit-H from the template so SmilesGenerator doesn't choke.
-      // After H-suppression, the template held its full implicit H count + 1 bond to scaffold.
-      // In the Markush form the substituent has 1 bond (to *) instead — same bond count, so
-      // the template's implicit H count carries over directly.
-      Integer templateImplicitH = pos.templateAtom.getImplicitHydrogenCount();
-      substituentAtom.setImplicitHydrogenCount(templateImplicitH != null ? templateImplicitH : 0);
-      Integer templateAtomicNumber = pos.templateAtom.getAtomicNumber();
-      if (templateAtomicNumber != null) {
-        substituentAtom.setAtomicNumber(templateAtomicNumber);
-      }
+      // Walk the FULL substituent fragment from one of the original mols (BFS from the variable
+      // atom, never crossing the bond back into the scaffold). Then clone all the fragment's
+      // atoms and bonds into the scaffold so the substituent is preserved verbatim
+      // (e.g. -C(=O)CH3 acetyl, not just the first carbon).
+      FragmentExtraction frag = extractFragment(pos.sourceMol, pos.rootAtom, pos.anchorBond);
+      IAtom clonedRoot = cloneFragmentIntoScaffold(scaffold, frag);
 
       PseudoAtom pseudo = new PseudoAtom("*");
       pseudo.setImplicitHydrogenCount(0);
-      scaffold.addAtom(substituentAtom);
       scaffold.addAtom(pseudo);
 
-      Bond bond = new Bond(substituentAtom, pseudo, IBond.Order.SINGLE);
+      // Markush convention: bond connects the substituent root (NOT in Sgroup) to * (IN Sgroup).
+      // Sgroup atoms = {*} + ALL scaffold candidate atoms; the m: layer enumerates the candidates.
+      Bond bond = new Bond(clonedRoot, pseudo, IBond.Order.SINGLE);
       scaffold.addBond(bond);
 
       Sgroup sg = new Sgroup();
@@ -145,14 +142,87 @@ public class MarkushSgroupBuilder {
       sgroups.add(sg);
 
       logger.fine(
-          "R-group '%s': %d candidate scaffold attachment atoms".formatted(subKey,
-              candidateAtoms.size()));
+          "R-group '%s' (%d-atom fragment): %d candidate scaffold attachment atoms".formatted(
+              subKey, frag.atoms.size(), candidateAtoms.size()));
     }
 
     if (sgroups.isEmpty()) {
       return;
     }
     scaffold.setProperty(CDKConstants.CTAB_SGROUPS, sgroups);
+  }
+
+  /**
+   * BFS from the root atom outward, never crossing the anchor bond (the bond that connects the
+   * fragment to the scaffold). Returns all atoms and bonds in the full substituent subgraph.
+   */
+  private static @NotNull FragmentExtraction extractFragment(@NotNull IAtomContainer mol,
+      @NotNull IAtom rootAtom, @NotNull IBond anchorBond) {
+    final List<IAtom> atoms = new ArrayList<>();
+    final List<IBond> bonds = new ArrayList<>();
+    final Set<IAtom> visited = newIdentitySet();
+    final Set<IBond> bondsAdded = newIdentitySet();
+    final Deque<IAtom> queue = new ArrayDeque<>();
+
+    visited.add(rootAtom);
+    queue.add(rootAtom);
+    atoms.add(rootAtom);
+
+    while (!queue.isEmpty()) {
+      IAtom cur = queue.poll();
+      for (IBond b : mol.getConnectedBondsList(cur)) {
+        if (b == anchorBond) {
+          continue;
+        }
+        IAtom other = b.getOther(cur);
+        if (!visited.contains(other)) {
+          visited.add(other);
+          atoms.add(other);
+          queue.add(other);
+        }
+        if (!bondsAdded.contains(b)) {
+          bonds.add(b);
+          bondsAdded.add(b);
+        }
+      }
+    }
+    return new FragmentExtraction(atoms, bonds, rootAtom);
+  }
+
+  /**
+   * Clones the fragment atoms and bonds into {@code scaffold} as a disconnected component and
+   * returns the cloned counterpart of the fragment's root atom. Implicit-H counts and aromatic
+   * flags are preserved — they are correct for the new environment because each atom keeps the
+   * same set of neighboring bonds (anchor bond replaced by the future bond to {@code *}, which
+   * is the same bond order).
+   */
+  private static @NotNull IAtom cloneFragmentIntoScaffold(@NotNull IAtomContainer scaffold,
+      @NotNull FragmentExtraction frag) {
+    final Map<IAtom, IAtom> cloneMap = new IdentityHashMap<>();
+    for (IAtom orig : frag.atoms) {
+      Atom clone = new Atom(orig.getSymbol());
+      Integer atomicNumber = orig.getAtomicNumber();
+      if (atomicNumber != null) {
+        clone.setAtomicNumber(atomicNumber);
+      }
+      Integer implicitH = orig.getImplicitHydrogenCount();
+      clone.setImplicitHydrogenCount(implicitH != null ? implicitH : 0);
+      clone.setIsAromatic(orig.isAromatic());
+      Integer formalCharge = orig.getFormalCharge();
+      if (formalCharge != null) {
+        clone.setFormalCharge(formalCharge);
+      }
+      scaffold.addAtom(clone);
+      cloneMap.put(orig, clone);
+    }
+    for (IBond origBond : frag.bonds) {
+      IAtom cBegin = cloneMap.get(origBond.getBegin());
+      IAtom cEnd = cloneMap.get(origBond.getEnd());
+      Bond cloneBond = new Bond(cBegin, cEnd, origBond.getOrder());
+      cloneBond.setIsAromatic(origBond.isAromatic());
+      scaffold.addBond(cloneBond);
+    }
+    return cloneMap.get(frag.rootAtom);
   }
 
   /**
@@ -200,18 +270,33 @@ public class MarkushSgroupBuilder {
   }
 
   /**
-   * Tracks the scaffold attachment sites for a single substituent type (e.g. all the ring
-   * positions where Cl was found across the input molecules), plus a template variable atom
-   * used to copy valence / implicit-H properties when reconstructing the Markush fragment.
+   * Holds the scaffold attachment sites for a single substituent type and a reference to one
+   * source mol + the variable bond, used later to re-extract and clone the full substituent
+   * fragment when building the Sgroup.
    */
   private static final class VariablePosition {
 
-    final IAtom templateAtom;
+    final IAtomContainer sourceMol;
+    final IAtom rootAtom;       // variable atom in sourceMol bonded to scaffold
+    final IBond anchorBond;     // bond from rootAtom into the scaffold (do not cross during BFS)
     final Set<IAtom> candidateScaffoldAtoms;
 
-    VariablePosition(@NotNull IAtom templateAtom) {
-      this.templateAtom = templateAtom;
+    VariablePosition(@NotNull IAtomContainer sourceMol, @NotNull IAtom rootAtom,
+        @NotNull IBond anchorBond) {
+      this.sourceMol = sourceMol;
+      this.rootAtom = rootAtom;
+      this.anchorBond = anchorBond;
       this.candidateScaffoldAtoms = newIdentitySet();
     }
+  }
+
+  /**
+   * Result of extracting a substituent fragment: ordered list of atoms (root first), all bonds
+   * within the fragment, and a reference to the root atom (the one that was bonded to the
+   * scaffold via the anchor bond).
+   */
+  private record FragmentExtraction(@NotNull List<IAtom> atoms, @NotNull List<IBond> bonds,
+                                    @NotNull IAtom rootAtom) {
+
   }
 }

@@ -140,6 +140,67 @@ class CxSmilesConverterTest {
         "All 3 methyl-attachment candidates should be hydroxyl oxygens");
   }
 
+  // 3 acetate ester isomers of a polyhydroxy flavone — the acetyl (-C(=O)CH3) sits on a
+  // different hydroxyl oxygen of the phenyl ring in each isomer. The chromone part and 2 of the
+  // phenyl OHs stay constant; one OH is acetylated at a varying position.
+  private static final List<String> ACETYL_FLAVONE_SMILES = List.of(
+      "C1=CC(=C(C=C1C2=CC(=O)C3=C(O2)C=C(C=C3)O)O)OC(=O)C",
+      "C1=CC(=C(C=C1C2=CC(=O)C3=C(O2)C=C(C=C3)O)OC(=O)C)O",
+      "C1=CC(=C(C=C1C2=CC(=O)C3=C(O2)C=C(C=C3)OC(=O)C)O)O"
+  );
+
+  @Test
+  void testAcetylVariableOnFlavoneHydroxyls() throws Exception {
+    CxSmilesResult result = CxSmilesConverter.convert(ACETYL_FLAVONE_SMILES);
+    System.out.println("Acetyl flavone CxSMILES: " + result.cxSmiles());
+
+    assertTrue(result.cxSmiles().contains("|m:"),
+        "CxSMILES must contain an m: positional-variation layer: " + result.cxSmiles());
+    assertTrue(result.cxSmiles().contains("*"),
+        "CxSMILES must contain the * pseudo-atom: " + result.cxSmiles());
+
+    List<Sgroup> sgroups = result.scaffoldMol().getProperty(CDKConstants.CTAB_SGROUPS);
+    assertNotNull(sgroups, "Sgroups must be set on the scaffold");
+    assertFalse(sgroups.isEmpty(), "Expected at least one Sgroup");
+
+    Sgroup sg = sgroups.get(0);
+    assertEquals(SgroupType.ExtMulticenter, sg.getType());
+
+    // 3 candidate attachment positions for the acetyl group
+    long candidateCount = sg.getAtoms().stream()
+        .filter(a -> !(a instanceof org.openscience.cdk.interfaces.IPseudoAtom))
+        .count();
+    assertTrue(candidateCount >= 2,
+        "Expected ≥2 candidate scaffold attachment atoms for the acetyl variation, got "
+            + candidateCount);
+  }
+
+  @Test
+  void testAcetylVariableExtendedWithDifferentScaffold() throws Exception {
+    // Adds a 4th structure where the chromone's OH is missing AND the acetate sits at yet
+    // another position on the phenyl ring. Tests how the algorithm generalizes when one input
+    // diverges from the others (smaller MCS, more candidate positions, possibly multiple
+    // R-group types).
+    List<String> smilesList = List.of(
+        "C1=CC(=C(C=C1C2=CC(=O)C3=C(O2)C=C(C=C3)O)O)OC(=O)C",
+        "C1=CC(=C(C=C1C2=CC(=O)C3=C(O2)C=C(C=C3)O)OC(=O)C)O",
+        "C1=CC(=C(C=C1C2=CC(=O)C3=C(O2)C=C(C=C3)OC(=O)C)O)O",
+        "C1(OC(=O)C)=CC(=C(C=C1C2=CC(=O)C3=C(O2)C=C(C=C3))O)O"
+    );
+    CxSmilesResult result = CxSmilesConverter.convert(smilesList);
+    System.out.println("Extended acetyl flavone CxSMILES: " + result.cxSmiles());
+    System.out.println("Variable position summary: " + result.variablePositionSummary());
+
+    assertTrue(result.cxSmiles().contains("|m:"),
+        "CxSMILES must contain an m: positional-variation layer: " + result.cxSmiles());
+    assertTrue(result.cxSmiles().contains("*"),
+        "CxSMILES must contain the * pseudo-atom: " + result.cxSmiles());
+
+    List<Sgroup> sgroups = result.scaffoldMol().getProperty(CDKConstants.CTAB_SGROUPS);
+    assertNotNull(sgroups, "Sgroups must be set on the scaffold");
+    assertFalse(sgroups.isEmpty(), "Expected at least one Sgroup");
+  }
+
   @Test
   void testTwoIdenticalSmilesProducesNoVariablePositions() throws Exception {
     // When all inputs are identical, MCS = full molecule, no variable positions
