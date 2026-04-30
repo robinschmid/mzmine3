@@ -26,6 +26,7 @@ import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
  *   <li>Parse SMILES → {@link IAtomContainer} (suppress explicit H)</li>
  *   <li>Iterative MCS → scaffold via {@link McsScaffoldBuilder}</li>
  *   <li>Attach {@code ExtMulticenter} Sgroups via {@link MarkushSgroupBuilder}</li>
+ *   <li>(Optional) Expand candidate positions via {@link CandidatePositionExpander}</li>
  *   <li>Assign 2D coordinates via {@link StructureDiagramGenerator}</li>
  *   <li>Emit CxSMILES via {@code SmilesGenerator(SmiFlavor.CxSmiles)}</li>
  * </ol>
@@ -38,12 +39,25 @@ public class CxSmilesConverter {
   }
 
   /**
+   * Convert with default options (no expansion, no repeat-unit detection). Equivalent to
+   * {@code convert(smilesList, CxSmilesOptions.defaults())}.
+   *
    * @param smilesList at least 2 SMILES strings representing positional isomers
    * @return CxSMILES result including the Markush scaffold molecule ready for rendering
    * @throws Exception on parse failure, empty MCS, or CDK error
    */
   @NotNull
   public static CxSmilesResult convert(@NotNull List<String> smilesList) throws Exception {
+    return convert(smilesList, CxSmilesOptions.defaults());
+  }
+
+  /**
+   * Convert with the given options. Backward-compatible with the no-options overload when
+   * passed {@link CxSmilesOptions#defaults()}.
+   */
+  @NotNull
+  public static CxSmilesResult convert(@NotNull List<String> smilesList,
+      @NotNull CxSmilesOptions options) throws Exception {
     if (smilesList.size() < 2) {
       throw new IllegalArgumentException("At least 2 SMILES are required.");
     }
@@ -88,6 +102,21 @@ public class CxSmilesConverter {
 
     // Step 4 — attach ExtMulticenter Sgroups (mutates scaffold in-place)
     MarkushSgroupBuilder.buildAndAttach(scaffold, mols);
+
+    // Step 4a — optionally expand each ExtMulticenter Sgroup's candidate set to cover more
+    // chemically-equivalent positions than were observed in the input (e.g. all aromatic-CH
+    // ring positions; all middle CF2 carbons in a fixed-length chain).
+    if (options.expansion() != CandidatePositionExpander.Strategy.NONE) {
+      CandidatePositionExpander.expand(scaffold, options.expansion());
+    }
+
+    // Step 4b — optionally detect variable-length repeat units (CF2, CH2, CH2-CH2-O) and
+    // attach CtabStructureRepeatUnit Sgroups. Coexists with ExtMulticenter Sgroups from step 4.
+    if (options.detectRepeatUnits()) {
+      List<SruDescriptor> sruDescs = RepeatingUnitDetector.detect(mols, scaffold,
+          MotifLibrary.defaults());
+      RepeatingUnitSgroupBuilder.build(scaffold, sruDescs);
+    }
 
     // Step 5 — assign 2D coordinates for rendering
     StructureDiagramGenerator sdg = new StructureDiagramGenerator();
