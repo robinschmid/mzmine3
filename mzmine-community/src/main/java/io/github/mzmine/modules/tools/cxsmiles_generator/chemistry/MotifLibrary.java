@@ -21,6 +21,9 @@ public final class MotifLibrary {
   public static final RepeatUnitMotif CF2 = new RepeatUnitMotif(
       "CF2", "[CX4](F)(F)", "n", 2);
 
+  public static final RepeatUnitMotif CCL2 = new RepeatUnitMotif(
+      "CCl2", "[CX4](Cl)(Cl)", "n", 2);
+
   /**
    * Single sp3 CH2 carbon. Min run = 3 to avoid declaring "n" on short alkyl bridges
    * (n-propyl, etc.).
@@ -42,6 +45,6 @@ public final class MotifLibrary {
    * Default motif library, in the order the detector tries them.
    */
   public static @NotNull List<RepeatUnitMotif> defaults() {
-    return List.of(CF2, EO, CH2);
+    return List.of(CF2, CCL2, EO, CH2);
   }
 }

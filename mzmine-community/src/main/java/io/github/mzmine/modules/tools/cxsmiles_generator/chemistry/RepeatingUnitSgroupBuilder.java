@@ -88,13 +88,14 @@ public final class RepeatingUnitSgroupBuilder {
 
     final Sgroup sg = new Sgroup();
     sg.setType(SgroupType.CtabStructureRepeatUnit);
+
     for (IAtom a : unitAtoms) {
       sg.addAtom(a);
     }
     for (IBond b : crossing) {
       sg.addBond(b);
     }
-    sg.setSubscript(desc.label());
+    sg.setSubscript(desc.minMaxLabel());
 
     // Set HT connectivity when the unit has exactly two crossing bonds with distinct anchors;
     // otherwise omit so tools treat the SRU as undirected.
