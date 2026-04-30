@@ -8,6 +8,7 @@ import io.github.mzmine.util.io.JsonUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.jetbrains.annotations.NotNull;
 import org.openscience.cdk.CDKConstants;
 import org.openscience.cdk.aromaticity.Aromaticity;
@@ -104,15 +105,21 @@ public class CxSmilesConverter {
       for (Sgroup sg : sgroups) {
         // Sgroup atoms = {*} + all scaffold candidate atoms
         long candidateCount = sg.getAtoms().stream()
-            .filter(a -> !(a instanceof org.openscience.cdk.interfaces.IPseudoAtom))
-            .count();
+            .filter(a -> !(a instanceof org.openscience.cdk.interfaces.IPseudoAtom)).count();
         summary.add("R-group with %d candidate positions".formatted(candidateCount));
       }
     }
+    final CxSmilesTaskDTO dto = new CxSmilesTaskDTO(cxSmiles, smilesList);
+
     logger.info("""
-        CxSMILES generated: %s
-        Input was:
-        %s""".formatted(cxSmiles, JsonUtils.writeStringOrEmpty(smilesList)));
+        CxSMILES generated from input:
+        %s
+        
+        %s
+        
+        Task:
+        %s""".formatted(cxSmiles, Strings.join(smilesList, '\n'),
+        JsonUtils.writeStringOrEmpty(dto)));
 
     return new CxSmilesResult(cxSmiles, scaffold, summary);
   }

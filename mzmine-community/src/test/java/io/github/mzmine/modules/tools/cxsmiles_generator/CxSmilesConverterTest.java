@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.mzmine.modules.tools.cxsmiles_generator.chemistry.CxSmilesConverter;
+import io.github.mzmine.modules.tools.cxsmiles_generator.chemistry.CxSmilesEnumerator;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.openscience.cdk.CDKConstants;
@@ -199,6 +200,43 @@ class CxSmilesConverterTest {
     List<Sgroup> sgroups = result.scaffoldMol().getProperty(CDKConstants.CTAB_SGROUPS);
     assertNotNull(sgroups, "Sgroups must be set on the scaffold");
     assertFalse(sgroups.isEmpty(), "Expected at least one Sgroup");
+  }
+
+  @Test
+  void testEnumerationRoundTripsChlorobiphenylInputs() throws Exception {
+    assertAllInputsAreEnumerated(CHLOROBIPHENYL_SMILES);
+  }
+
+  @Test
+  void testEnumerationRoundTripsMethylPolyphenolInputs() throws Exception {
+    assertAllInputsAreEnumerated(METHYL_POLYPHENOL_SMILES);
+  }
+
+  @Test
+  void testEnumerationRoundTripsAcetylFlavoneInputs() throws Exception {
+    assertAllInputsAreEnumerated(ACETYL_FLAVONE_SMILES);
+  }
+
+  /**
+   * Builds the Markush CxSmiles from {@code inputs}, enumerates back all concrete structures,
+   * and verifies every input molecule is present in the enumerated set (canonical-SMILES match).
+   */
+  private static void assertAllInputsAreEnumerated(List<String> inputs) throws Exception {
+    CxSmilesResult result = CxSmilesConverter.convert(inputs);
+    List<String> enumerated = CxSmilesEnumerator.enumerateCanonicalSmiles(result.scaffoldMol());
+
+    System.out.println("CxSMILES        : " + result.cxSmiles());
+    System.out.println("Enumerated      : " + enumerated);
+
+    assertFalse(enumerated.isEmpty(),
+        "Enumeration must produce at least one concrete structure");
+
+    for (String inputSmiles : inputs) {
+      String inputCanonical = CxSmilesEnumerator.canonicalize(inputSmiles);
+      assertTrue(enumerated.contains(inputCanonical),
+          "Input %s (canonical: %s) was not found in enumerated structures: %s".formatted(
+              inputSmiles, inputCanonical, enumerated));
+    }
   }
 
   @Test
