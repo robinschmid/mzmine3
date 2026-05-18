@@ -64,6 +64,7 @@ import io.github.mzmine.datamodel.msms.PasefMsMsInfo;
 import io.github.mzmine.gui.chartbasics.simplechart.providers.impl.spectra.CachedMobilityScan;
 import io.github.mzmine.gui.preferences.UnitFormat;
 import io.github.mzmine.main.MZmineCore;
+import io.github.mzmine.modules.io.import_rawdata_all.spectral_processor.SimpleSpectralArrays;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZToleranceRangeMap;
 import io.github.mzmine.util.DataPointSorter;
@@ -80,6 +81,7 @@ import io.github.mzmine.util.scans.sorting.ScanSortMode;
 import io.github.mzmine.util.scans.sorting.ScanSorter;
 import io.github.mzmine.util.spectraldb.entry.DBEntryField;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntry;
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import it.unimi.dsi.fastutil.floats.FloatArrayList;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -2587,6 +2589,75 @@ public class ScanUtils {
         throw new MissingMassListException(scan);
       }
     }
+  }
+
+  /**
+   *
+   * @param spectrum tsv or csv spectrum
+   * @return parse tsv or csv spectrum
+   */
+  public static Optional<MassSpectrum> parseTsvSpectrum(@NotNull String spectrum) {
+    return parseTsvSpectrumData(spectrum).map(SimpleSpectralArrays::toMassSpectrum);
+  }
+
+  /**
+   *
+   * @param spectrum tsv or csv spectrum
+   * @return parse tsv or csv spectrum
+   */
+  public static Optional<SimpleSpectralArrays> parseTsvSpectrumData(@NotNull String spectrum) {
+    DoubleArrayList mz = new DoubleArrayList();
+    DoubleArrayList intensities = new DoubleArrayList();
+    final List<String> lines = spectrum.lines().toList();
+
+    // try different separators: whitespace and comma
+    final String[] possibleSeparators = {"\\s+", ","};
+    String detectedSeparator = null;
+
+    for (String line : lines) {
+      if (line.isBlank()) {
+        continue;
+      }
+
+      // if separator not yet detected, try to find one
+      if (detectedSeparator == null) {
+        for (String separator : possibleSeparators) {
+          String[] parts = line.split(separator);
+          // mz, intensity, optional annotation column
+          if (parts.length == 2 || parts.length == 3) {
+            try {
+              mz.add(Double.parseDouble(parts[0].trim()));
+              intensities.add(Double.parseDouble(parts[1].trim()));
+              detectedSeparator = separator;
+              break; // found valid separator, continue with next lines
+            } catch (NumberFormatException e) {
+              // try next separator
+            }
+          }
+        }
+        // if still no separator detected after trying all, skip this line
+      } else {
+        // separator already detected, parse using it
+        String[] parts = line.split(detectedSeparator);
+
+        if (parts.length < 2) {
+          return Optional.of(
+              new SimpleSpectralArrays(mz.toDoubleArray(), intensities.toDoubleArray()));
+        }
+        try {
+          mz.add(Double.parseDouble(parts[0].trim()));
+          intensities.add(Double.parseDouble(parts[1].trim()));
+        } catch (NumberFormatException e) {
+          // skip line if mz is empty
+          // return if data points read
+          if (!mz.isEmpty()) {
+            return Optional.of(
+                new SimpleSpectralArrays(mz.toDoubleArray(), intensities.toDoubleArray()));
+          }
+        }
+      }
+    }
+    return Optional.of(new SimpleSpectralArrays(mz.toDoubleArray(), intensities.toDoubleArray()));
   }
 
   /**

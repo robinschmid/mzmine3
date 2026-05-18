@@ -26,7 +26,9 @@
 package io.github.mzmine.modules.io.import_rawdata_all.spectral_processor;
 
 import io.github.mzmine.datamodel.MassSpectrum;
+import io.github.mzmine.datamodel.impl.SimpleMassSpectrum;
 import java.util.Arrays;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Data structure to represent spectral data in memory
@@ -41,6 +43,11 @@ public record SimpleSpectralArrays(double[] mzs, double[] intensities) {
   public SimpleSpectralArrays(final MassSpectrum scan) {
     this(scan.getMzValues(new double[scan.getNumberOfDataPoints()]),
         scan.getIntensityValues(new double[scan.getNumberOfDataPoints()]));
+  }
+
+  @NotNull
+  public MassSpectrum toMassSpectrum() {
+    return new SimpleMassSpectrum(mzs, intensities);
   }
 
   /**
