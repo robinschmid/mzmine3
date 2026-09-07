@@ -29,6 +29,7 @@ import io.github.mzmine.datamodel.features.preferences.FeatureListPreferences;
 import io.github.mzmine.modules.io.projectload.version_3_0.CONST;
 import io.github.mzmine.parameters.impl.IonMobilitySupport;
 import io.github.mzmine.parameters.impl.SimpleParameterSet;
+import io.github.mzmine.parameters.parametertypes.ionidentity.IonTypeRankingParameter;
 import io.github.mzmine.parameters.parametertypes.metadata.SampleTypeFilterParameter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,8 +44,10 @@ public class FeatureListPreferencesDtoParameters extends SimpleParameterSet {
 
   public static final SampleTypeFilterParameter rsdSampleTypes = FeatureListPreferencesParameters.rsdSampleTypes.cloneParameter();
 
+  public static final IonTypeRankingParameter ionTypeRanking = FeatureListPreferencesParameters.ionTypeRanking.cloneParameter();
+
   public FeatureListPreferencesDtoParameters() {
-    super(rsdSampleTypes);
+    super(rsdSampleTypes, ionTypeRanking);
   }
 
   @Nullable
@@ -62,13 +65,14 @@ public class FeatureListPreferencesDtoParameters extends SimpleParameterSet {
   }
 
   public @NotNull FeatureListPreferences toPreferences() {
-    return new FeatureListPreferences(getValue(rsdSampleTypes));
+    return new FeatureListPreferences(getValue(rsdSampleTypes), getValue(ionTypeRanking));
   }
 
   public static @NotNull FeatureListPreferencesDtoParameters fromPreferences(
       @NotNull final FeatureListPreferences preferences) {
     final FeatureListPreferencesDtoParameters param = (FeatureListPreferencesDtoParameters) new FeatureListPreferencesDtoParameters().cloneParameterSet();
     param.setParameter(rsdSampleTypes, preferences.getRsdSampleTypeFilter());
+    param.setParameter(ionTypeRanking, preferences.getIonTypeRanking());
     return param;
   }
 
