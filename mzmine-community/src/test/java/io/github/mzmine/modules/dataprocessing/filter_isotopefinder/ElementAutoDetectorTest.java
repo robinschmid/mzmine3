@@ -45,20 +45,16 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link ElementAutoDetector}. Test spectra are generated with CDK via
- * {@link IsotopePatternCalculator} at high (resolved) resolution and fed to the detector as
- * {@link DataPoint}s, mirroring how the benchmark metric calls the detector. Besides the clear
- * single-element cases, the suite exercises the robustness requirements: mono-independence (leading
- * peaks dropped), multiple charge states, m/z shift within tolerance, and a custom candidate list.
+ * Unit tests for {@link ElementAutoDetector}, on CDK-generated resolved spectra fed in as
+ * {@link DataPoint}s the way the benchmark metric does. Beyond the clear single-element cases the
+ * suite covers the robustness requirements: mono-independence, several charge states, m/z shift
+ * within tolerance and a custom candidate list.
  */
 class ElementAutoDetectorTest {
 
   private static final MZTolerance TOL = new MZTolerance(0.005, 10);
 
-  /**
-   * Resolved isotope pattern for {@code formula} at {@code charge} as a signal list (sorted by
-   * m/z).
-   */
+  /** Resolved isotope pattern as a signal list, sorted by m/z. */
   @NotNull
   private static List<DataPoint> signalsOf(@NotNull final String formula, final int charge) {
     final IsotopePattern p = IsotopePatternCalculator.calculateIsotopePattern(formula, 0.001,
@@ -71,9 +67,6 @@ class ElementAutoDetectorTest {
     return signals;
   }
 
-  /**
-   * Detect from a signal list, exactly as the benchmark element metric does.
-   */
   @NotNull
   private static Set<String> elementsOf(@NotNull final List<DataPoint> signals, final int charge) {
     return ElementAutoDetector.detect(signals, charge, TOL).elements();
@@ -85,11 +78,11 @@ class ElementAutoDetectorTest {
   }
 
   /**
-   * The detector reports every candidate the evidence cannot rule out, ranked best first, so a test
-   * that pins down WHICH element the data points at asserts the ranking rather than the absence of
-   * the (indistinguishable) alternatives.
+   * The detector reports every candidate it cannot rule out, ranked, so a test that pins down WHICH
+   * element the data points at must assert the RANKING rather than the absence of the
+   * (indistinguishable) alternatives.
    *
-   * @return the highest-confidence element symbol, or null when nothing was detected.
+   * @return the highest-confidence symbol, or null when nothing was detected.
    */
   @Nullable
   private static String topElement(@NotNull final String formula, final int charge) {
@@ -98,19 +91,13 @@ class ElementAutoDetectorTest {
     return c.elements().isEmpty() ? null : c.elements().iterator().next();
   }
 
-  /**
-   * Remove the {@code n} lowest-m/z signals (simulate a monoisotopic + first isotopes below the
-   * detection threshold).
-   */
+  /** Drop the {@code n} lowest-m/z signals: a mono and first isotopes below the detection floor. */
   @NotNull
   private static List<DataPoint> dropLowest(@NotNull final List<DataPoint> signals, final int n) {
     return new ArrayList<>(signals.subList(Math.min(n, signals.size()), signals.size()));
   }
 
-  /**
-   * Shift every m/z by a seeded amount uniformly in [-maxShift, +maxShift] (jitter within
-   * tolerance).
-   */
+  /** Seeded jitter in [-maxShift, +maxShift]. */
   @NotNull
   private static List<DataPoint> jitter(@NotNull final List<DataPoint> signals,
       final double maxShift, final long seed) {

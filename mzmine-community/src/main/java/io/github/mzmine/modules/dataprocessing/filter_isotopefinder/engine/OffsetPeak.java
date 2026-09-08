@@ -26,11 +26,8 @@
 package io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine;
 
 /**
- * A single per-offset observed peak after fine-structure collapsing.
- *
- * @param offset    integer isotope offset relative to the envelope anchor.
- * @param mz        intensity-weighted mean m/z of the collapsed signals at this offset.
- * @param intensity summed intensity of the collapsed signals at this offset.
+ * One per-offset observed peak, after the signals at that offset were collapsed: {@code mz} is
+ * their intensity-weighted mean and {@code intensity} their sum.
  */
 record OffsetPeak(int offset, double mz, double intensity) {
 

@@ -29,65 +29,47 @@ import java.util.TreeMap;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The monoisotopic &rarr; M+1 (13C) intensity ratio of the isolated carbon ladder at the placement
- * anchor, together with the two tests the isotope finder applies to it: the soft
- * {@link #plausibility} factor that always runs, and the hard {@link #failsRequireC13Gate} that only
- * the opt-in require-13C mode runs.
+ * The mono &rarr; M+1 (13C) ratio of the isolated carbon ladder at the placement anchor, plus the
+ * two tests applied to it: the soft {@link #plausibility} factor and the hard
+ * {@link #failsRequireC13Gate} of the opt-in require-13C mode.
  * <p>
- * decision: measured at ONE anchor convention (the observed offset that the sliding envelope fit
- * aligned to predicted offset 0) and kept in one place. Previously the harmonic upper-bound penalty
- * used the placement anchor while the require-13C gate and the FT-ringing lower-bound penalty used
- * the observed base, so for any mid-envelope apex ({@code placement != 0} - every polyhalogen and
- * every protein) the "symmetric" tests silently compared different peak pairs.
+ * decision: ONE anchor convention, in one place. The harmonic upper-bound penalty used to anchor on
+ * the placement while the require-13C gate and the FT-ringing penalty anchored on the observed base,
+ * so for any mid-envelope apex ({@code placement != 0} - every polyhalogen and protein) the
+ * "symmetric" tests silently compared different peak pairs.
  *
- * @param present        whether the anchor (monoisotopic) peak exists with a positive intensity; if
- *                       not, no M+1/M test can be applied.
- * @param value          {@code I(M+1) / I(M)}; {@code 0} when the M+1 is absent, which is itself
- *                       meaningful (the FT-ringing signature).
- * @param anchorIsMono   whether the anchor dominates the ladder peaks below it, i.e. it really is
- *                       the monoisotopic rather than a mid-envelope apex.
- * @param anchorIsBase   whether the anchor is the observed base peak ({@code placement == 0}). The
- *                       aggressive lower-bound tests additionally require this: a carbon-poor
- *                       halogenated molecule whose apex sits mid-envelope legitimately has an M+1/M
- *                       far below the carbon-model minimum, and penalising it costs real
- *                       polyhalogen charge calls.
+ * @param present      whether the anchor peak exists at all; if not, no M+1/M test applies.
+ * @param value        {@code I(M+1) / I(M)}, and 0 when the M+1 is absent - itself meaningful, as
+ *                     that is the FT-ringing signature.
+ * @param anchorIsMono whether the anchor dominates the ladder peaks below it, i.e. really is the
+ *                     monoisotopic rather than a mid-envelope apex.
+ * @param anchorIsBase whether the anchor is the observed base. The aggressive lower-bound tests
+ *                     also require this: a carbon-poor halogenated molecule with a mid-envelope apex
+ *                     legitimately falls below the carbon-model minimum, and penalising it costs
+ *                     real polyhalogen charge calls.
  */
 record CarbonRatio(boolean present, double value, boolean anchorIsMono,
                           boolean anchorIsBase) {
 
-  /**
-   * No measurable ratio (the anchor peak is missing).
-   */
   public static final CarbonRatio ABSENT = new CarbonRatio(false, 0d, false, false);
 
-  // relative slack applied to the estimated M+1/M upper bound in both tests
   private static final double SLACK = 0.3;
-  // FT-ringing guard: fraction of the carbon MINIMUM M+1/M prediction below which the observed 13C
-  // M+1 is treated as implausibly small ("not a real 13C peak"). Deliberately far below 1 (a quarter
-  // of the already-conservative 1/20-C-per-Da minimum) so genuine low-carbon / heteroatom-rich
-  // molecules - which stay within ~2x of their prediction - are never penalised, while low-intensity
-  // FT ringing mistaken for a high-charge 13C ladder (M+1 orders of magnitude too small for the
-  // implied mass) is.
+  // FT-ringing guard, as a fraction of the carbon MINIMUM M+1/M. Far below 1 (a quarter of the
+  // already-conservative 1/20-C-per-Da minimum) so genuine low-carbon molecules - within ~2x of
+  // their prediction - are never penalised, while ringing read as a high-charge ladder (M+1 orders
+  // of magnitude too small for the implied mass) is.
   private static final double LOWER_FACTOR = 0.25;
-  // hardest floor the FT-ringing penalty can drive the quality to (keeps raw finite / comparable)
   private static final double LOWER_PENALTY_FLOOR = 1e-3;
-  // lower bound of the "require 13C" gate as a fraction of the carbon MINIMUM (1/20-C-per-Da) M+1/M
-  // prediction. Deliberately well below 1: heteroatom-rich (Cl/Br/S/metal) molecules legitimately
-  // have far fewer carbons per Dalton than the carbon-model minimum, so their real 13C M+1/M falls below
-  // that minimum; a too-tight lower bound wrongly rejected such valid singly charged patterns. This
-  // effectively allows down to ~1/40 C per Da while still rejecting an "M+1" too small to be a real
-  // 13C peak. Looser than LOWER_FACTOR is NOT possible here - this gate rejects outright.
+  // same bound for the require-13C gate. Tighter than LOWER_FACTOR because the gate rejects
+  // outright, but still well below 1: heteroatom-rich molecules legitimately have far fewer carbons
+  // per Dalton than the model minimum, and a tighter bound rejected valid singly charged patterns.
   private static final double REQUIRE_C13_LOWER_FACTOR = 0.5;
-  // the anchor counts as the monoisotopic (so its M+1/M is bounded by the mono carbon prediction)
-  // only when no 13C-ladder peak below it reaches this fraction of the anchor; mid-envelope apices
-  // (proteins, halogen combs) have significant peaks below and are exempt from the lower-bound check.
+  // the anchor counts as the monoisotopic only when no ladder peak below it reaches this fraction of
+  // it, exempting mid-envelope apices (proteins, halogen combs) from the lower-bound check
   private static final double MONO_DOMINANCE_FRACTION = 0.1;
 
   /**
-   * Measure the ratio on the isolated carbon ladder at the placement anchor.
-   *
-   * @param carbonLadder the isolated exact-13C ladder (offset &rarr; intensity), offsets relative to
-   *                     the observed base peak.
+   * @param carbonLadder the isolated exact-13C ladder, offsets relative to the observed base peak.
    * @param placement    the predicted offset aligned to observed offset 0.
    * @return the measured ratio, or {@link #ABSENT} when the anchor peak is missing.
    */
@@ -103,30 +85,24 @@ record CarbonRatio(boolean present, double value, boolean anchorIsMono,
       maxBelow = Math.max(maxBelow, below);
     }
     final Double m1I = carbonLadder.get(monoOffset + 1);
-    // a MISSING M+1 is a ratio of 0, not "unmeasurable": that is exactly the FT-ringing signature
-    // the lower bound must catch.
+    // a MISSING M+1 is a ratio of 0, not "unmeasurable" - that is the FT-ringing signature itself
     return new CarbonRatio(true, (m1I != null ? m1I : 0d) / monoI,
         maxBelow < MONO_DOMINANCE_FRACTION * monoI, placement == 0);
   }
 
   /**
-   * Two-sided plausibility of the carbon M+1/M ratio as a multiplicative factor in {@code (0,1]}.
+   * Two-sided plausibility factor in {@code (0,1]}, catching two different misdetections:
    * <ul>
-   *   <li><b>Upper</b> (the harmonic-doubling discriminator): the isolated 13C M+1/M must not exceed
-   *   the maximum carbon prediction. A charge whose implied 13C M+1 is implausibly large - e.g. a
-   *   doubling whose "M+1" slot is really a co-eluting compound's monoisotopic - is down-weighted in
-   *   proportion to the overshoot.</li>
-   *   <li><b>Lower</b> (the FT-ringing discriminator): when the anchor really is a dominant
-   *   monoisotopic, its M+1 must not fall far below the MINIMUM carbon prediction for the mass this
-   *   charge implies. Low-intensity ringing around a strong singly charged signal forms a fake
+   *   <li><b>upper</b> - harmonic doubling, where the "M+1" slot is really a co-eluting compound's
+   *   monoisotopic, so the implied 13C M+1/M overshoots the maximum carbon prediction;</li>
+   *   <li><b>lower</b> - FT ringing around a strong singly charged signal, which forms a fake
    *   fine-spaced high-charge ladder whose "M+1" is far too small to be a real 13C peak.</li>
    * </ul>
-   * Both use the reliable CARBON bounds (not the heavy-halogen upper bound) on the isolated 13C
-   * ladder, so heavy isotopes never trigger a penalty. A genuine higher charge is a valid sub-grid
-   * of the pattern and keeps a plausible ratio.
+   * Both read the CARBON bounds on the ISOLATED 13C ladder, never the heavy-halogen upper bound, so
+   * heavy isotopes cannot trigger a penalty and a genuine higher charge - a valid sub-grid of the
+   * pattern - keeps a plausible ratio.
    *
    * @param m1Bounds {@code {min, max}} carbon M+1/M prediction for the implied neutral mass.
-   * @return the factor to multiply into the charge quality.
    */
   public double plausibility(final double @NotNull [] m1Bounds) {
     if (!present) {
@@ -136,9 +112,8 @@ record CarbonRatio(boolean present, double value, boolean anchorIsMono,
     if (hi > 0d && value > hi) {
       return hi / value;
     }
-    // the lower bound is far more aggressive, so it only fires when the anchor demonstrably is the
-    // dominant monoisotopic AND the observed base; mid-envelope apices (proteins, halogen combs) are
-    // exempt because their real M+1/M is legitimately below the carbon-model minimum.
+    // far more aggressive, so it fires only when the anchor demonstrably is the dominant mono AND
+    // the observed base - see supportsLowerBound
     final double lo = m1Bounds[0] * LOWER_FACTOR;
     if (supportsLowerBound() && lo > 0d && value < lo) {
       return Math.max(LOWER_PENALTY_FLOOR, value / lo);
@@ -147,16 +122,8 @@ record CarbonRatio(boolean present, double value, boolean anchorIsMono,
   }
 
   /**
-   * The optional require-13C hard gate on the same anchored ratio.
-   * <p>
-   * The lower bound uses {@link #REQUIRE_C13_LOWER_FACTOR} rather than the (much looser)
-   * {@link #LOWER_FACTOR} of {@link #plausibility}: this gate is opt-in and is meant to reject
-   * outright, but it must still not reject heteroatom-rich, carbon-poor molecules whose real 13C
-   * M+1/M is legitimately below the carbon-model minimum. The upper bound is the same as the soft
-   * penalty's - an "M+1" too large to be 13C (a co-eluting mono).
-   *
-   * @param m1Bounds {@code {min, max}} carbon M+1/M prediction for the implied neutral mass.
-   * @return whether the hypothesis must be rejected.
+   * The opt-in require-13C hard gate on the same anchored ratio. Same upper bound as
+   * {@link #plausibility}, tighter lower bound - see {@link #REQUIRE_C13_LOWER_FACTOR}.
    */
   public boolean failsRequireC13Gate(final double @NotNull [] m1Bounds) {
     // a missing M+1 is left to the soft penalty; the gate only judges a ratio it could measure
@@ -166,10 +133,6 @@ record CarbonRatio(boolean present, double value, boolean anchorIsMono,
     return value < m1Bounds[0] * REQUIRE_C13_LOWER_FACTOR || value > m1Bounds[1] * (1d + SLACK);
   }
 
-  /**
-   * @return whether the aggressive lower-bound tests (the FT-ringing penalty and the optional
-   * require-13C gate) may be applied to this ratio.
-   */
   private boolean supportsLowerBound() {
     return present && anchorIsMono && anchorIsBase;
   }

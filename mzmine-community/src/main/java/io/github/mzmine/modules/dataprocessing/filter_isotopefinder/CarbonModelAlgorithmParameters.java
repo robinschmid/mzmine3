@@ -42,19 +42,16 @@ import org.jetbrains.annotations.NotNull;
 import org.openscience.cdk.Element;
 
 /**
- * The full parameter setup of the carbon-model isotope finder algorithm. This is the single
- * complete configuration of a detection run: allowed elements, m/z tolerance, charge range, the
- * optional gates, the optional FWHM cross-scan refinement, and the envelope model parameters.
+ * The single complete configuration of a detection run: elements, tolerance, charge range, the
+ * optional gates, the optional FWHM refinement and the envelope model parameters.
  * <p>
- * Simplified algorithm options (see {@link AutomaticIsotopeFinderModule}) expose only a few of these
- * and fill the rest via {@link #setAll} before the engine is built, so there is only one algorithm
- * implementation to maintain.
+ * Simplified options (see {@link AutomaticIsotopeFinderModule}) expose a few of these and fill the
+ * rest via {@link #setAll}, so there is only one algorithm implementation to maintain.
  */
 public class CarbonModelAlgorithmParameters extends SimpleParameterSet {
 
-  // default values - single source of truth, used both to build the parameters below and by
-  // createDefault()/setAll() to actively set them on a fresh cloned instance (so callers never
-  // depend on the possibly-overwritten value carried by the shared static parameter templates).
+  // single source of truth: used to build the parameters below AND by createDefault()/setAll(), so
+  // callers never depend on the possibly-overwritten value of a shared static template
   public static final List<Element> DEFAULT_ELEMENTS = List.of(new Element("H"), new Element("C"),
       new Element("N"), new Element("O"), new Element("S"));
   public static final ElementDetectionMode DEFAULT_ELEMENT_DETECTION_MODE = ElementDetectionMode.USER_PLUS_AUTO;
@@ -78,10 +75,9 @@ public class CarbonModelAlgorithmParameters extends SimpleParameterSet {
           + "elements (Cl, Br, S, Si) from the pattern and uses the detected atom counts.",
       ElementDetectionMode.values(), DEFAULT_ELEMENT_DETECTION_MODE);
 
-  // Parameter NAMES and DESCRIPTIONS of the parameters that the simplified "automatic" option also
-  // exposes. decision: the shared part is the text, NOT the parameter instance. A parameter instance
-  // carries its value, and both option sets exist in the configuration at the same time - sharing an
-  // instance would make them share one value. See AutomaticIsotopeFinderParameters.
+  // decision: what the simplified "automatic" option shares is this TEXT, not the parameter
+  // instances. An instance carries its value and both option sets live in the configuration at once,
+  // so sharing instances would make them share one value.
   public static final String MAX_CHARGE_NAME = "Maximum charge of isotope m/z";
   public static final String MAX_CHARGE_DESCRIPTION =
       "Maximum possible charge of the isotope distribution. Charges 1..maxCharge are evaluated and "
@@ -144,13 +140,9 @@ public class CarbonModelAlgorithmParameters extends SimpleParameterSet {
   }
 
   /**
-   * Create an independent parameter set with every value actively set to its default. Prefer this
-   * over {@code new CarbonModelAlgorithmParameters()} wherever a defaulted set is needed: the
-   * plain constructor stores the shared static parameter templates (a {@link SimpleParameterSet}
-   * does not clone), whose values may have been overwritten elsewhere (config load / GUI); this
-   * clones and re-sets the documented defaults so the result is self-contained and correct.
-   *
-   * @return a new, independent parameter set with default values.
+   * An independent parameter set with every value actively set to its default. Prefer it over the
+   * plain constructor, which stores the shared static templates ({@link SimpleParameterSet} does not
+   * clone) whose values may have been overwritten by a config load or the GUI.
    */
   public static @NotNull CarbonModelAlgorithmParameters createDefault() {
     final CarbonModelAlgorithmParameters params = (CarbonModelAlgorithmParameters) new CarbonModelAlgorithmParameters().cloneParameterSet();
@@ -161,19 +153,10 @@ public class CarbonModelAlgorithmParameters extends SimpleParameterSet {
   }
 
   /**
-   * Actively set every value of this parameter set. Used by simplified algorithm options to map their
-   * few parameters onto the full carbon-model setup.
-   * <p>
-   * Only call this on a cloned (self-contained) instance - see {@link #createDefault()}.
+   * Actively set every value, so a simplified option can map its few parameters onto the full setup.
+   * Only call this on a cloned instance - see {@link #createDefault()}.
    *
-   * @param elementsValue        the elements whose major stable isotopes are considered.
-   * @param detectionMode        how heavy elements are determined.
-   * @param tolerance            m/z tolerance for matching signals in the scan.
-   * @param maxChargeValue       highest charge that is evaluated.
-   * @param requireC13Value      whether a gap-free 13C ladder is required.
-   * @param explainableOnly      whether unexplainable signals are dropped.
-   * @param refineAcrossFwhm     whether to refine the pattern across the FWHM scans.
-   * @param envelopeParameters   the envelope model parameters (values are copied).
+   * @param envelopeParameters the envelope model parameters; values are copied.
    */
   public void setAll(@NotNull final List<Element> elementsValue,
       @NotNull final ElementDetectionMode detectionMode, @NotNull final MZTolerance tolerance,

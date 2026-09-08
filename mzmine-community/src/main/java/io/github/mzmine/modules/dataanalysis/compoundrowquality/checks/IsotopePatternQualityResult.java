@@ -60,38 +60,30 @@ import org.jetbrains.annotations.Nullable;
 import org.jfree.chart.axis.ValueAxis;
 
 /// Custom [QualityCheckResult] for the isotope pattern check. Unlike the other checks this card is
-/// live: it follows the selected adduct row (the quality pane's selected member row) and shows that
-/// row's isotope evidence without a full recompute. The chart holds the detected isotope pattern in
-/// the positive color and the predicted isotopes of the row's formula as short horizontal line
-/// markers.
+/// LIVE: it follows the selected adduct row and shows that row's isotope evidence without a
+/// recompute. The detected pattern is drawn in the positive color, the predicted isotopes as short
+/// horizontal markers.
 public final class IsotopePatternQualityResult extends QualityCheckResult {
 
-  /// Width of the predicted-isotope marker in pixels.
   private static final double MARKER_WIDTH = 13.0;
-  /// Thickness of the predicted-isotope marker. Filled (not stroked) so it renders identically in
-  /// the plot and in the legend.
+  /// Filled rather than stroked, so it renders identically in the plot and in the legend.
   private static final double MARKER_THICKNESS = 2.0;
-  /// Short horizontal line marking the expected intensity of a predicted isotope signal without
-  /// covering the measured stick underneath.
+  /// Marks a predicted signal's expected intensity without covering the measured stick under it.
   private static final Shape PREDICTED_MARKER = new Rectangle2D.Double(-MARKER_WIDTH / 2,
       -MARKER_THICKNESS / 2, MARKER_WIDTH, MARKER_THICKNESS);
-  /// Height of the chart inside the card. Tall enough to read an isotope envelope, small enough to
-  /// leave the neighbouring cards reachable in the scroll column.
+  /// Tall enough to read an envelope, small enough to leave neighbouring cards reachable.
   private static final double CHART_HEIGHT = 200;
-  /// Fraction of the data width added left and right of the m/z auto range. Well above the
-  /// JFreeChart default (0.05) so a narrow isotope envelope is not drawn edge to edge.
+  /// Well above the JFreeChart default (0.05), so a narrow envelope is not drawn edge to edge.
   private static final double DOMAIN_AXIS_MARGIN = 0.2;
 
-  /// A predicted isotope pattern together with the formula it was predicted for. The formula is
-  /// null when only a stored pattern without a formula was available; the dataset label then drops
-  /// the parenthesis.
+  /// A predicted pattern plus the formula it came from. The formula is null when only a stored
+  /// pattern was available, and the dataset label then drops the parenthesis.
   record PredictedPattern(@NotNull IsotopePattern pattern, @Nullable String formula) {
 
   }
 
-  /// Isotope evidence of one member row: every detected charge-state hypothesis (best first, empty
-  /// when nothing was detected) and the predicted pattern of the row's formula (null when the row
-  /// has neither an annotation nor a predicted formula).
+  /// Isotope evidence of one member row: the detected charge-state hypotheses (best first) and the
+  /// predicted pattern of the row's formula, null when the row has no formula at all.
   record RowIsotopes(@NotNull List<@NotNull IsotopePattern> chargeStates,
                      @Nullable PredictedPattern predicted) {
 
@@ -102,9 +94,8 @@ public final class IsotopePatternQualityResult extends QualityCheckResult {
   private final @NotNull FeatureListRow defaultRow;
   private final @Nullable ObservableValue<@Nullable FeatureListRow> selectedMemberRow;
 
-  // Live state, read and written on the FX thread only. Plain fields plus explicit updaters (not
-  // observable properties) so a row switch — which changes both fields — redraws the card exactly
-  // once, from a consistent state.
+  // FX thread only. Plain fields with explicit updaters rather than observable properties, so a row
+  // switch - which changes both - redraws the card exactly once, from a consistent state.
   private @NotNull RowIsotopes current = RowIsotopes.EMPTY;
   private @Nullable IsotopePattern selectedChargeState;
   private @Nullable Runnable summaryUpdater;
@@ -126,9 +117,8 @@ public final class IsotopePatternQualityResult extends QualityCheckResult {
     final Label title = FragmentParentsRendering.configureWrap(
         FxLabels.newBoldLabel(type.getLabel()));
 
-    // Charge-state navigation, only shown when the row carries more than one hypothesis. The
-    // buttons consume their mouse-clicked event so a click cycles the charge instead of also
-    // toggling the card (QualityCheckItem toggles the sub pane on any header click).
+    // the buttons consume their mouse-clicked event, or the click would also toggle the card -
+    // QualityCheckItem toggles the sub pane on any header click
     final ButtonBase prev = FxIconUtil.newIconButton(FxIcons.ARROW_LEFT, "Previous charge state",
         () -> cycleChargeState(-1));
     final ButtonBase next = FxIconUtil.newIconButton(FxIcons.ARROW_RIGHT, "Next charge state",
@@ -164,49 +154,44 @@ public final class IsotopePatternQualityResult extends QualityCheckResult {
     // several datasets with different meanings — the legend is what makes them distinguishable.
     controller.setLegendItemsVisible(true);
 
-    // Build the view BEFORE adding datasets: SimpleSpectraChartViewBuilder.build() installs the
-    // MapChangeListener that forwards datasets to the plot, and adding them runs inline on the FX
-    // thread. Datasets added first would sit in the model and never reach the chart, leaving an
-    // empty plot with the default 0-1 axes.
+    // build the view BEFORE adding datasets: build() installs the MapChangeListener that forwards
+    // them to the plot, so datasets added first would sit in the model and never reach the chart
     final Region view = controller.buildView();
     view.setMinHeight(CHART_HEIGHT);
     view.setPrefHeight(CHART_HEIGHT);
     view.setMinWidth(0);
 
     chartUpdater = () -> updateChart(controller, colors);
-    // Populate for whatever row is selected right now — buildMainPane already applied it.
+    // populate for whatever row is selected right now
     chartUpdater.run();
     return view;
   }
 
-  /// The chart needs the full card width; the isotope envelope is unreadable in the indented column
-  /// left over next to the status icon.
+  /// The envelope is unreadable in the indented column left next to the status icon.
   @Override
   public boolean wantsFullWidthSubPane() {
     return true;
   }
 
-  /// Follow the selected adduct row: show that row's patterns instead of the compound's preferred
-  /// row. Uses a {@link WeakChangeListener} (the pattern of
-  /// {@link FragmentParentsRendering#bindSelectionBold}) so the long-lived selection property does
-  /// not keep this result alive after its card left the scene; the strong reference lives on the
-  /// main pane's properties map and is collected together with it.
+  /// Follow the selected adduct row instead of the compound's preferred one. A
+  /// {@link WeakChangeListener} (as in {@link FragmentParentsRendering#bindSelectionBold}) keeps
+  /// the long-lived selection property from holding this result alive after its card leaves the
+  /// scene; the strong reference lives on the main pane's properties map and dies with it.
   private void bindSelectedRow(@NotNull final Region anchor) {
     if (selectedMemberRow == null) {
       applyRow(defaultRow);
       return;
     }
     final ChangeListener<FeatureListRow> listener = (_, _, is) -> applyRow(is);
-    // Key under which the strong reference to the selected-row listener is parked on the main pane.
-    // keep listener alive as long as UI element
+    // parks the strong reference on the main pane, keeping the listener alive as long as the UI
     anchor.getProperties().put("isotopePatternSelectedRowListener", listener);
     selectedMemberRow.addListener(new WeakChangeListener<>(listener));
     applyRow(selectedMemberRow.getValue());
   }
 
-  /// Switch the card to {@code row}, resetting the charge-state selection to the best hypothesis.
-  /// Rows without precomputed data (only possible while a compound switch is still settling) show
-  /// the empty chart rather than another row's pattern.
+  /// Switch the card to {@code row}, resetting the charge selection to the best hypothesis. A row
+  /// without precomputed data - possible while a compound switch settles - shows the empty chart
+  /// rather than another row's pattern.
   private void applyRow(@Nullable final FeatureListRow row) {
     current = byRow.getOrDefault(row == null ? defaultRow : row, RowIsotopes.EMPTY);
     selectedChargeState =
@@ -226,7 +211,6 @@ public final class IsotopePatternQualityResult extends QualityCheckResult {
     refresh();
   }
 
-  /// Push the current state into whichever parts of the card have been built already.
   private void refresh() {
     if (summaryUpdater != null) {
       summaryUpdater.run();
@@ -236,8 +220,7 @@ public final class IsotopePatternQualityResult extends QualityCheckResult {
     }
   }
 
-  /// Summary text next to the charge buttons: the charge of the shown hypothesis, marked
-  /// {@code (preferred)} while that hypothesis is the best-ranked one of the pattern.
+  /// Charge of the shown hypothesis, marked {@code (preferred)} while it is the best-ranked one.
   private @NotNull String summaryText() {
     final IsotopePattern pattern = selectedChargeState;
     if (pattern == null) {
@@ -246,18 +229,12 @@ public final class IsotopePatternQualityResult extends QualityCheckResult {
     }
     final String charge =
         pattern.getCharge() > 0 ? "Charge = " + pattern.getCharge() : "Charge unknown";
-    // chargeStates is ranked best first, so the first entry is the preferred hypothesis.
+    // ranked best first, so index 0 is the preferred hypothesis
     return pattern == current.chargeStates().getFirst() ? charge + " (preferred)" : charge;
   }
 
-  /// Rebuild the datasets for the currently shown row + charge state:
-  /// <ul>
-  ///   <li>detected pattern present: one dataset in the positive color;</li>
-  ///   <li>no detected pattern but a predicted one: an empty placeholder dataset so the legend
-  ///       states that nothing was detected;</li>
-  ///   <li>predicted pattern present: the `-` markers on top;</li>
-  ///   <li>neither: no datasets at all, i.e. an empty chart.</li>
-  /// </ul>
+  /// Rebuild the datasets for the shown row + charge state. A predicted pattern with nothing
+  /// detected still gets an empty placeholder dataset, so the legend can say so.
   private void updateChart(@NotNull final SimpleSpectraChartController controller,
       @NotNull final SimpleColorPalette colors) {
     controller.clearDatasets();
@@ -276,14 +253,13 @@ public final class IsotopePatternQualityResult extends QualityCheckResult {
     if (predicted != null) {
       controller.addDataset(new MassSpectrumProvider(predicted.pattern(), predictedLabel(predicted),
               colors.getNegativeColorAWT()),
-          // ignoreZPaintScale: take the color from the dataset, there is no z dimension here.
+          // ignoreZPaintScale: no z dimension here, so take the color from the dataset
           new ColoredXYShapeRenderer(false, PREDICTED_MARKER, true));
     }
     applyDomainMargin(controller);
   }
 
-  /// Widen the m/z auto range. Applied after every dataset change because the axis is shared with
-  /// the datasets that were just replaced.
+  /// Re-applied after every dataset change, as the axis is shared with the replaced datasets.
   private static void applyDomainMargin(@NotNull final SimpleSpectraChartController controller) {
     final ValueAxis axis = controller.getChart().getXYPlot().getDomainAxis();
     axis.setLowerMargin(DOMAIN_AXIS_MARGIN);

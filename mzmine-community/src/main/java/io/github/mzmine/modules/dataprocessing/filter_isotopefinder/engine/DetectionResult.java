@@ -31,19 +31,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Result of isotope pattern detection on a single spectrum.
+ * Result of isotope pattern detection on a single spectrum. {@code scores}, {@code patterns} and
+ * {@code anchors} are aligned by index and ordered best first, so index 0 is the winning charge.
  *
- * @param bestCharge the winning (most probable) charge state.
- * @param scores     per-charge scoring breakdown for the kept charge hypotheses, ordered best
- *                   first.
- * @param patterns   one detected {@link IsotopePattern} per kept charge, ordered best first (index
- *                   0 = winner). Each pattern encodes its charge and a per-charge probability in
- *                   its description.
- * @param detectedComposition auto-detected heavy elements when element detection is enabled, else
- *                            null.
- * @param anchors    how each pattern maps to its predicted envelope (aligned with
- *                   {@code scores}/{@code patterns} by index), so a post-processing step such as
- *                   cross-scan refinement can test whether an offset is predicted at all.
+ * @param anchors             how each pattern maps to its predicted envelope, so a post-processing
+ *                            step such as cross-scan refinement can test whether an offset is
+ *                            predicted at all.
+ * @param detectedComposition auto-detected heavy elements, or null when detection is off.
  */
 public record DetectionResult(int bestCharge, @NotNull List<ChargeScore> scores,
                               @NotNull List<IsotopePattern> patterns,

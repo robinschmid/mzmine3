@@ -29,16 +29,12 @@ import io.github.mzmine.util.collections.IndexRange;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * An inclusive span of 13C-grid offsets, walked in steps of {@link #step}.
+ * An inclusive span of 13C-grid offsets, walked in steps of {@code step} (1 = every offset, 2 =
+ * every second).
  * <p>
- * decision: not {@link IndexRange}. Offsets are SIGNED (the observed base is 0 and the monoisotopic
- * side is negative), while {@code IndexRange} reserves -1 as its empty sentinel - a span reaching
- * offset -1 would silently collapse to empty.
- *
- * @param min          lowest included offset.
- * @param maxInclusive highest included offset.
- * @param step         offset distance between two consecutive positions (1 = every, 2 = every
- *                     second).
+ * decision: not {@link IndexRange}. Offsets are SIGNED - the observed base is 0 and the
+ * monoisotopic side negative - while {@code IndexRange} reserves -1 as its empty sentinel, so a
+ * span reaching offset -1 would silently collapse to empty.
  */
 record OffsetSpan(int min, int maxInclusive, int step) {
 
@@ -52,9 +48,6 @@ record OffsetSpan(int min, int maxInclusive, int step) {
     return new OffsetSpan(min, maxInclusive, 1);
   }
 
-  /**
-   * @return number of stepped positions in the span (>= 1, as min is always included).
-   */
   int size() {
     return (maxInclusive - min) / step + 1;
   }
@@ -63,9 +56,6 @@ record OffsetSpan(int min, int maxInclusive, int step) {
     return offset >= min && offset <= maxInclusive;
   }
 
-  /**
-   * @return the span grown to include {@code offset}, or this span if it already does.
-   */
   @NotNull OffsetSpan extendTo(final int offset) {
     return contains(offset) ? this
         : new OffsetSpan(Math.min(min, offset), Math.max(maxInclusive, offset), step);

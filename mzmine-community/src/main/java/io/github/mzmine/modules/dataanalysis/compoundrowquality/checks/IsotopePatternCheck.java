@@ -53,15 +53,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.openscience.cdk.interfaces.IMolecularFormula;
 
-/// Collects the MS1 isotope evidence of every member row of the compound: the detected isotope
-/// pattern (one entry per charge-state hypothesis) and the pattern predicted for the row's formula,
-/// taken from the preferred annotation or, when there is none, from formula prediction. All rows
-/// are resolved here on the background thread so [IsotopePatternQualityResult] can follow the
-/// selected adduct row on the FX thread without recomputing.
+/// Collects the MS1 isotope evidence of every member row: the detected pattern (one entry per
+/// charge-state hypothesis) and the pattern predicted for the row's formula. Every row is resolved
+/// here on the background thread so [IsotopePatternQualityResult] can follow the selected adduct
+/// row on the FX thread without recomputing.
 public final class IsotopePatternCheck implements QualityCheck {
 
-  /// Relative abundance below which a predicted isotope signal is dropped. Same threshold
-  /// {@link FeatureAnnotation#calculateIsotopePattern()} uses, so both prediction paths agree.
+  /// Same threshold {@link FeatureAnnotation#calculateIsotopePattern()} uses, so both prediction
+  /// paths agree.
   private static final double MIN_PREDICTED_ABUNDANCE = 0.005;
 
   @Override
@@ -73,17 +72,16 @@ public final class IsotopePatternCheck implements QualityCheck {
   public @NotNull QualityCheckResult evaluate(@NotNull CompoundRow row,
       @NotNull QualityCheckContext context) {
     final FeatureListRow preferred = row.getPreferredRow();
-    // Index every row that can become the dashboard's selected adduct row — the member rows plus
-    // their nested sub-rows (isotopes), the same set the dashboard's legend and coloring use.
+    // every row that can become the selected adduct row: the member rows plus their nested
+    // sub-rows, the same set the dashboard's legend and coloring use
     final Map<FeatureListRow, RowIsotopes> byRow = new HashMap<>();
     byRow.put(preferred, resolve(preferred));
     for (final FeatureListRow member : CompoundDashboardColoring.flattenAllMemberRows(row)) {
       byRow.computeIfAbsent(member, IsotopePatternCheck::resolve);
     }
 
-    // The status icon cannot follow the live selection (QualityCheckItem renders it once), so it
-    // describes the row the card starts on: the currently selected adduct row when the host tracks
-    // one, the compound's preferred row otherwise.
+    // QualityCheckItem renders the status icon once, so it cannot follow the live selection and
+    // instead describes the row the card starts on
     final FeatureListRow initial = initialRow(context, preferred, byRow);
     final QualityCheckStatus status =
         byRow.getOrDefault(initial, RowIsotopes.EMPTY).chargeStates().isEmpty()
@@ -93,7 +91,7 @@ public final class IsotopePatternCheck implements QualityCheck {
   }
 
   /// The row the card shows first. Reading the selection property off the FX thread is a plain
-  /// value read (no scene graph involved) and only decides the initial status icon.
+  /// value read, no scene graph involved.
   private static @NotNull FeatureListRow initialRow(@NotNull final QualityCheckContext context,
       @NotNull final FeatureListRow preferred,
       @NotNull final Map<FeatureListRow, RowIsotopes> byRow) {
@@ -104,7 +102,7 @@ public final class IsotopePatternCheck implements QualityCheck {
     return selected != null && byRow.containsKey(selected) ? selected : preferred;
   }
 
-  /// Detected charge-state hypotheses plus the predicted pattern of one member row.
+  /// The detected hypotheses plus the predicted pattern of one member row.
   private static @NotNull RowIsotopes resolve(@NotNull final FeatureListRow row) {
     final List<IsotopePattern> chargeStates = chargeStates(row.getBestIsotopePattern());
     final IsotopePattern best = chargeStates.isEmpty() ? null : chargeStates.getFirst();
@@ -112,8 +110,7 @@ public final class IsotopePatternCheck implements QualityCheck {
         normalizeToMeasured(resolvePredictedPattern(row), best, row));
   }
 
-  /// Unpack a [MultiChargeStateIsotopePattern] into its charge-state hypotheses (best first). A
-  /// single pattern becomes a one element list, no pattern an empty one.
+  /// Unpack a [MultiChargeStateIsotopePattern] into its hypotheses, best first.
   private static @NotNull List<@NotNull IsotopePattern> chargeStates(
       @Nullable final IsotopePattern best) {
     if (best instanceof MultiChargeStateIsotopePattern multi) {
@@ -122,11 +119,10 @@ public final class IsotopePatternCheck implements QualityCheck {
     return best == null ? List.of() : List.of(best);
   }
 
-  /// The predicted isotope pattern shown next to the detected one, together with the formula it
-  /// belongs to (used as the dataset label). Preference order: the preferred annotation's stored
-  /// pattern, one predicted from the annotation's formula + adduct, and finally the best formula
-  /// prediction result of the row. Null when the row has no formula behind it at all — the card
-  /// then shows the detected pattern alone.
+  /// The predicted pattern shown next to the detected one, plus the formula it belongs to (the
+  /// dataset label). Preference order: the annotation's stored pattern, one predicted from its
+  /// formula + adduct, then the row's best formula prediction. Null when no formula is available at
+  /// all, and the card then shows the detected pattern alone.
   private static @Nullable PredictedPattern resolvePredictedPattern(
       @NotNull final FeatureListRow row) {
     final FeatureAnnotation annotation = row.getPreferredAnnotation();
@@ -137,8 +133,7 @@ public final class IsotopePatternCheck implements QualityCheck {
         return new PredictedPattern(pattern, annotationFormula(annotation));
       }
     }
-    // No annotation (or no formula behind it): fall back to formula prediction. The list is ranked,
-    // so the first entry is the best scoring formula for this row.
+    // fall back to formula prediction; the list is ranked, so the first entry is the best formula
     final List<ResultFormula> formulas = row.getFormulas();
     if (formulas.isEmpty()) {
       return null;
@@ -151,9 +146,7 @@ public final class IsotopePatternCheck implements QualityCheck {
       if (formula == null || polarity == null || !polarity.isDefined()) {
         return null;
       }
-      // assumption: formula prediction stores the ion (charged) formula, so the pattern can be
-      // calculated from it directly without applying an adduct. Charge falls back to 1 when the
-      // formula object carries none.
+      // assumption: formula prediction stores the ION formula, so no adduct has to be applied
       final Integer formulaCharge = formula.getCharge();
       final int charge = formulaCharge == null || formulaCharge == 0 ? 1 : Math.abs(formulaCharge);
       pattern = IsotopePatternCalculator.calculateIsotopePattern(formula, MIN_PREDICTED_ABUNDANCE,
@@ -162,7 +155,6 @@ public final class IsotopePatternCheck implements QualityCheck {
     return pattern == null ? null : new PredictedPattern(pattern, best.getFormulaAsString());
   }
 
-  /// Formula string of an annotation: the stored formula, else derived from its structure.
   private static @Nullable String annotationFormula(@NotNull final FeatureAnnotation annotation) {
     final String formula = annotation.getFormula();
     if (formula != null && !formula.isBlank()) {
@@ -172,10 +164,9 @@ public final class IsotopePatternCheck implements QualityCheck {
     return structure == null ? null : FormulaUtils.getFormulaString(structure.formula());
   }
 
-  /// Scale the predicted pattern onto the measured intensity scale, otherwise its relative
-  /// abundances (0..1) would be invisible next to raw MS1 intensities. Prefers the detected
-  /// pattern's base peak, falling back to the tallest measured signal of the representative MS1
-  /// scan inside the predicted m/z window.
+  /// Scale the predicted pattern onto the measured intensity scale, or its 0..1 abundances would be
+  /// invisible next to raw MS1 intensities. Prefers the detected pattern's base peak, else the
+  /// tallest measured signal inside the predicted m/z window.
   private static @Nullable PredictedPattern normalizeToMeasured(
       @Nullable final PredictedPattern predicted, @Nullable final IsotopePattern detected,
       @NotNull final FeatureListRow row) {
@@ -196,8 +187,7 @@ public final class IsotopePatternCheck implements QualityCheck {
         predicted.formula());
   }
 
-  /// Tallest intensity of {@code scan} within {@code [minMZ, maxMZ]}, or {@code null} when the scan
-  /// is missing or has no signal in that window.
+  /// Tallest intensity within {@code [minMZ, maxMZ]}, or null when there is no signal there.
   private static @Nullable Double maxIntensityInRange(@Nullable final Scan scan, final double minMZ,
       final double maxMZ) {
     if (scan == null) {
@@ -218,8 +208,7 @@ public final class IsotopePatternCheck implements QualityCheck {
     return max > 0d ? max : null;
   }
 
-  /// Representative MS1 scan of the row's best feature, used only to scale a predicted pattern when
-  /// no isotope pattern was detected.
+  /// Only used to scale a predicted pattern when nothing was detected.
   private static @Nullable Scan pickRepresentativeScan(@NotNull final FeatureListRow row) {
     final Feature best = row.getBestFeature();
     return best == null ? null : best.getRepresentativeScan();

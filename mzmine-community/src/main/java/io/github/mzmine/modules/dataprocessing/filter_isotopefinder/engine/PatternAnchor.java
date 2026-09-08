@@ -28,16 +28,12 @@ package io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * How one detected pattern is anchored to its predicted envelope, so a consumer of the pattern can
- * map an m/z back to a predicted isotope offset. Without this, an m/z can only be mapped to an
- * offset relative to some observed signal, which says nothing about the predicted intensity there.
- * <p>
- * A signal at {@code mz} sits at predicted offset
- * {@code round((mz - baseMz) / env.spacingDa()) + placement}.
+ * How one detected pattern is anchored to its predicted envelope, so a consumer can map an m/z back
+ * to a PREDICTED offset - without it an m/z maps only to an offset relative to some observed signal,
+ * which says nothing about the predicted intensity there.
  *
- * @param env       the predicted envelope the charge hypothesis was scored against.
- * @param baseMz    m/z of the observed base peak (the most intense signal), i.e. observed offset 0.
- * @param placement the predicted offset that the sliding envelope fit aligned to observed offset 0.
+ * @param baseMz    m/z of the observed base peak, i.e. observed offset 0.
+ * @param placement the predicted offset the sliding envelope fit aligned to observed offset 0.
  */
 public record PatternAnchor(@NotNull IsotopeEnvelope env, double baseMz, int placement) {
 

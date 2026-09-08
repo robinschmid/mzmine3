@@ -29,16 +29,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Diagnostic isotope data for one candidate heavy element used by {@link ElementAutoDetector}: the
- * M+2 defect and per-atom relative intensity (to the most-abundant isotope), plus the optional M+1
- * defect and per-atom relative intensity. Cl and Br have no natural M+1 isotope, so {@code m1Delta}
- * is {@code null} for them.
- *
- * @param symbol  element symbol
- * @param m2Delta mass difference (Da) of the M+2 isotope to the most-abundant isotope
- * @param m2Rel   abundance of the M+2 isotope relative to the most-abundant isotope
- * @param m1Delta mass difference (Da) of the M+1 isotope, or {@code null} if the element has none
- * @param m1Rel   abundance of the M+1 isotope relative to the most-abundant isotope (0 if none)
+ * Isotope data of one candidate heavy element for {@link ElementAutoDetector}. Every value is
+ * relative to the element's MOST ABUNDANT isotope: {@code m2Delta}/{@code m1Delta} are mass
+ * differences in Da, {@code m2Rel}/{@code m1Rel} per-atom abundances. Cl and Br have no natural M+1,
+ * so {@code m1Delta} is null and {@code m1Rel} 0 for them.
  */
 record ElementIsotopes(@NotNull String symbol, double m2Delta, double m2Rel,
                        @Nullable Double m1Delta, double m1Rel) {

@@ -48,34 +48,29 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Refines a detected isotope pattern across multiple scans (e.g. within the feature FWHM) instead
- * of pre-merging them. For each isotope offset it recomputes the relative intensity as a robust
- * aggregate of the per-scan {@code offset/base} ratios, and recovers offsets that are resolved in
- * several scans but were absent in the single detection scan. This addresses split/merged fine
- * structure that varies between consecutive scans without blurring it through merging.
+ * Refines a detected pattern across several scans (the feature FWHM) instead of pre-merging them:
+ * each offset's relative intensity becomes a robust aggregate of the per-scan {@code offset/base}
+ * ratios, and offsets resolved in other scans but absent from the detection scan are recovered.
+ * This handles fine structure that splits or merges between consecutive scans without blurring it.
  */
 public final class CrossScanRefiner {
 
   private static final DataPointSorter MZ_SORTER = new DataPointSorter(SortingProperty.MZ,
       SortingDirection.Ascending);
-  // how many offsets beyond the detected range to probe (in BOTH directions) for signals resolved
-  // only in other scans
+  // offsets beyond the detected range to probe, in BOTH directions
   private static final int EXTRA_RECOVERY_OFFSETS = 4;
-  // a recovered (previously absent) signal must also reach this fraction of the base peak, so
-  // persistent low-level background at the probed m/z is not added just because it recurs. The
-  // detected signals themselves are never subject to this - refinement must not drop real peaks.
+  // so persistent low-level background is not added just because it recurs. Applies to RECOVERED
+  // signals only - refinement must never drop a detected peak.
   private static final double MIN_RECOVERED_REL_INTENSITY = 0.001;
-  // a recovered offset must additionally be one the predicted envelope allows a peak at, i.e. its
-  // plausible upper bound must reach this relative intensity (the same cutoff the engine's
-  // termination uses). Only applied when the caller supplies the envelope anchor.
+  // a recovered offset must also be one the envelope allows a peak at, using the same cutoff as the
+  // engine's termination. Only applied when the caller supplies an anchor.
   private static final double MIN_RECOVERED_PREDICTED_BOUND = IsotopeEnvelope.SUPPORT_CUTOFF;
 
   private CrossScanRefiner() {
   }
 
   /**
-   * Refine without an envelope anchor, i.e. without the predicted-offset plausibility check on
-   * recovered offsets.
+   * Refine without the predicted-offset plausibility check on recovered offsets.
    *
    * @see #refine(IsotopePattern, List, MZTolerance, RatioAggregation, int, PatternAnchor)
    */
@@ -87,17 +82,12 @@ public final class CrossScanRefiner {
 
   /**
    * @param detected        the pattern detected on the most intense scan.
-   * @param scans           the scans (mass lists) within the FWHM to refine across.
-   * @param tol             m/z tolerance for matching signals across scans.
-   * @param aggregation     how to aggregate the per-scan ratios.
-   * @param minScansPresent a recovered (previously absent) offset must appear in at least this many
-   *                        scans to be added.
-   * @param anchor          how the pattern maps to its predicted envelope, or null when unknown. When
-   *                        given, a recovered offset must also be one the envelope predicts a peak
-   *                        at - recurring in enough scans alone does not make a persistent
-   *                        background signal part of the isotope pattern.
-   * @return the refined pattern (same charge/description), or the original if refinement is not
-   * possible.
+   * @param scans           the mass lists within the FWHM to refine across.
+   * @param minScansPresent scans a recovered offset must appear in before it is added.
+   * @param anchor          how the pattern maps to its predicted envelope, or null when unknown.
+   *                        Given one, a recovered offset must also be predicted: recurring in enough
+   *                        scans alone does not make background part of the pattern.
+   * @return the refined pattern, or the original when refinement is not possible.
    */
   public static @NotNull IsotopePattern refine(@NotNull final IsotopePattern detected,
       @NotNull final List<? extends MassSpectrum> scans, @NotNull final MZTolerance tol,
@@ -127,19 +117,17 @@ public final class CrossScanRefiner {
       return detected;
     }
 
-    // index the detected signals on the 13C grid of the lowest detected m/z. decision: through the
-    // shared CarbonLadder rather than a local round((mz - minMz) / spacing), so the refiner's idea of
-    // "which offset is this" cannot drift from the engine's - the grid is walked in one place.
+    // decision: indexed through the shared CarbonLadder rather than a local round((mz - minMz) /
+    // spacing), so the refiner's idea of "which offset is this" cannot drift from the engine's.
+    // Offsets are relative to the LOWEST detected m/z, hence all >= 0.
     final CarbonLadder ladder = CarbonLadder.build(points, minMz, spacing, tol);
     final TreeMap<Integer, OffsetPeak> occupied = ladder.collapsed();
-    // the detected offsets are relative to the LOWEST detected m/z, so they are all >= 0
     final int maxOffset = occupied.isEmpty() ? 0 : occupied.lastKey();
 
     final List<DataPoint> refined = new ArrayList<>();
-    // decision: refine every detected signal at its OWN m/z rather than one signal per nominal
-    // offset. Keying by offset collapsed isotopic fine structure (e.g. 13C2 vs 34S, which the engine
-    // deliberately keeps resolved) down to a single point, so enabling refinement REDUCED pattern
-    // completeness on high-resolution data.
+    // decision: every detected signal at its OWN m/z, not one per nominal offset. Keying by offset
+    // collapsed fine structure the engine deliberately keeps resolved into a single point, so
+    // enabling refinement REDUCED pattern completeness on high-resolution data.
     for (final DataPoint dp : points) {
       final double mz = dp.getMZ();
       final ScanAggregate agg = aggregateAcrossScans(mz, baseMz, scans, tol, aggregation);
@@ -152,9 +140,8 @@ public final class CrossScanRefiner {
       refined.add(intensity > 0d ? new SimpleDataPoint(agg.mz(), intensity) : dp);
     }
 
-    // probe unoccupied offsets on BOTH sides to recover signals resolved only in other scans.
-    // decision: downward too - the monoisotopic can be missing from the single detection scan, and
-    // an upward-only probe could never recover it.
+    // decision: probed downward as well as up - the monoisotopic can be missing from the single
+    // detection scan, and an upward-only probe could never recover it
     for (int offset = -EXTRA_RECOVERY_OFFSETS; offset <= maxOffset + EXTRA_RECOVERY_OFFSETS;
         offset++) {
       if (occupied.containsKey(offset)) {
@@ -164,8 +151,7 @@ public final class CrossScanRefiner {
       if (targetMz <= 0d) {
         continue;
       }
-      // envelope plausibility: only recover where a peak is predicted at all, mirroring the
-      // termination check the engine applies to the detected offsets
+      // only recover where a peak is predicted at all, mirroring the engine's termination check
       if (anchor != null && anchor.env().upperBoundAt(anchor.predictedOffsetOf(targetMz))
           < MIN_RECOVERED_PREDICTED_BOUND) {
         continue;
@@ -190,17 +176,6 @@ public final class CrossScanRefiner {
         IsotopePatternStatus.DETECTED, detected.getDescription());
   }
 
-  /**
-   * Aggregate the {@code targetMz / baseMz} intensity ratio of one signal across all scans that
-   * contain the base peak.
-   *
-   * @param targetMz    the m/z to measure.
-   * @param baseMz      the m/z of the pattern's base peak (the ratio denominator).
-   * @param scans       the scans to aggregate over.
-   * @param tol         m/z tolerance for matching signals across scans.
-   * @param aggregation how to aggregate the per-scan ratios.
-   * @return the aggregate, or {@code null} when no scan contained the base peak.
-   */
   private static @Nullable ScanAggregate aggregateAcrossScans(final double targetMz,
       final double baseMz, @NotNull final List<? extends MassSpectrum> scans,
       @NotNull final MZTolerance tol, @NotNull final RatioAggregation aggregation) {

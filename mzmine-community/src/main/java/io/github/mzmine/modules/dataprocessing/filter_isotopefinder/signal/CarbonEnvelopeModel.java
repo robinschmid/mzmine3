@@ -91,8 +91,8 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
   }
 
   /**
-   * @return the neutral mass of the searched ion, falling back to the uncorrected {@code mz * z}
-   * when the ionization correction would make it non-positive.
+   * @return the neutral mass, falling back to {@code mz * z} when the ionization correction would
+   * make it non-positive.
    */
   private static double neutralMass(final double observedMz, final int charge,
       @NotNull final PolarityType polarity) {
@@ -119,10 +119,8 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
   }
 
   /**
-   * @param symbol the element symbol
-   * @return the dominant heavy isotope (offset step in Da + fractional abundance) of the element,
-   * or null for C/H (13C is modeled by the carbon envelope, 2H is negligible) or when the element
-   * has no heavy isotope with a step &gt;= 1.
+   * @return the element's dominant heavy isotope as an offset step plus a fractional abundance, or
+   * null for C/H and for elements without a heavy isotope at least one nominal mass up.
    */
   private static @Nullable HeavyContribution heavyContributionFor(@NotNull final String symbol) {
     // decision: 13C is modeled by the carbon envelope, 2H is negligible
@@ -149,11 +147,8 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
   }
 
   /**
-   * The stepped binomial isotope contribution of {@code atoms} atoms of one element.
-   *
-   * @param symbol element symbol.
-   * @param atoms  number of atoms of it.
-   * @return the distribution, or null when the element has no usable heavy isotope.
+   * @return the stepped binomial contribution of {@code atoms} atoms of one element, or null when
+   * it has no usable heavy isotope.
    */
   private double @Nullable [] heavyDistributionFor(@NotNull final String symbol, final int atoms) {
     // prefer the cached user contribution, else resolve on the fly for a detected-only element
@@ -178,9 +173,8 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
   }
 
   /**
-   * @param neutralMass the searched neutral mass
-   * @return the crude, mass-proportional estimate of the number of heavy atoms per element
-   * (capped), used when a detected atom count is not available.
+   * @return a crude, capped mass-proportional estimate of the heavy atoms per element, used when no
+   * detected atom count is available.
    */
   private int crudeHeavyAtomCount(final double neutralMass) {
     return Math.min(MAX_HEAVY_ATOMS,
@@ -205,8 +199,7 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
     final double[] carbonExpected = carbonDistribution(nCtypical);
     final double[] carbonUpper = carbonDistribution(nCmax);
 
-    // The user's elements are DECLARED to be present together, so their contributions are convolved:
-    // a molecule with Cl and S carries both.
+    // the user's elements are DECLARED present together, so their contributions convolve
     final LinkedHashMap<String, Integer> coPresent = new LinkedHashMap<>();
     if (includeUserHeavies) {
       final int crude = crudeHeavyAtomCount(neutralMass);
@@ -222,13 +215,11 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
       }
     }
 
-    // decision: DETECTED elements are ALTERNATIVES, not co-present. The auto-detector reports every
-    // element the evidence cannot rule out - the candidate M+2 defects are ~1 mDa apart, so Cl/Br/S/Si
-    // are routinely indistinguishable - and convolving them would bound the pattern as if the molecule
-    // contained all of them at once. That inflates the bound multiplicatively, which widens the
-    // termination in computeKeptOffsets (patterns spread over noise) and flattens intensityAgreement.
-    // The plausible maximum over mutually exclusive hypotheses is the ENVELOPE-WISE MAXIMUM of each
-    // alternative's own bound. With no detected counts this reduces to the co-present path unchanged.
+    // decision: DETECTED elements are mutually exclusive ALTERNATIVES, so their bounds combine by
+    // envelope-wise MAXIMUM rather than convolution. The detector reports every element it cannot
+    // rule out, and convolving would bound the pattern as if the molecule held all of them at once -
+    // inflating it multiplicatively, which widens the termination and flattens intensityAgreement.
+    // With no detected counts this reduces to the co-present path unchanged.
     double[] upperRaw = convolve(carbonUpper, coPresentDist);
     if (detectedHeavyCounts != null && !detectedHeavyCounts.isEmpty()) {
       double[] best = null;
@@ -241,7 +232,6 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
         if (elemDist == null) {
           continue;
         }
-        // each alternative sits on top of the declared co-present heavies
         final double[] candidate = convolve(upperRaw, elemDist);
         best = best == null ? candidate : maxOf(best, candidate);
       }
@@ -252,7 +242,6 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
 
     final double[] expected = normalizeToMax(carbonExpected);
     final double[] upperBound = normalizeToMax(upperRaw);
-    // the upper bound must dominate the expected intensity at every offset
     for (int i = 0; i < upperBound.length && i < expected.length; i++) {
       upperBound[i] = Math.max(upperBound[i], expected[i]);
     }
@@ -290,8 +279,7 @@ public class CarbonEnvelopeModel implements EnvelopeModel {
   }
 
   /**
-   * Binomial distribution of {@code n} heavy atoms whose isotope sits {@code step} Da above the
-   * main isotope, mapped onto the Da-offset grid (peaks at 0, step, 2*step, ...).
+   * {@code n} heavy atoms whose isotope sits {@code step} Da up, on the Da-offset grid.
    */
   private static double @NotNull [] steppedBinomial(final int n, final double abundance,
       final int step) {

@@ -46,15 +46,12 @@ public interface IsotopePattern extends MassSpectrum {
           IsotopePattern::getNumberOfDataPoints).reversed()
       .thenComparingInt(ip -> ip.getCharge() == -1 ? Integer.MAX_VALUE : ip.getCharge());
   /**
-   * Comparator for sorting isotope patterns by their quality
-   * {@link IsotopePattern#getScore() score} in descending order (best first). Unscored patterns
-   * ({@link Double#NaN}, e.g. predicted patterns) sort after scored ones and then fall back to
-   * {@link #patternSizeComparator} (size descending, charge ascending), preserving the legacy
-   * ordering when no scores are present.
+   * Sorts by {@link IsotopePattern#getScore() score}, best first. Unscored patterns
+   * ({@link Double#NaN}, e.g. predicted ones) sort last and then fall back to
+   * {@link #patternSizeComparator}, which preserves the legacy ordering when nothing is scored.
    */
   Comparator<IsotopePattern> patternScoreComparator = Comparator.comparingDouble(
-          // decision: an unscored (NaN) pattern is ranked as the worst score, so a scored pattern
-          // always outranks it and a set without any score falls through to the size ordering
+          // NaN ranks as the worst score, so a scored pattern always outranks an unscored one
           (IsotopePattern ip) -> Double.isNaN(ip.getScore()) ? Double.NEGATIVE_INFINITY : ip.getScore())
       .reversed() // higher score first
       .thenComparing(patternSizeComparator);
@@ -77,11 +74,10 @@ public interface IsotopePattern extends MassSpectrum {
   @NotNull String getDescription();
 
   /**
-   * A quality score for this isotope pattern, higher is better. Used to rank charge-state
-   * hypotheses of a {@link MultiChargeStateIsotopePattern} best
-   * first. Patterns that were not scored (e.g. predicted patterns) return {@link Double#NaN}.
+   * Quality score, higher is better, used to rank the charge-state hypotheses of a
+   * {@link MultiChargeStateIsotopePattern}.
    *
-   * @return the pattern score, or {@link Double#NaN} if this pattern carries no score.
+   * @return the score, or {@link Double#NaN} for an unscored pattern such as a predicted one.
    */
   default double getScore() {
     return Double.NaN;

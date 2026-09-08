@@ -38,9 +38,8 @@ import org.jetbrains.annotations.NotNull;
 import org.openscience.cdk.Element;
 
 /**
- * Builds an {@link IsotopeFinderEngine} from a {@link CarbonModelAlgorithmParameters} setup.
- * Single source of truth for the engine wiring so every caller builds an identically configured
- * engine.
+ * Builds an {@link IsotopeFinderEngine} from a {@link CarbonModelAlgorithmParameters} setup - the
+ * single place the engine is wired, so every caller gets an identically configured one.
  */
 final class IsotopeFinderEngineFactory {
 
@@ -48,8 +47,6 @@ final class IsotopeFinderEngineFactory {
   }
 
   /**
-   * Build the engine from the full algorithm parameters.
-   *
    * @param algo          the full carbon-model setup.
    * @param algorithmName name of the selected algorithm, only used for reporting.
    * @return the configured engine.

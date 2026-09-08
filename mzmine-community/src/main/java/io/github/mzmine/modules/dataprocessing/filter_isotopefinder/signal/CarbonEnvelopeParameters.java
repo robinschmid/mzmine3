@@ -33,16 +33,14 @@ import java.text.DecimalFormat;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Parameters for the signal-based carbon envelope model. The number of carbons is
- * estimated from the searched neutral mass (typical and maximum carbon-per-Dalton), which drives a
- * 13C isotope envelope. Heavy-isotope (S/Cl/Br ...) contributions widen only the upper bound and
- * are derived from the shared element list of the isotope finder.
+ * Parameters of the carbon envelope model: the carbon count is estimated from the searched neutral
+ * mass via a carbon-per-Dalton ratio, which drives the 13C envelope. Heavy-isotope contributions
+ * widen only the upper bound and come from the isotope finder's shared element list.
  */
 public class CarbonEnvelopeParameters extends SimpleParameterSet {
 
-  // default values - single source of truth, used both to build the parameters below and by
-  // createDefault() to actively set them on a fresh cloned instance (so callers never depend on the
-  // possibly-overwritten value carried by the shared static parameter templates).
+  // single source of truth: used to build the parameters below AND by createDefault(), so callers
+  // never depend on the possibly-overwritten value of a shared static template
   public static final double DEFAULT_CARBON_PER_DALTON_MIN = 1d / 20d;
   public static final double DEFAULT_CARBON_PER_DALTON_TYPICAL = 1d / 14d;
   public static final double DEFAULT_CARBON_PER_DALTON_MAX = 1d / 12d;
@@ -80,13 +78,9 @@ public class CarbonEnvelopeParameters extends SimpleParameterSet {
   }
 
   /**
-   * Create an independent parameter set with every value actively set to its default. Prefer this
-   * over {@code new CarbonEnvelopeParameters()} wherever a defaulted set is needed: the
-   * plain constructor stores the shared static parameter templates (a {@link SimpleParameterSet}
-   * does not clone), whose values may have been overwritten elsewhere (config load / GUI); this
-   * clones and re-sets the documented defaults so the result is self-contained and correct.
-   *
-   * @return a new, independent parameter set with default values.
+   * An independent parameter set with every value actively set to its default. Prefer it over the
+   * plain constructor, which stores the shared static templates ({@link SimpleParameterSet} does not
+   * clone) whose values may have been overwritten by a config load or the GUI.
    */
   public static @NotNull CarbonEnvelopeParameters createDefault() {
     return create(DEFAULT_CARBON_PER_DALTON_MIN, DEFAULT_CARBON_PER_DALTON_TYPICAL,
@@ -94,18 +88,9 @@ public class CarbonEnvelopeParameters extends SimpleParameterSet {
   }
 
   /**
-   * Create an independent (cloned) parameter set with the given values actively set. Use this
-   * instead of mutating a {@code new CarbonEnvelopeParameters()}: the plain constructor
-   * shares the static parameter templates, so setting values on it would corrupt the global
-   * defaults. Cloning first yields a self-contained set.
-   *
-   * @param carbonPerDaltonMinValue     minimum carbons per Dalton (lower 13C bound).
-   * @param carbonPerDaltonTypicalValue typical carbons per Dalton (expected envelope).
-   * @param carbonPerDaltonMaxValue     maximum carbons per Dalton (upper intensity bound).
-   * @param minRelIntensityValue        envelope relative-intensity cutoff.
-   * @param usePoisson                  {@code true} for a Poisson model, {@code false} for
-   *                                    binomial.
-   * @return a new, independent parameter set with the given values.
+   * As {@link #createDefault()} but with the given values set. Never mutate a plain
+   * {@code new CarbonEnvelopeParameters()} instead: it shares the static templates, so setting
+   * values on it corrupts the global defaults.
    */
   public static @NotNull CarbonEnvelopeParameters create(
       final double carbonPerDaltonMinValue, final double carbonPerDaltonTypicalValue,

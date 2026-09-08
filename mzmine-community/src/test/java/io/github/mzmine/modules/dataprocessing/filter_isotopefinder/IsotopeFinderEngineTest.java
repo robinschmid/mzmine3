@@ -61,9 +61,8 @@ import org.junit.jupiter.api.Test;
 import org.openscience.cdk.Element;
 
 /**
- * Tests for the signal-based isotope finder: carbon-model envelope shape, charge-state
- * selection across element mixes / resolutions / charges, envelope-shape-aware termination, and
- * cross-scan refinement.
+ * Tests for the isotope finder: envelope shape, charge selection across element mixes /
+ * resolutions / charges, shape-aware termination and cross-scan refinement.
  */
 class IsotopeFinderEngineTest {
 
@@ -88,8 +87,8 @@ class IsotopeFinderEngineTest {
   }
 
   /**
-   * Same engine as {@link #engine} but with opt-in heavy-element auto-detection enabled over the
-   * default candidate set. Charge selection is unchanged; detection only annotates the result.
+   * Heavy-element auto-detection over the default candidate set. Charge selection is unchanged -
+   * detection only annotates the result.
    */
   @NotNull
   private static IsotopeFinderEngine engineAutoDetect(@NotNull final List<Element> elements,
@@ -100,10 +99,6 @@ class IsotopeFinderEngineTest {
                 ElementAutoDetector.DEFAULT_CANDIDATES));
   }
 
-  /**
-   * Same engine as {@link #engine} but with opt-in heavy-element auto-detection enabled over the
-   * default candidate set. Charge selection is unchanged; detection only annotates the result.
-   */
   @NotNull
   private static IsotopeFinderEngine engineAutoDetectRequireC13(
       @NotNull final List<Element> elements, final int maxCharge) {
@@ -136,7 +131,7 @@ class IsotopeFinderEngineTest {
   }
 
   /**
-   * Merge several spectra into one, summing intensities of peaks within ~1 mDa (for overlaps).
+   * Merge spectra, summing peaks within ~1 mDa so overlaps add up.
    */
   private static SimpleMassSpectrum combine(final SimpleMassSpectrum... specs) {
     final TreeMap<Double, Double> map = new TreeMap<>();
@@ -169,16 +164,13 @@ class IsotopeFinderEngineTest {
     return new SimpleMassSpectrum(mz, in);
   }
 
-  /**
-   * Real CDK-generated isotope distribution for a formula at the given charge, sorted by m/z.
-   */
   private static SimpleMassSpectrum fromFormula(final String formula, final int charge) {
     return fromFormula(formula, charge, 0.00005); // default high resolution
   }
 
   /**
-   * Real CDK isotope distribution at a given merge width: small width keeps fine structure
-   * resolved, large width merges it into one peak per nominal mass.
+   * Real CDK distribution at a given merge width: small keeps fine structure resolved, large merges
+   * it into one peak per nominal mass.
    */
   private static SimpleMassSpectrum fromFormula(final String formula, final int charge,
       final double mergeWidth) {
@@ -200,9 +192,8 @@ class IsotopeFinderEngineTest {
   }
 
   /**
-   * Real CDK isotope distribution merged to ~one peak per nominal isotope offset (fine structure
-   * collapsed), sorted by m/z. {@code minAbundance} prunes the long tail to keep large molecules
-   * fast.
+   * Real CDK distribution with the fine structure collapsed to one peak per nominal offset.
+   * {@code minAbundance} prunes the tail to keep large molecules fast.
    */
   private static SimpleMassSpectrum cdkSpectrum(final String formula, final int charge,
       final double minAbundance) {
@@ -225,9 +216,6 @@ class IsotopeFinderEngineTest {
     return new SimpleMassSpectrum(mz, in);
   }
 
-  /**
-   * Index of the most intense peak (the base peak / apex of the envelope).
-   */
   private static int baseIndex(final MassSpectrum s) {
     int idx = 0;
     for (int i = 1; i < s.getNumberOfDataPoints(); i++) {
@@ -239,7 +227,7 @@ class IsotopeFinderEngineTest {
   }
 
   /**
-   * Shift every m/z by {@code dmz} (to place an interferent away from the target).
+   * Shift every m/z, to place an interferent away from the target.
    */
   private static SimpleMassSpectrum shift(final SimpleMassSpectrum s, final double dmz) {
     final double[] mz = new double[s.getNumberOfDataPoints()];
@@ -268,7 +256,7 @@ class IsotopeFinderEngineTest {
   }
 
   /**
-   * Br3C10 isotope pattern (mono is not the base peak; Br doublets).
+   * Br3C10: the mono is NOT the base peak.
    */
   private static SimpleMassSpectrum br3C10() {
     return spec(
@@ -311,10 +299,8 @@ class IsotopeFinderEngineTest {
 
   @Test
   void keepsChargeTwoWhenWeakIntermediatePeaksAreBelowTheIntensityCutoff() {
-    // a genuine z=2 pattern measured on an instrument with an intensity cutoff: the weak predicted
-    // intermediate peaks are simply not in the data. Their absence must NOT be read as evidence
-    // against z=2 - it is undetectable either way. Every charge error on the benchmark's cutoff axis
-    // used to be exactly this (2->1 / 3->1 under-calling).
+    // a genuine z=2 whose weak intermediate peaks fell below the instrument cutoff. Their absence
+    // must NOT count against z=2 - every charge error on the benchmark's cutoff axis was this.
     final List<Element> elements = List.of(new Element("C"), new Element("H"));
     final double mono = 800.0;
     final double half = C13 / 2d;
@@ -733,10 +719,9 @@ class IsotopeFinderEngineTest {
 
   @Test
   void detectsChargeInComplexCdkSpectrumFromAnyStartSignal() {
-    // Build real CDK isotope patterns, embed each in a complex MS1 (a co-eluting decoy compound +
-    // off-grid noise), then seed detection from EVERY isotope signal of the target. The correct
-    // charge and the target's monoisotopic must be recovered regardless of the start signal, and
-    // neither the decoy compound nor the noise may leak into the detected pattern.
+    // real CDK patterns embedded in a complex MS1 (co-eluting decoy + off-grid noise), seeded from
+    // EVERY isotope signal of the target: charge and monoisotopic must be recovered regardless of
+    // the start signal, and neither decoy nor noise may leak in
     record Case(String formula, int charge, List<Element> elements) {
 
     }
@@ -828,9 +813,8 @@ class IsotopeFinderEngineTest {
 
   @Test
   void chargeAndScoreAreIndependentOfStartSignal() {
-    // position-agnostic: seeding the search from ANY peak of the pattern must give the same charge
-    // and the same carbon-fit score (scoring anchors on the intensity-max + a sliding template, not
-    // on the seed)
+    // position-agnostic: any seed must give the same charge and carbon fit, because scoring anchors
+    // on the intensity max plus a sliding template rather than on the seed
     final List<Element> elements = List.of(new Element("C"), new Element("H"), new Element("N"),
         new Element("O"));
     final SimpleMassSpectrum spectrum = ladder(800.0, 1, 55, 7);

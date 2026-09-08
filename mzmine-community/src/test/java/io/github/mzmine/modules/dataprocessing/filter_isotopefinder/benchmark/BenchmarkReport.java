@@ -51,21 +51,17 @@ import org.jetbrains.annotations.NotNull;
 public final class BenchmarkReport {
 
   /**
-   * Default repository-root-relative location of the committed baseline CSV, used when
-   * {@code IsotopeBenchmarkMain} is run without an explicit output path. Prefer
-   * {@link #BASELINE_RESOURCE} when only reading - it does not depend on the working directory.
+   * Where {@code IsotopeBenchmarkMain} writes without an explicit path. Prefer
+   * {@link #BASELINE_RESOURCE} for reading - it does not depend on the working directory.
    */
   public static final Path DEFAULT_BASELINE = Path.of("mzmine-community", "src", "test",
       "resources", "isotopefinder", "baseline", "metrics_baseline.csv");
 
-  /**
-   * Classpath location of the committed baseline CSV (working-directory independent).
-   */
   public static final String BASELINE_RESOURCE = "isotopefinder/baseline/metrics_baseline.csv";
 
   /**
-   * Classpath location of the committed companion baseline for the opt-in require-13C mode, produced
-   * by {@code isotopeBenchmark --args="<path> requireC13"}.
+   * Companion baseline for the opt-in require-13C mode, produced by
+   * {@code isotopeBenchmark --args="<path> requireC13"}.
    */
   public static final String REQUIRE_C13_BASELINE_RESOURCE =
       "isotopefinder/baseline/metrics_requireC13.csv";
@@ -79,8 +75,7 @@ public final class BenchmarkReport {
   }
 
   /**
-   * Write the rows to {@code path} as CSV (header + one row per axis, {@code ALL} last), creating
-   * parent directories as needed.
+   * Header plus one row per axis, {@code ALL} last; parent directories are created.
    */
   public static void writeCsv(@NotNull final List<MetricRow> rows, @NotNull final Path path) {
     final StringBuilder sb = new StringBuilder();
@@ -115,21 +110,14 @@ public final class BenchmarkReport {
     }
   }
 
-  /**
-   * Read the committed default baseline from the test classpath ({@link #BASELINE_RESOURCE}).
-   *
-   * @return the baseline rows in file order ({@code ALL} last).
-   */
   @NotNull
   public static List<MetricRow> readBaseline() {
     return readBaseline(BASELINE_RESOURCE);
   }
 
   /**
-   * Read a committed baseline from the test classpath.
-   *
    * @param resource {@link #BASELINE_RESOURCE} or {@link #REQUIRE_C13_BASELINE_RESOURCE}.
-   * @return the baseline rows in file order ({@code ALL} last).
+   * @return the baseline rows in file order, {@code ALL} last.
    */
   @NotNull
   public static List<MetricRow> readBaseline(@NotNull final String resource) {
@@ -145,9 +133,6 @@ public final class BenchmarkReport {
     }
   }
 
-  /**
-   * Read a baseline CSV written by {@link #writeCsv(List, Path)} from a filesystem path.
-   */
   @NotNull
   public static List<MetricRow> readCsv(@NotNull final Path path) {
     try (final BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
@@ -194,19 +179,13 @@ public final class BenchmarkReport {
     return rows;
   }
 
-  /**
-   * Parse one CSV cell written by {@link #num(double)} / {@link #time(double)}; {@code "NaN"} maps
-   * back to {@link Double#NaN}.
-   */
+  /** Inverse of {@link #num(double)} / {@link #time(double)}; {@code "NaN"} round-trips. */
   private static double val(@NotNull final String cell) {
     final String trimmed = cell.trim();
     return "NaN".equals(trimmed) ? Double.NaN : Double.parseDouble(trimmed);
   }
 
-  /**
-   * Render the rows as an aligned, fixed-width console table (headers abbreviated to keep the width
-   * readable).
-   */
+  /** Aligned fixed-width console table; headers are abbreviated to keep it readable. */
   @NotNull
   public static String renderConsole(@NotNull final List<MetricRow> rows) {
     final String fmt = "%-18s%6s%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s%9s%8s%9s%n";

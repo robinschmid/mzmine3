@@ -48,12 +48,8 @@ public final class BenchmarkRunner {
   }
 
   /**
-   * Build a fresh engine for one case in signal / carbon-model mode (standalone, no
-   * MZmineCore).
-   *
-   * @param c          the case, which carries the elements, tolerance and max charge.
-   * @param requireC13 whether to enable the require-13C gate (and its gap-truncation).
-   * @return the configured engine.
+   * A fresh engine for one case, standalone (no MZmineCore). The case carries the elements,
+   * tolerance and max charge.
    */
   @NotNull
   public static IsotopeFinderEngine buildEngine(@NotNull final GroundTruthCase c,
@@ -66,15 +62,11 @@ public final class BenchmarkRunner {
   }
 
   /**
-   * Run the engine over every case and compute the per-case metrics.
-   * <p>
-   * Every case is additionally re-detected from each start signal (monoisotopic / base / top true
-   * peak) so {@link CaseMetrics#chargeStartInvariant()} measures the position-agnostic property
-   * across the corpus rather than only from the base peak.
+   * Run the engine over every case. Each is additionally re-detected from every start signal, so
+   * {@link CaseMetrics#chargeStartInvariant()} measures the position-agnostic property across the
+   * whole corpus rather than only from the base peak.
    *
-   * @param cases      the cases to run.
-   * @param requireC13 whether to enable the require-13C gate.
-   * @param confusion  optional charge confusion matrix to fill, or null.
+   * @param confusion optional charge confusion matrix to fill, or null.
    * @return one {@link CaseMetrics} per case, in input order.
    */
   @NotNull
@@ -105,8 +97,7 @@ public final class BenchmarkRunner {
   }
 
   /**
-   * Run every case once, untimed, so the timed pass in {@link #run} reflects steady-state (JIT
-   * warmed) cost.
+   * Untimed pass, so {@link #run}'s timings reflect steady-state JIT-warmed cost.
    */
   public static void warmUp(@NotNull final List<GroundTruthCase> cases, final boolean requireC13) {
     for (final GroundTruthCase c : cases) {

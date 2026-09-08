@@ -35,44 +35,33 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Every neutral-mass deviation from the exact 13C grid that the candidate elements' isotopes can
- * produce, for any COMBINATION of up to N substitutions. Used to decide whether an off-grid signal
- * is explainable by the configured chemistry at all - see the emitted-pattern filter in
- * {@link IsotopeFinderEngine}.
+ * Every neutral-mass deviation from the exact 13C grid the candidate elements' isotopes can produce,
+ * for any COMBINATION of up to N substitutions. Backs the emitted-signal filter in
+ * {@link ExplainableSignalFilter}.
  * <p>
- * decision: combinations, not just multiples of one isotope. Each substituted atom adds its own
- * defect, so a Cl&#8322; comb sits at twice the 37Cl defect - but a mixed 37Cl+34S signal sits at
- * their sum, which is no multiple of either. Restricting the table to multiples of a single isotope
- * measurably truncated real patterns (polyhalogen {@code patternRecall} 0.9934 &rarr; 0.9860), so
- * the reachable sums are enumerated level by level, deduplicated on a fine grid to keep each level
- * small.
+ * decision: combinations, not just multiples of one isotope. A mixed 37Cl+34S signal sits at the SUM
+ * of two defects, which is no multiple of either, and restricting the table to multiples measurably
+ * truncated real patterns (polyhalogen {@code patternRecall} 0.9934 &rarr; 0.9860).
  * <p>
- * The table is built once per engine and searched per candidate signal of every charge hypothesis,
- * so the sums are pre-expanded and sorted: a lookup is a binary search plus a short walk over the
- * entries inside the window.
+ * Built once per element set and searched per candidate signal of every charge hypothesis, so the
+ * sums are pre-expanded and sorted and a lookup is a binary search plus a short walk.
  */
 public final class IsotopeDefectTable {
 
-  // two sums closer than this are the same entry: far below the attribution window, so dedup cannot
-  // merge distinguishable defects, but coarse enough to keep each level a few hundred entries.
+  // two sums closer than this are one entry: far below the attribution window, so dedup cannot merge
+  // distinguishable defects, yet coarse enough to keep each level a few hundred entries
   private static final double DEDUP_GRID = 1e-5;
 
   /**
-   * The table depends only on the candidate elements and the level cap - both fixed chemistry - while
-   * an engine is built per feature list (and, in the benchmark, per case). Caching it keeps the
-   * combination expansion a one-off.
-   * <p>
-   * decision: a plain {@link ConcurrentHashMap} rather than a Caffeine cache. The key space is
-   * bounded by the user's configuration - a handful of distinct element sets per session, with the
-   * substitution cap fixed by the caller - and one entry is a few tens of kB, so there is nothing for
-   * an eviction policy to do; {@code computeIfAbsent} additionally guarantees the (expensive)
-   * expansion runs once per key. Switch to Caffeine with a {@code maximumSize} only if a caller ever
-   * starts deriving element sets per feature.
+   * decision: a plain {@link ConcurrentHashMap}, not a Caffeine cache. The key space is bounded by
+   * the user's configuration - a handful of element sets per session at a few tens of kB each - so an
+   * eviction policy would have nothing to do, and {@code computeIfAbsent} already guarantees the
+   * expensive expansion runs once per key. Revisit only if callers start deriving element sets per
+   * feature.
    */
   private static final Map<String, IsotopeDefectTable> CACHE = new ConcurrentHashMap<>();
 
-  // reachable deviation sums, sorted ascending, with the smallest number of substitutions that
-  // reaches each one in the parallel array
+  // sorted ascending; the parallel array holds the FEWEST substitutions reaching each sum
   private final double[] deviations;
   private final int[] substitutions;
 
@@ -88,10 +77,8 @@ public final class IsotopeDefectTable {
    */
   public static @NotNull IsotopeDefectTable build(@NotNull final List<String> candidates,
       final int maxSubstitutions) {
-    // the table content is independent of the candidate ORDER (the reachable sums are merged,
-    // deduplicated and sorted), so the key is built from the SORTED symbols: two searches that
-    // declare the same elements in a different order then share one table instead of expanding it
-    // twice. Joined explicitly rather than via List#toString so the key stays a stable format.
+    // the content is order-independent, so keying on the SORTED symbols lets two searches that
+    // declare the same elements in a different order share one table
     final List<String> keySymbols = new ArrayList<>(candidates);
     Collections.sort(keySymbols);
     final String key = String.join(",", keySymbols) + "/" + maxSubstitutions;
@@ -102,10 +89,9 @@ public final class IsotopeDefectTable {
       final int maxSubstitutions) {
     final double[] single = ElementAutoDetector.isotopeGridDeviations(candidates);
     final int levels = Math.max(1, maxSubstitutions);
-    // level n holds every sum reachable with exactly n substitutions; level n+1 extends each of them
-    // by one more isotope. Both the level and the accumulated table are kept sorted and deduplicated,
-    // so sizes stay bounded by the reachable range rather than growing combinatorially, and the
-    // accumulated table needs no final sort.
+    // level n holds every sum reachable with exactly n substitutions and level n+1 extends each by
+    // one isotope. Keeping both sorted and deduplicated bounds the size by the reachable RANGE rather
+    // than letting it grow combinatorially, and leaves the accumulated table needing no final sort.
     double[] level = dedup(single);
     double[] mergedDevs = new double[0];
     int[] mergedCounts = new int[0];
@@ -130,9 +116,8 @@ public final class IsotopeDefectTable {
           nextCounts[at] = count;
           at++;
         } else {
-          // same deviation (within the dedup grid) as the entry just kept: it must carry the SMALLEST
-          // number of substitutions that reaches it, otherwise a defect reachable with one atom can
-          // inherit the count of a near-identical multi-atom sum and be rejected at low offsets
+          // must keep the SMALLEST count, or a defect reachable with one atom inherits the count of
+          // a near-identical multi-atom sum and is then wrongly rejected at low offsets
           nextCounts[at - 1] = Math.min(nextCounts[at - 1], count);
         }
       }
@@ -153,9 +138,6 @@ public final class IsotopeDefectTable {
     return new IsotopeDefectTable(mergedDevs, mergedCounts);
   }
 
-  /**
-   * @return the values sorted ascending with near-duplicates (within {@link #DEDUP_GRID}) removed.
-   */
   private static double @NotNull [] dedup(final double @NotNull [] values) {
     final double[] sorted = values.clone();
     Arrays.sort(sorted);
@@ -169,12 +151,9 @@ public final class IsotopeDefectTable {
   }
 
   /**
-   * @param deviation        signed neutral-mass deviation of the signal from the nearest exact 13C
-   *                         grid position (Da).
+   * @param deviation        signed neutral-mass deviation from the nearest exact 13C grid position.
    * @param window           maximum accepted |deviation - table entry| (Da).
-   * @param maxSubstitutions highest multiplicity the signal's offset can hold; entries needing more
-   *                         substitutions than this are ignored.
-   * @return whether some entry within the window explains the deviation.
+   * @param maxSubstitutions highest multiplicity this signal's offset can hold.
    */
   public boolean explains(final double deviation, final double window, final int maxSubstitutions) {
     if (deviations.length == 0) {

@@ -39,47 +39,32 @@ import org.jetbrains.annotations.Nullable;
  * The observed signals of one charge hypothesis, indexed once by their integer offset on the
  * charge-adjusted 13C grid ({@code baseMz + k * spacingDa}).
  * <p>
- * decision: this is the single place the 13C grid is walked. The same
- * {@code round((mz - baseMz) / spacingDa)} mapping used to be recomputed by the exact-13C ladder,
- * the spacing regression, the require-13C gap probe and the fine-structure collapse with three
- * different tolerance windows, so their definitions of "on the 13C grid" could drift apart. Here the
- * mapping happens once and every consumer expresses its own window as a {@code toleranceFactor} on
+ * decision: the single place the 13C grid is walked. That mapping used to be recomputed by the
+ * exact-13C ladder, the spacing regression, the require-13C gap probe and the fine-structure
+ * collapse with three different tolerance windows, so their definitions of "on the 13C grid" could
+ * drift apart. Here every consumer instead expresses its own window as a {@code toleranceFactor} on
  * the shared {@link MZTolerance}.
  * <p>
- * Two views are available per offset:
- * <ul>
- *   <li>the <b>isolated</b> view ({@link #onGridIntensities}, {@link #onGridMz}) - the single signal
- *   closest to the exact 13C position, so heavy isotopes (37Cl/81Br/34S, ~4-5 mDa off grid) and 15N
- *   do not contaminate the carbon ratio;</li>
- *   <li>the <b>collapsed</b> view ({@link #collapsed()}) - every signal at that offset summed, with
- *   an intensity-weighted m/z, used for coverage and the emitted pattern.</li>
- * </ul>
+ * Two views per offset: the <b>isolated</b> one ({@link #onGridIntensities}, {@link #onGridMz})
+ * keeps only the signal closest to the exact 13C position, so heavy isotopes and 15N cannot
+ * contaminate the carbon ratio, while the <b>collapsed</b> one ({@link #collapsed()}) sums
+ * everything at that offset for coverage and the emitted pattern.
  */
 final class CarbonLadder {
 
-  /**
-   * The m/z tolerance is widened by this factor when testing whether a 13C-grid position is
-   * occupied, so a heavy isotope (37Cl/81Br) merged with the expected 13C signal - which pulls the
-   * observed centroid a few mDa off grid - still counts as present and does not open a false hole
-   * that would truncate the pattern early.
-   */
+  // widens the tolerance when testing whether a grid position is OCCUPIED, so a heavy isotope
+  // merged with the expected 13C signal - pulling the centroid a few mDa off grid - still counts and
+  // does not open a false hole that truncates the pattern early
   private static final double GAP_TOL_FACTOR = 3d;
-
-  /**
-   * Cluster connectivity (see {@link #clusterSpanAround}): how many offsets one step of the chained
-   * walk may span, i.e. one missing position may be bridged. Deliberately tiny: the test only has to
-   * tell the searched signal's own envelope from an unrelated cluster the candidate collection
-   * chained to through unrelated isotope distances, which is many offsets away.
-   */
+  // how many offsets one step of the chained cluster walk may span, i.e. one missing position may be
+  // bridged. Deliberately tiny: it only has to tell the searched signal's own envelope from an
+  // unrelated cluster many offsets away.
   private static final int CLUSTER_MAX_GAP = 2;
 
   private final double baseMz;
   private final double spacingDa;
   private final MZTolerance tol;
-  /**
-   * All candidate m/z ascending, so {@link #nearestMzWithin} can binary-search the closest one
-   * instead of scanning every candidate per probed offset.
-   */
+  // ascending, so nearestMzWithin can binary-search instead of scanning per probed offset
   private final double[] sortedMz;
   private final TreeMap<Integer, LadderPeak> byOffset;
 
@@ -93,13 +78,11 @@ final class CarbonLadder {
   }
 
   /**
-   * Index the candidates by their 13C-grid offset relative to {@code baseMz} in a single pass.
+   * Index the candidates by their 13C-grid offset in a single pass.
    *
-   * @param candidates the detected signals (order does not matter).
+   * @param candidates the detected signals; order does not matter.
    * @param baseMz     the m/z mapped to offset 0 (the observed base peak).
-   * @param spacingDa  the m/z spacing between consecutive offsets (13C distance / charge).
-   * @param tol        the m/z tolerance of the source data.
-   * @return the indexed ladder (possibly empty).
+   * @param spacingDa  13C distance / charge.
    */
   public static @NotNull CarbonLadder build(@NotNull final List<DataPoint> candidates,
       final double baseMz, final double spacingDa, @NotNull final MZTolerance tol) {
@@ -127,28 +110,20 @@ final class CarbonLadder {
     return new CarbonLadder(baseMz, spacingDa, tol, mzs, byOffset);
   }
 
-  /**
-   * @return the exact 13C-grid m/z of {@code offset}.
-   */
   public double exactMzAt(final int offset) {
     return baseMz + offset * spacingDa;
   }
 
-  /**
-   * @return whether any signal at all was indexed.
-   */
   public boolean isEmpty() {
     return byOffset.isEmpty();
   }
 
   /**
-   * Per offset, the intensity of the signal closest to the exact 13C position, restricted to offsets
-   * whose closest signal lies within {@code toleranceFactor} times the m/z tolerance of that
-   * position. Signals off the exact grid (heavy isotopes, 15N) are excluded, so the carbon envelope
-   * is scored on the pure 13C ladder rather than on merged nominal offsets.
+   * Per offset, the intensity of the signal closest to the exact 13C position - and only where that
+   * signal is within {@code toleranceFactor} times the tolerance of it, so the carbon envelope is
+   * scored on the pure 13C ladder rather than on merged nominal offsets.
    *
-   * @param toleranceFactor multiplier on the m/z tolerance ({@code 1.0} = the nominal tolerance).
-   * @return offset to intensity, ascending by offset.
+   * @param toleranceFactor multiplier on the m/z tolerance ({@code 1.0} = nominal).
    */
   public @NotNull TreeMap<Integer, Double> onGridIntensities(final double toleranceFactor) {
     final TreeMap<Integer, Double> out = new TreeMap<>();
@@ -161,12 +136,7 @@ final class CarbonLadder {
   }
 
   /**
-   * Per offset, the m/z of the signal closest to the exact 13C position, restricted as in
-   * {@link #onGridIntensities(double)}. Used by the spacing regression, which needs positions rather
-   * than intensities.
-   *
-   * @param toleranceFactor multiplier on the m/z tolerance.
-   * @return offset to m/z, ascending by offset.
+   * As {@link #onGridIntensities(double)} but returning positions, for the spacing regression.
    */
   public @NotNull TreeMap<Integer, Double> onGridMz(final double toleranceFactor) {
     final TreeMap<Integer, Double> out = new TreeMap<>();
@@ -179,13 +149,11 @@ final class CarbonLadder {
   }
 
   /**
-   * The candidate m/z closest to the probed position, within {@code toleranceFactor} times the m/z
-   * tolerance. Unlike {@link #onGridIntensities(double)} the signal does not have to round to a
-   * particular offset, so a widened window can legitimately match a neighbour - which is the point
-   * when a merged heavy isotope pulls the observed centroid off the grid.
+   * The candidate m/z closest to the probed position, within {@code toleranceFactor} times the
+   * tolerance. Unlike {@link #onGridIntensities(double)} the signal need not round to a particular
+   * offset, so a widened window may legitimately match a neighbour - which is the point when a
+   * merged heavy isotope pulls the centroid off grid.
    *
-   * @param mz              the m/z to probe.
-   * @param toleranceFactor multiplier on the m/z tolerance.
    * @return the closest candidate m/z, or {@link Double#NaN} when the position is unoccupied.
    */
   private double nearestMzWithin(final double mz, final double toleranceFactor) {
@@ -199,11 +167,9 @@ final class CarbonLadder {
   }
 
   /**
-   * Every signal collapsed per offset (summed intensity, intensity-weighted mean m/z). This handles
-   * isotopic fine structure (e.g. 13C2 vs 34S at the same nominal offset) for scoring, while the raw
-   * signals are retained elsewhere for the stored pattern.
-   *
-   * @return offset to collapsed peak, ascending by offset.
+   * Every signal summed per offset, with an intensity-weighted m/z. Collapses isotopic fine
+   * structure (13C2 vs 34S at one nominal offset) for SCORING only - the raw signals are kept
+   * elsewhere for the stored pattern.
    */
   public @NotNull TreeMap<Integer, OffsetPeak> collapsed() {
     final TreeMap<Integer, OffsetPeak> out = new TreeMap<>();
@@ -217,11 +183,9 @@ final class CarbonLadder {
   }
 
   /**
-   * Select the gap-free 13C ladder through the observed base (offset 0), as the optional require-13C
-   * gate needs it. Prefers the every-13C (step 1) ladder; when that reaches fewer than two signals
-   * it falls back to an every-second (step 2) ladder for molecules whose pattern shows only on every
-   * second 13C position (an intense +2 heavy comb: Cl/Br/Cu). The step-2 ladder must reach at least
-   * three signals so a lone monoisotopic + single heavy M+2 does not qualify as a 13C pattern.
+   * The gap-free 13C ladder the optional require-13C gate needs. Prefers every-13C; falls back to
+   * every-SECOND position for patterns that only show there (an intense +2 comb: Cl/Br/Cu), where it
+   * demands three signals so a lone mono + single heavy M+2 cannot pass as a 13C pattern.
    *
    * @return the qualifying span, or {@code null} if neither ladder qualifies.
    */
@@ -235,20 +199,15 @@ final class CarbonLadder {
   }
 
   /**
-   * Contiguous, gap-free span of grid offsets around the observed base (offset 0), stepping by
-   * {@code step} offsets. Walks outward in both directions and stops at the first stepped position
-   * with no signal, so a hole where a peak is expected truncates the span even if signals exist
-   * further out. The presence test uses a widened tolerance ({@link #GAP_TOL_FACTOR}) so a heavy
-   * isotope merged with the expected 13C peak (shifting it a few mDa off grid) still counts.
+   * Gap-free span of grid offsets around the observed base, walking outward both ways and stopping
+   * at the first stepped position with no signal - so a hole truncates the span even if signals
+   * exist further out.
    * <p>
-   * decision: probed on the NOMINAL 13C grid of the base, not chained on the observed positions.
-   * Chaining would be anchor-independent, but the accumulated drift of the nominal grid is also what
-   * stops a harmonic (a z=2 comb read as a z=1 ladder, whose steps are only ~4 mDa off) from walking
-   * the whole envelope, so it carries real charge-discrimination weight. The searched signal is kept
-   * inside the pattern by widening the crop instead (see the caller).
-   *
-   * @param step the offset step (1 = every 13C, 2 = every second 13C).
-   * @return the span containing offset 0.
+   * decision: probed on the NOMINAL grid of the base, not chained on the observed positions.
+   * Chaining would be anchor-independent, but the nominal grid's accumulated drift is also what
+   * stops a harmonic (a z=2 comb read as z=1, only ~4 mDa off per step) from walking the whole
+   * envelope, so it carries real charge-discrimination weight. The searched signal is kept in the
+   * pattern by widening the crop instead - see the caller.
    */
   private @NotNull OffsetSpan gapFreeSpan(final int step) {
     int hi = 0;
@@ -263,15 +222,15 @@ final class CarbonLadder {
   }
 
   /**
-   * The connected cluster the searched signal belongs to: consecutive positions one 13C spacing
-   * apart, each probed from the m/z of the signal the previous step FOUND rather than from a fixed
-   * grid. Chaining makes it independent of where in the pattern the search started and immune to the
-   * nominal grid's drift against a polyhalogen comb, which is what a cluster test needs - it only
-   * decides which signals belong together, never whether a charge is accepted.
+   * The connected cluster the searched signal belongs to, each step probed from the m/z the previous
+   * step FOUND rather than from a fixed grid.
+   * <p>
+   * decision: chained here, unlike {@link #gapFreeSpan}, because this only decides which signals
+   * belong together and never whether a charge is accepted - so it should be independent of where
+   * the search started and immune to the nominal grid's drift against a polyhalogen comb.
    *
    * @param from     the searched signal's offset on this ladder's grid.
    * @param anchorMz the searched signal's m/z.
-   * @return the span containing {@code from}.
    */
   public @NotNull OffsetSpan clusterSpanAround(final int from, final double anchorMz) {
     final int up = countClusterSteps(anchorMz, spacingDa);
@@ -303,23 +262,15 @@ final class CarbonLadder {
     }
   }
 
-  /**
-   * @return whether the offset's closest-to-grid signal is within the scaled tolerance of the exact
-   * 13C position.
-   */
   private boolean isOnGrid(final int offset, @NotNull final LadderPeak peak,
       final double toleranceFactor) {
     return tol.checkWithinTolerance(exactMzAt(offset), peak.nearestMz(), toleranceFactor);
   }
 
   /**
-   * The signals indexed at one grid offset.
-   *
-   * @param nearestMz        m/z of the signal closest to the exact 13C position.
-   * @param nearestIntensity intensity of that signal.
-   * @param gridError        absolute m/z distance of that signal from the exact 13C position.
-   * @param summedIntensity  summed intensity of ALL signals at this offset.
-   * @param weightedMzSum    sum of {@code mz * intensity} over all signals at this offset.
+   * The signals indexed at one grid offset: {@code nearest*} describe the one closest to the exact
+   * 13C position ({@code gridError} being its distance from it), the other two accumulate ALL of
+   * them.
    */
   private record LadderPeak(double nearestMz, double nearestIntensity, double gridError,
                             double summedIntensity, double weightedMzSum) {

@@ -32,24 +32,18 @@ import org.jetbrains.annotations.NotNull;
 import org.openscience.cdk.Element;
 
 /**
- * Full configuration of an {@link IsotopeFinderEngine}. Built with {@link #of} for the required
- * settings and refined with the {@code with*} methods, so an optional setting is named at the call
- * site instead of being a positional boolean.
+ * Full configuration of an {@link IsotopeFinderEngine}: {@link #of} for the required settings, the
+ * {@code with*} methods for the optional ones, so an optional setting is named at the call site
+ * rather than being a positional boolean.
  *
- * @param elements             the elements whose isotope m/z differences seed the candidate search.
- * @param maxCharge            highest charge hypothesis to score.
- * @param tol                  m/z tolerance for matching signals.
- * @param model                the predicted-envelope model to score against.
- * @param modeLabel            short label of the envelope mode, used in pattern descriptions.
- * @param requireC13           whether a gap-free 13C ladder is required to accept a charge.
- * @param elementDetectionMode whether and how heavy elements are auto-detected.
- * @param autoCandidates       heavy-element symbols the auto-detector may infer (empty when
- *                             detection is off).
+ * @param elements               elements whose isotope m/z differences seed the candidate search.
+ * @param modeLabel              short envelope-mode label, used in pattern descriptions.
+ * @param requireC13             whether a gap-free 13C ladder is required to accept a charge.
+ * @param autoCandidates         symbols the auto-detector may infer; empty when detection is off.
  * @param explainableSignalsOnly whether to drop emitted signals whose mass defect matches neither
  *                               the 13C grid nor a combination of the elements' isotopes. Off by
- *                               default - it lowers the noise leak at the cost of pattern
- *                               completeness, see
- *                               {@code CarbonModelAlgorithmParameters#explainableSignalsOnly}.
+ *                               default: it lowers the noise leak at the cost of pattern
+ *                               completeness.
  */
 public record IsotopeFinderEngineConfig(@NotNull List<Element> elements, int maxCharge,
                                         @NotNull MZTolerance tol, @NotNull EnvelopeModel model,
@@ -59,7 +53,7 @@ public record IsotopeFinderEngineConfig(@NotNull List<Element> elements, int max
                                         boolean explainableSignalsOnly) {
 
   /**
-   * @return a configuration with element auto-detection and the explainable-signals filter off.
+   * @return a configuration with auto-detection and the explainable-signals filter off.
    */
   public static @NotNull IsotopeFinderEngineConfig of(@NotNull final List<Element> elements,
       final int maxCharge, @NotNull final MZTolerance tol, @NotNull final EnvelopeModel model,
@@ -68,21 +62,12 @@ public record IsotopeFinderEngineConfig(@NotNull List<Element> elements, int max
         ElementDetectionMode.USER_DEFINED, List.of(), false);
   }
 
-  /**
-   * @param mode       the element detection mode.
-   * @param candidates heavy-element symbols the auto-detector may infer.
-   * @return a copy with element auto-detection configured.
-   */
   public @NotNull IsotopeFinderEngineConfig withElementDetection(
       @NotNull final ElementDetectionMode mode, @NotNull final List<String> candidates) {
     return new IsotopeFinderEngineConfig(elements, maxCharge, tol, model, modeLabel, requireC13,
         mode, candidates, explainableSignalsOnly);
   }
 
-  /**
-   * @param only whether to emit only signals attributable to the 13C grid or an isotope defect.
-   * @return a copy with the emitted-signal attribution filter set.
-   */
   public @NotNull IsotopeFinderEngineConfig withExplainableSignalsOnly(final boolean only) {
     return new IsotopeFinderEngineConfig(elements, maxCharge, tol, model, modeLabel, requireC13,
         elementDetectionMode, autoCandidates, only);

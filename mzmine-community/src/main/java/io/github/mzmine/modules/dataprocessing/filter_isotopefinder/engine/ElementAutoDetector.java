@@ -46,140 +46,78 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Standalone detector that infers which popular heavy elements (default {@code Cl, Br, S, Si}) are
- * <i>possible</i> in an isotope pattern, purely from the m/z spacings between an element's major
- * isotopes (M+2 for Cl/Br/S/Si, plus the 29Si M+1 fingerprint) and the relative intensities of the
- * spaced signals. All isotope masses/abundances are pulled from CDK via
- * {@link IsotopesUtils#getIsotopeRecord(String)} - nothing is hardcoded, so the candidate list is
- * freely extensible.
+ * Infers which heavy elements (default {@code Cl, Br, S, Si}) are <i>possible</i> in an isotope
+ * pattern, from the m/z spacings between an element's major isotopes (M+2, plus the 29Si M+1
+ * fingerprint) and the intensities of the spaced signals. Masses and abundances come from CDK via
+ * {@link IsotopesUtils#getIsotopeRecord(String)}, so the candidate list is freely extensible.
  * <p>
- * Design (robust to real high-resolution data):
+ * Three properties it needs on real data:
  * <ul>
- *   <li><b>Position-agnostic / mono-independent:</b> detection works off <i>pairs</i> of signals
- *   spaced by the element isotope delta, gathered in BOTH directions across the whole envelope. The
- *   seed signal may be any member of the pattern and the monoisotopic peak may be missing (below the
- *   detection threshold, e.g. large poly-halogen or protein humps) - the comb of spaced pairs is
- *   still there.</li>
- *   <li><b>Charge-aware:</b> the spacing is {@code isotopeDelta / z}; all match windows are scaled by
- *   the m/z tolerance at the peak's m/z times the charge. {@link #detectAcrossCharges} tries several
- *   charges when the charge is unknown.</li>
- *   <li><b>Tolerance-robust:</b> peak matching uses the supplied {@link MZTolerance}; because the four
- *   candidate M+2 defects sit within ~1-2 mDa (below a typical 5 mDa tolerance) they cannot be
- *   separated from a single shifted peak. The detector therefore uses the <i>median</i> spacing over
- *   many pairs (whose error shrinks with the pair count) to recover sub-tolerance defect precision,
- *   and leans on intensity (per-atom M+2 abundance) plus the 29Si M+1 to disambiguate.</li>
+ *   <li><b>mono-independent</b> - it works off PAIRS of spaced signals gathered in both directions,
+ *   so the seed may be any peak of the pattern and the monoisotopic may be missing entirely (large
+ *   poly-halogen or protein humps);</li>
+ *   <li><b>charge-aware</b> - spacings are {@code isotopeDelta / z} and every window scales with the
+ *   tolerance times the charge;</li>
+ *   <li><b>tolerance-robust</b> - the four candidate M+2 defects lie within ~2 mDa, well under a
+ *   typical 5 mDa tolerance, so one peak cannot separate them. The MEDIAN spacing over many pairs
+ *   recovers sub-tolerance precision; intensity and the 29Si M+1 disambiguate the rest.</li>
  * </ul>
- * The atom count is deliberately NOT resolved (it is unknown and may be large); {@code counts} is a
- * best-effort hint only. The element metric reads only {@link DetectedComposition#elements()}.
+ * Atom counts are deliberately NOT resolved; {@code counts} is a best-effort hint only.
  */
 public final class ElementAutoDetector {
 
-  /**
-   * Default candidate heavy elements the detector tries to infer.
-   */
   @NotNull
   public static final List<String> DEFAULT_CANDIDATES = List.of("Cl", "Br", "S", "Si");
 
-  /**
-   * Padding (neutral Da, divided by the charge) added on both sides of a detected pattern when
-   * collecting the raw spectrum window the detector runs on: roughly one extra M+2 spacing, so an
-   * off-ladder heavy M+2 peak just beyond the emitted pattern is still seen.
-   */
+  // padding (neutral Da / charge) around the pattern for the raw detection window: ~one extra M+2
+  // spacing, so an off-ladder heavy M+2 just past the emitted pattern is still seen
   private static final double WINDOW_PAD_DA = 2.5;
-
-  /**
-   * A signal only takes part in a pair when it reaches this fraction of the base (most intense)
-   * peak, so noise near the baseline does not create spurious combs or inflate intensity ratios.
-   */
+  // base-relative floor for a signal to take part in a pair, so baseline noise cannot build
+  // spurious combs or inflate the ratios
   private static final double MIN_PEAK_REL = 0.01;
 
   /**
-   * Per-atom M+2 abundance (relative to the element's most abundant isotope) above which an
-   * element's own M+2 comb is decisive enough that the 29Si M+1 fingerprint must not weigh against
-   * it in {@link #classify}: a molecule can carry Si AND Br, so an Si M+1 somewhere in the pattern
-   * is no argument against a near-1:1 M+2 comb.
+   * Per-atom M+2 abundance above which an element's own comb is decisive enough that the 29Si M+1
+   * fingerprint must not weigh against it in {@link #classify} - a molecule can carry Si AND Br, so
+   * an Si M+1 is no argument against a near-1:1 M+2 comb. Only Br clears it among the defaults
+   * (81Br/79Br ~0.97); Cl (~0.32), S (~0.04) and Si (~0.03) stay below, so a present Si M+1 boosts
+   * Si and damps the M+1-less Cl and S.
    * <p>
-   * Among the default candidates only Br clears it (81Br/79Br ~0.97); Cl (37Cl/35Cl ~0.32), S
-   * (34S/32S ~0.04) and Si (30Si/28Si ~0.03) stay below, so a present Si M+1 boosts Si and damps the
-   * M+1-less Cl and S.
-   * <p>
-   * This threshold only re-RANKS (via a 0.7/1.3 factor) - it never decides membership. Whether Cl is
-   * reported at all is decided by the spacing match against the 37Cl distance plus the intensity
-   * floor ({@link #REACH_FLOOR_FRACTION}), neither of which reads this constant.
+   * RANKING only (a 0.7/1.3 factor): membership is decided by the spacing match plus
+   * {@link #REACH_FLOOR_FRACTION}, neither of which reads this constant.
    */
   private static final double STRONG_ABUNDANCE = 0.5;
 
-  /**
-   * Floor for the intensity-reachability ranking weight. The weight is
-   * {@code min(1, observedM2Ratio / perAtomAbundance)}, so an element whose per-atom M+2 is far
-   * stronger than anything observed (Br on a weak comb) ranks low - but never below this floor,
-   * because a weak or partly unresolved M+2 peak is not proof of absence.
-   */
+  // floor for the reachability weight min(1, observedM2Ratio / perAtomAbundance): a weak or partly
+  // unresolved M+2 peak is not proof of absence
   private static final double MIN_REACH_WEIGHT = 0.05;
-
-  /**
-   * Fraction of one atom's per-atom M+2 abundance the strongest observed M+2 pair must reach for an
-   * element to be POSSIBLE at all. Much looser than a "which element is it" gate (it was 0.5 when the
-   * detector picked a single winner): it only rejects elements whose single atom would have to produce
-   * an M+2 peak far larger than anything in the spectrum.
-   */
+  // fraction of one atom's M+2 abundance the strongest observed pair must reach for the element to
+  // be POSSIBLE. Deliberately far below one atom's worth - it only rejects elements whose single
+  // atom would have to produce an M+2 larger than anything in the spectrum.
   private static final double REACH_FLOOR_FRACTION = 0.15;
-
-  /**
-   * Minimum score for an element to be reported as possible. The score is dominated by
-   * {@code exp(-(defectDeviation / defectSigma)^2)}, and {@code defectSigma} is self-calibrating from
-   * the observed spacing spread, so this is a "consistent with the measured defect at the precision
-   * this data supports" test: a clean CHNO pattern rejects all candidates (its 13C+15N +2 peak is many
-   * sigma from every heavy defect) while a jittered or wide-tolerance pattern admits several.
-   */
+  // minimum score to be reported. Because the score is dominated by exp(-(defect/sigma)^2) and sigma
+  // self-calibrates, this reads as "consistent with the measured defect at the precision this data
+  // supports": clean CHNO rejects every candidate, jittered or wide-tolerance data admits several.
   private static final double MIN_CONFIDENCE = 0.2;
-
-  /**
-   * Largest single-element atom count the M+2 intensity is allowed to imply. Beyond it the count is
-   * clamped (and {@link #ATOM_SOFT_CAP} ranks the candidate down) rather than the element being
-   * rejected.
-   */
+  // atom count the M+2 intensity may imply before it is clamped (and ranked down, not rejected)
   private static final int MAX_PLAUSIBLE_ATOMS = 40;
-
-  /**
-   * Atom count up to which an element is not penalised. Above it the candidate is softly
-   * down-weighted ({@code cap/atoms}): a strong M+2 comb explained by only a few Cl/Br atoms is
-   * preferred over the same comb requiring dozens of low-abundance S/Si atoms. Unlike a "fewest
-   * atoms" prior this does NOT favour Br over Cl (both are well under the cap), so it only removes
-   * wrong-magnitude elements.
-   */
+  // above this the candidate is down-weighted by cap/atoms, so a strong comb from a few Cl/Br atoms
+  // beats the same comb needing dozens of low-abundance S/Si. Both Cl and Br are well under the cap,
+  // so unlike a "fewest atoms" prior this only removes wrong-magnitude elements.
   private static final double ATOM_SOFT_CAP = 8d;
-
-  /**
-   * Floor for the defect-discrimination sigma (Da, neutral mass). The median pair spacing is far
-   * more precise than one peak, so the defect can separate elements ~1 mDa apart even at a looser
-   * per-peak tolerance.
-   */
+  // sigma floor (Da): the median pair spacing is far more precise than one peak, so the defect can
+  // still separate elements ~1 mDa apart at a looser per-peak tolerance
   private static final double MIN_DEFECT_SIGMA = 0.0009;
-
-  /**
-   * Minimum 29Si-band M+1 pair ratio (relative to the base peak) to count as an Si fingerprint.
-   */
+  // base-relative 29Si-band M+1 ratio that counts as an Si fingerprint
   private static final double SI_M1_MIN = 0.02;
-
-  /**
-   * A heavy M+2 peak enters the defect median only when it reaches this fraction of the strongest
-   * heavy peak, so weak 13C/15N combinations do not pull the median toward the wrong element.
-   */
+  // share of the strongest heavy peak an M+2 must reach to enter the defect median, so weak 13C/15N
+  // combinations cannot pull it toward the wrong element
   private static final double SIGNIFICANT_FRACTION = 0.3;
-
-  /**
-   * Minimum per-atom M+1 abundance for an element to be treated as genuinely M+1-bearing (only
-   * 29Si, ~0.05, among the defaults). Elements with a mere trace M+1 isotope (e.g. Cl/S) are NOT,
-   * so the Si M+1 fingerprint boost/penalty is not misapplied to them.
-   */
+  // per-atom M+1 abundance to count as genuinely M+1-bearing (only 29Si among the defaults), so the
+  // Si fingerprint boost is not misapplied to trace-M+1 elements like Cl/S
   private static final double SIGNIFICANT_M1_REL = 0.02;
-
-  /**
-   * Minimum per-atom abundance (relative to the most abundant isotope) for an isotope to count as
-   * naturally occurring in {@link #isotopeGridDeviations}. Excludes the radioactive/synthetic
-   * isotopes the CDK record also carries, whose abundance is 0 or undefined.
-   */
+  // excludes the radioactive/synthetic isotopes the CDK record also carries (abundance 0 or NaN),
+  // whose large deviations would let isotopeGridDeviations explain almost any mass defect
   private static final double MIN_NATURAL_ABUNDANCE_REL = 1e-7;
 
   private ElementAutoDetector() {
@@ -194,12 +132,6 @@ public final class ElementAutoDetector {
    * just past the last offset), and without it the element is undetectable. Shared by
    * {@link IsotopeFinderEngine} and the benchmark's element metric so the measurement cannot drift
    * from what the engine does.
-   *
-   * @param spectrum    the source spectrum; data points must be sorted ascending by m/z.
-   * @param patternLoMz lowest m/z of the detected pattern.
-   * @param patternHiMz highest m/z of the detected pattern.
-   * @param charge      the detected charge (values &lt; 1 are treated as 1).
-   * @return the data points inside the padded window, in spectrum order.
    */
   public static @NotNull List<DataPoint> collectDetectionWindow(
       @NotNull final MassSpectrum spectrum, final double patternLoMz, final double patternHiMz,
@@ -222,15 +154,6 @@ public final class ElementAutoDetector {
     return out;
   }
 
-  /**
-   * Detect heavy elements from the default candidate set ({@link #DEFAULT_CANDIDATES}) at a known
-   * charge.
-   *
-   * @param signals the pattern signals (m/z + intensity); order does not matter
-   * @param charge  the pattern charge (values &lt; 1 are treated as 1)
-   * @param tol     the m/z tolerance of the source data
-   * @return the detected composition (possibly empty)
-   */
   @NotNull
   public static DetectedComposition detect(@Nullable final List<DataPoint> signals,
       final int charge, @NotNull final MZTolerance tol) {
@@ -238,11 +161,8 @@ public final class ElementAutoDetector {
   }
 
   /**
-   * Detect heavy elements from a custom candidate set at a known charge.
-   *
-   * @param signals    the pattern signals (m/z + intensity); order does not matter
+   * @param signals    the pattern signals; order does not matter
    * @param charge     the pattern charge (values &lt; 1 are treated as 1)
-   * @param tol        the m/z tolerance of the source data
    * @param candidates the heavy-element symbols to consider
    * @return the detected composition (possibly empty)
    */
@@ -271,29 +191,26 @@ public final class ElementAutoDetector {
       return DetectedComposition.empty();
     }
 
-    // neutral-mass matching window: m/z tolerance at a representative m/z, scaled by charge. A fixed
-    // m/z error maps to a charge-times-larger neutral-mass error, so discrimination degrades with z.
+    // a fixed m/z error maps to a charge-times-larger NEUTRAL-mass error, so discrimination
+    // legitimately degrades with z
     final double medMz = sorted.get(sorted.size() / 2).getMZ();
     final double tolNeutral = Math.max(1e-4, tol.getMzToleranceForMass(medMz) * z);
 
-    // heavy M+2 band: spans the candidate M+2 defects, kept below the pure-carbon 13C2 position
-    // (~2.0067) so 13C2 peaks never enter
     double minM2 = Double.POSITIVE_INFINITY;
     double maxM2 = Double.NEGATIVE_INFINITY;
     for (final ElementIsotopes e : elements) {
       minM2 = Math.min(minM2, e.m2Delta());
       maxM2 = Math.max(maxM2, e.m2Delta());
     }
-    // widened by 2x the tolerance: both peaks of a pair can be shifted by up to the tolerance, so
-    // their measured spacing can be off by twice that
+    // band over the candidate M+2 defects, widened 2x (both peaks of a pair can be off by the full
+    // tolerance) but held below the pure-carbon 13C2 position so 13C2 peaks never enter
     final double bandLo = minM2 - 2d * tolNeutral;
     final double bandHi = Math.min(maxM2 + 2d * tolNeutral,
         2d * IsotopePatternUtils.C13_MZ_DELTA - Math.max(0.004, 0.5 * tolNeutral));
 
-    // heavy M+2 evidence: every lower/higher signal pair at ~+2 Da, bidirectional.
-    // decision: peak strength is measured RELATIVE TO THE BASE, not as the partner ratio - a partner
-    // ratio is inflated by a weak lower peak, which let 13C/15N combinations in high-carbon molecules
-    // masquerade as a strong heavy signal.
+    // decision: heavy-peak strength is measured RELATIVE TO THE BASE, not as the partner ratio - a
+    // partner ratio is inflated by a weak lower peak, which let 13C/15N combinations in high-carbon
+    // molecules masquerade as a strong heavy signal.
     final List<double[]> heavyPairs = pairsInBand(sorted, z, minPeak, bandLo, bandHi);
     if (heavyPairs.isEmpty()) {
       return DetectedComposition.empty();
@@ -303,12 +220,10 @@ public final class ElementAutoDetector {
       maxHeavyInt = Math.max(maxHeavyInt, p[1]);
     }
 
-    // 29Si / 33S M+1 band (below the 13C M+1 position), base-relative - the Si fingerprint used to
-    // separate Si from the defect-degenerate Cl.
+    // the Si fingerprint that separates Si from the defect-degenerate Cl
     final double m1Ratio = strongestM1Heavy(sorted, z, minPeak, baseInt, tolNeutral, elements);
 
-    // robust defect from the SIGNIFICANT heavy peaks only, so weak 13C/15N combinations in
-    // high-carbon molecules cannot pull the median toward the wrong element
+    // significant peaks only, so weak 13C/15N combinations cannot pull the median off the element
     final DoubleArrayList strongSpacings = new DoubleArrayList();
     for (final double[] p : heavyPairs) {
       if (p[1] >= SIGNIFICANT_FRACTION * maxHeavyInt) {
@@ -316,35 +231,26 @@ public final class ElementAutoDetector {
       }
     }
     final double[] spacings = strongSpacings.toDoubleArray();
-    // the median's error shrinks with the pair count, recovering sub-tolerance defect precision
     final double medDelta = MathUtils.calcMedian(spacings);
-    // strength of the strongest heavy M+2 signal relative to the base peak; drives both the
-    // intensity-reachability ranking and the rough atom count
     final double maxRatio = maxHeavyInt / baseInt;
-    // Self-calibrating defect sigma: tight (near the floor) for a clean comb so the defect sharply
-    // separates neighbouring elements, wide when the peaks are m/z-shifted so the score degrades
-    // gracefully instead of collapsing.
-    // decision: the sigma also respects the precision the PAIR COUNT supports (~tol/sqrt(n)). The
-    // observed spread alone is 0 for a single pair, claiming sub-mDa precision on data that has none,
-    // which made the defect test reject every candidate on merged / unit-resolution patterns
-    // (elementContainment on unit_resolution collapsed to 0.021).
+    // self-calibrating: tight for a clean comb so the defect separates neighbours sharply, wide for
+    // m/z-shifted peaks so the score degrades instead of collapsing.
+    // decision: it must also respect the precision the PAIR COUNT supports (~tol/sqrt(n)). The spread
+    // alone is 0 for a single pair, claiming sub-mDa precision on data that has none, which made the
+    // test reject every candidate at unit resolution (elementContainment there collapsed to 0.021).
     final double countSigma = tolNeutral / Math.sqrt(Math.max(1, spacings.length));
     final double defectSigma = Math.max(MIN_DEFECT_SIGMA,
         Math.max(1.5d * stdDevOf(spacings), countSigma));
 
-    // Membership: an element is POTENTIAL when some observed pair's neutral spacing matches one of its
-    // isotope distances within the charge-scaled tolerance.
-    // decision: this - not the scoring - decides who is reported. The score below only RANKS the
-    // potential set, because at any realistic tolerance the candidate defects (0.2-2.2 mDa apart)
-    // cannot be resolved, so an intensity or defect gate that removes a matching element asserts a
-    // distinction the data does not support.
+    // decision: MEMBERSHIP is the spacing match (plus the impossibility floor below), not the
+    // scoring - the score only RANKS. At any realistic tolerance the candidate defects (0.2-2.2 mDa
+    // apart) are unresolvable, so a gate that removed a matching element would assert a distinction
+    // the data does not support.
     final LinkedHashSet<String> spacingMatched = new LinkedHashSet<>();
     for (final ElementIsotopes e : elements) {
-      // intensity IMPOSSIBILITY, not a preference: one atom must produce an M+2 peak of its per-atom
-      // abundance, so an element whose single-atom M+2 is far above anything observed cannot be
-      // present. Without this floor every CHNO molecule reports Br, because at a 5 mDa tolerance a
-      // plain 13C+15N peak (2.00039) is within tolerance of the 81Br distance (1.99795). The floor
-      // stays far below one atom's worth so a weak or partly unresolved M+2 still admits the element.
+      // IMPOSSIBILITY, not a preference: one atom must produce its per-atom M+2 abundance. Without
+      // this every CHNO molecule reports Br, since at a 5 mDa tolerance a plain 13C+15N peak
+      // (2.00039) falls within tolerance of the 81Br distance (1.99795).
       if (maxRatio < REACH_FLOOR_FRACTION * e.m2Rel()) {
         continue;
       }
@@ -391,20 +297,14 @@ public final class ElementAutoDetector {
 
   /**
    * Every distinct neutral-mass deviation from the exact 13C grid that ONE isotope substitution of
-   * the given elements can produce, i.e. {@code deltaMass - round(deltaMass) * C13} per isotope.
+   * the given elements can produce. Multiple substitutions are expanded by
+   * {@link IsotopeDefectTable}.
    * <p>
-   * Unlike {@link #buildElementIsotopes} this is not restricted to the M+2 isotope of heavy
-   * elements: an M+1-only isotope such as 15N (-6.3 mDa) or 2H (+2.9 mDa) produces resolvable fine
-   * structure just as 37Cl does, and a filter that cannot account for it treats real signals as
-   * unexplained. Elements without any isotope (or with only the most abundant one) contribute
-   * nothing. Multiple substitutions of one isotope are expanded by {@link IsotopeDefectTable}.
-   * <p>
-   * Only isotopes that actually occur in nature are included: the CDK record also carries
-   * radioactive/synthetic isotopes (36Cl, 38Cl, ...) whose deviations are large and would make the
-   * table permissive enough to explain almost any mass defect.
+   * Unlike {@link #buildElementIsotopes}, NOT restricted to M+2: an M+1-only isotope such as 15N
+   * (-6.3 mDa) or 2H (+2.9 mDa) produces resolvable fine structure just as 37Cl does, and a filter
+   * blind to it would treat real signals as unexplained.
    *
-   * @param candidates element symbols to consider.
-   * @return the distinct deviations (Da), unsorted; empty if the candidates have no isotopes.
+   * @return the distinct deviations (Da), unsorted.
    */
   static double @NotNull [] isotopeGridDeviations(@NotNull final List<String> candidates) {
     final DoubleArrayList out = new DoubleArrayList();
@@ -434,10 +334,8 @@ public final class ElementAutoDetector {
   }
 
   /**
-   * Strongest M+1 heavy peak intensity RELATIVE TO THE BASE whose neutral spacing (from any lower
-   * signal) sits in the 29Si/33S band (below the 13C M+1 position), i.e. the Si fingerprint.
-   * Bidirectional (all pairs), so it is mono-independent; base-relative so a weak lower peak cannot
-   * inflate it.
+   * The Si fingerprint: strongest base-relative M+1 peak whose neutral spacing sits in the 29Si
+   * band, below the 13C M+1 position.
    */
   private static double strongestM1Heavy(@NotNull final List<DataPoint> sorted, final int z,
       final double minPeak, final double baseInt, final double tolNeutral,
@@ -445,7 +343,7 @@ public final class ElementAutoDetector {
     double lo = Double.POSITIVE_INFINITY;
     double hi = Double.NEGATIVE_INFINITY;
     for (final ElementIsotopes e : elements) {
-      // only genuinely M+1-bearing elements (29Si) define the band; trace M+1 isotopes are ignored
+      // only genuinely M+1-bearing elements (29Si) define the band
       if (e.m1Delta() != null && e.m1Rel() >= SIGNIFICANT_M1_REL) {
         lo = Math.min(lo, e.m1Delta());
         hi = Math.max(hi, e.m1Delta());
@@ -454,10 +352,9 @@ public final class ElementAutoDetector {
     if (lo == Double.POSITIVE_INFINITY) {
       return 0d;
     }
-    // tight lower margin (<= 2.5 mDa) so a heavy-isotope + 13C artifact just below 29Si (e.g. a
-    // Br+13C pair at ~0.9946 Da) does not masquerade as an Si M+1 signal
+    // tight lower margin so a Br+13C artifact just below 29Si (~0.9946 Da) cannot pass as an Si
+    // M+1; the upper edge stays below the 13C M+1 so the much stronger 13C peak never counts
     final double bandLo = lo - Math.min(tolNeutral, 0.0025);
-    // keep below the 13C M+1 position so the (much stronger) 13C peak never counts as an Si signal
     final double bandHi = Math.min(hi + tolNeutral,
         IsotopePatternUtils.C13_MZ_DELTA - Math.max(0.003, 0.5 * tolNeutral));
     double bestInt = 0d;
@@ -468,19 +365,13 @@ public final class ElementAutoDetector {
   }
 
   /**
-   * Every (lower, higher) pair of significant signals whose measured NEUTRAL spacing falls inside
-   * {@code [bandLo, bandHi]}. Bidirectional over the whole envelope, so it is mono-independent: the
-   * comb of spaced pairs survives even when the monoisotopic is below the detection threshold.
-   * <p>
-   * Shared by the M+2 heavy band and the 29Si M+1 fingerprint band, which previously ran two copies
-   * of this scan.
+   * Every (lower, higher) pair of significant signals whose measured NEUTRAL spacing falls in
+   * {@code [bandLo, bandHi]}. Scanning the whole envelope both ways is what makes the detector
+   * mono-independent: the comb of spaced pairs survives a monoisotopic below the detection floor.
    *
-   * @param sorted  the signals, ascending by m/z.
-   * @param z       the pattern charge (m/z spacings are multiplied by it to get neutral spacings).
-   * @param minPeak minimum intensity for a signal to take part in a pair.
-   * @param bandLo  inclusive lower neutral-spacing bound.
-   * @param bandHi  inclusive upper neutral-spacing bound.
-   * @return list of {@code {measuredNeutralSpacing, higherPeakIntensity}}.
+   * @param sorted the signals, ascending by m/z.
+   * @param z      the pattern charge (m/z spacings are multiplied by it to get neutral spacings).
+   * @return {@code {measuredNeutralSpacing, higherPeakIntensity}} per pair.
    */
   @NotNull
   private static List<double[]> pairsInBand(@NotNull final List<DataPoint> sorted, final int z,
@@ -505,21 +396,15 @@ public final class ElementAutoDetector {
   }
 
   /**
-   * Score each candidate from the robust median M+2 defect (position), the strongest M+2 ratio
-   * (intensity reachability + atom-count plausibility) and the Si M+1 fingerprint, then report EVERY
-   * candidate the evidence cannot rule out, best first.
+   * Rank the spacing-matched candidates by median M+2 defect, M+2 intensity and the Si M+1
+   * fingerprint, and report every one the evidence cannot rule out, best first.
    * <p>
-   * decision: report the whole ambiguity set rather than one winner. The candidate M+2 defects sit
-   * 0.2-2.2 mDa apart (Cl vs Br is 0.9 mDa), below the achievable precision on most data, so picking
-   * a single element is a coin flip presented as a result - and the previous single-winner rule
-   * failed in the direction that matters: it co-detected a second element only when the defects were
-   * more than {@code 2 x defectSigma} apart, and sigma grows with the spacing jitter, so a WIDER
-   * tolerance produced a MORE confident-looking answer.
-   * <p>
-   * The consumer wants the set anyway: the composition feeds the heavy-isotope UPPER BOUND of the
-   * predicted envelope, which must cover every element still in play. Elements are still ranked
-   * (best first, score in {@link DetectedComposition#confidence()}), so a caller that needs one
-   * label can take the first.
+   * decision: the whole ambiguity set, not one winner. The candidate defects sit 0.2-2.2 mDa apart
+   * (Cl vs Br is 0.9 mDa), below the achievable precision on most data. The old single-winner rule
+   * also failed in the direction that matters: it added a second element only when the defects were
+   * more than {@code 2 x defectSigma} apart, and sigma grows with jitter, so a WIDER tolerance
+   * produced a MORE confident-looking answer. The consumer wants the set anyway - it feeds the
+   * heavy-isotope UPPER BOUND, which must cover every element still in play.
    */
   @NotNull
   private static DetectedComposition classify(@NotNull final List<ElementIsotopes> elements,
@@ -529,28 +414,24 @@ public final class ElementAutoDetector {
     final Map<String, int[]> counts = new LinkedHashMap<>();
 
     for (final ElementIsotopes e : elements) {
-      // membership is decided by the spacing match; the loop below only ranks those
       if (!spacingMatched.contains(e.symbol())) {
         continue;
       }
-      // rough atom count from the strongest (base-relative) M+2 signal, clamped rather than used as a
-      // gate: an implausible count only ranks the element down (atomPrior below), never removes it
+      // clamped, not gated: an implausible count only ranks the element down via atomPrior
       final int atoms = Math.max(1,
           Math.min(MAX_PLAUSIBLE_ATOMS, (int) Math.round(maxRatio / e.m2Rel())));
-      // position: how well the robust median spacing matches this element's exact M+2 defect
       final double defect = (medDelta - e.m2Delta()) / defectSigma;
-      // stops a weak element (S/Si) from claiming a strong halogen comb when a widened (jittered)
-      // sigma leaves the defect unable to discriminate
+      // stops a weak element (S/Si) claiming a strong halogen comb when a jittered sigma leaves the
+      // defect unable to discriminate
       final double atomPrior = atoms <= ATOM_SOFT_CAP ? 1d : ATOM_SOFT_CAP / atoms;
-      // intensity plausibility as a RANKING term (it used to be a hard gate): Br needs a ~97 % M+2
-      // per atom, so a weak comb ranks Br far below S/Si without claiming Br is impossible
+      // RANKING, not a gate: Br needs a ~97 % M+2 per atom, so a weak comb ranks Br far below S/Si
+      // without claiming Br is impossible
       final double reach = e.m2Rel() <= 0d ? 1d : Math.min(1d, maxRatio / e.m2Rel());
       double s = Math.exp(-defect * defect) * atomPrior * Math.max(reach, MIN_REACH_WEIGHT);
 
-      // Si vs the defect-degenerate Cl: only Si carries a genuine M+1 isotope (29Si), so boost Si
-      // when the M+1 fingerprint is present and damp it when absent, and damp the no-M+1 candidates
-      // (Cl, S) when a strong M+1 argues for Si. A merely trace M+1 (33S) does not count as bearing
-      // one. Br is exempt via STRONG_ABUNDANCE. Ranking only - membership is already decided.
+      // Si vs the defect-degenerate Cl: only Si carries a genuine M+1 (29Si), so its presence boosts
+      // Si and damps the no-M+1 candidates (Cl, S), and its absence damps Si. Br is exempt, see
+      // STRONG_ABUNDANCE. Ranking only - membership is already decided.
       final boolean bearsM1 = e.m1Delta() != null && e.m1Rel() >= SIGNIFICANT_M1_REL;
       if (bearsM1 && e.m2Rel() < STRONG_ABUNDANCE) {
         s *= m1Ratio >= SI_M1_MIN ? 1.3d : 0.7d;
@@ -558,10 +439,9 @@ public final class ElementAutoDetector {
         s *= 0.7d;
       }
 
-      // final membership test against the robust median defect and the self-calibrating sigma (the
-      // spacing match above is only a coarse per-pair test against the raw tolerance). This is what
-      // keeps a plain CHNO pattern - whose +2 peak is 13C+15N, many sigma from every heavy defect -
-      // from reporting S/Si while still admitting several candidates on jittered or unresolved data.
+      // the spacing match was only a coarse per-pair test against the raw tolerance; this median /
+      // sigma test is what keeps a plain CHNO pattern (whose +2 peak is 13C+15N, many sigma from
+      // every heavy defect) from reporting S/Si
       if (s < MIN_CONFIDENCE) {
         continue;
       }
@@ -573,7 +453,6 @@ public final class ElementAutoDetector {
       return DetectedComposition.empty();
     }
 
-    // every surviving candidate, ranked best first - no "winner takes the slot" step
     final List<ElementIsotopes> reported = new ArrayList<>();
     for (final ElementIsotopes e : elements) {
       if (score.containsKey(e.symbol())) {
@@ -596,12 +475,9 @@ public final class ElementAutoDetector {
   }
 
   /**
-   * Population standard deviation of the values (0 for fewer than two values).
-   * <p>
-   * decision: deliberately NOT {@link io.github.mzmine.util.MathUtils#calcStd}, which is the SAMPLE
-   * (n-1) deviation. The spacings are the whole population of observed pairs, and the sample
-   * correction would inflate the self-calibrating defect sigma for the small pair counts that are
-   * the common case.
+   * POPULATION standard deviation, deliberately not {@link io.github.mzmine.util.MathUtils#calcStd}
+   * (which is the sample n-1 form): the spacings are the whole population of observed pairs, and the
+   * sample correction would inflate the defect sigma at the small pair counts that are the norm.
    */
   private static double stdDevOf(final double @NotNull [] values) {
     if (values.length < 2) {
@@ -619,10 +495,6 @@ public final class ElementAutoDetector {
     return Math.sqrt(sumSq / values.length);
   }
 
-  /**
-   * Build the diagnostic M+2 (and optional M+1) isotope of each candidate from CDK data, skipping
-   * elements without an M+2 isotope.
-   */
   @NotNull
   static List<ElementIsotopes> buildElementIsotopes(@NotNull final List<String> candidates) {
     final List<ElementIsotopes> out = new ArrayList<>(candidates.size());

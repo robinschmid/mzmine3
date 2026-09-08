@@ -40,17 +40,11 @@ public final class IsotopeCorpus {
   private IsotopeCorpus() {
   }
 
-  /**
-   * All benchmark cases from the committed corpus.
-   */
   @NotNull
   public static List<GroundTruthCase> all() {
     return BenchmarkCorpusLoader.load();
   }
 
-  /**
-   * All cases whose dominant stressor equals {@code axis}.
-   */
   @NotNull
   public static List<GroundTruthCase> byAxis(@NotNull final String axis) {
     final List<GroundTruthCase> out = new ArrayList<>();
@@ -63,15 +57,15 @@ public final class IsotopeCorpus {
   }
 
   /**
-   * A small, fast subset for CI: one clean case per molecule class (keyed by max charge, which is
-   * unique per class) plus the first case of each of a few stressor axes.
+   * A small, fast subset for CI: one clean case per molecule class plus the first case of a few
+   * stressor axes.
    */
   @NotNull
   public static List<GroundTruthCase> ciCases() {
     final List<GroundTruthCase> all = all();
     final Map<String, GroundTruthCase> picked = new LinkedHashMap<>();
 
-    // one clean/structural baseline per molecule class (maxCharge distinguishes SMALL/PEPTIDE/PROTEIN)
+    // one per molecule class; maxCharge distinguishes SMALL / PEPTIDE / PROTEIN
     final Set<String> structural = Set.of("clean", "charge", "polyhalogen", "protein_highz");
     final Map<Integer, GroundTruthCase> perClass = new LinkedHashMap<>();
     for (final GroundTruthCase c : all) {
@@ -83,7 +77,6 @@ public final class IsotopeCorpus {
       picked.putIfAbsent(c.id(), c);
     }
 
-    // a couple of stressors
     for (final String axis : List.of("resolution_merged", "cutoff", "noise",
         GenerationConfig.REALISTIC_INTERFERENCE_AXIS, "unit_resolution")) {
       for (final GroundTruthCase c : all) {

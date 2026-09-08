@@ -26,42 +26,28 @@
 package io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine;
 
 /**
- * Per-charge scoring breakdown used to select the best charge and flag probable alternates.
+ * Per-charge scoring breakdown used to select the best charge and flag probable alternates. Every
+ * component is bounded [0,1].
  *
- * @param charge             the charge hypothesis (>= 1).
- * @param coverage           predicted-intensity-weighted fraction of the expected carbon envelope
- *                           explained by any observed signal, including heavy isotopes (0..1). Each
- *                           expected offset contributes its predicted relative intensity, so missing
- *                           a small tail peak costs far less than missing the apex.
- * @param carbonFit          bounded cosine similarity of the isolated 13C ladder against the
- *                           predicted carbon envelope at its best placement (0..1; 1 = perfect or
- *                           too few 13C peaks to assess, in which case coverage carries the
- *                           detection).
- * @param selfConsistency    requirement that the intermediate (e.g. half-spacing) peaks of a higher
- *                           charge are present (1 = consistent, lower = missing required peaks).
- *                           For charge 1 this is always 1.
- * @param spacingConsistency how consistently a single m/z spacing explains the on-grid ladder
- *                           positions (1 = one clean spacing, lower = residual m/z drift that a
- *                           neighbouring charge would accumulate). Diagnostic only: exposed for
- *                           analysis but not folded into {@code score}/charge selection (a naive
- *                           fold regressed polyhalogen combs).
- * @param intensityAgreement fraction of the observed intensity that stays within the plausible
- *                           predicted upper bound (1 = all describable, lower = implausibly large
- *                           signals present).
- * @param score              bounded [0,1] quality (carbonFit x coverage x intensityAgreement, gated
- *                           by selfConsistency for higher charges and by a fallback weight when no
- *                           real 13C ladder was assessable). Stored on the
- *                           {@link io.github.mzmine.datamodel.IsotopePattern} as a display value;
- *                           it does NOT rank the charges - {@code raw} does, and the assembled
- *                           multi-charge pattern preserves that ranking.
- * @param raw                the winner-selection score: bounded quality x a peak-count reward
- *                           ({@code quality * (1 + w * observedCount)}). The winner is the highest
- *                           raw, so a genuine higher charge (which explains more real isotope
- *                           peaks) wins over a lower charge that only fits a subsample of the
- *                           ladder.
- * @param probability        display-only quality share of this charge among all candidate charges
- *                           (bounded [0,1]). Alternates are flagged by an absolute margin on the
- *                           bounded quality, not by this value.
+ * @param coverage           share of the expected carbon envelope explained by any observed signal,
+ *                           weighted by predicted intensity so missing a tail peak costs far less
+ *                           than missing the apex.
+ * @param carbonFit          cosine similarity of the isolated 13C ladder against the predicted
+ *                           envelope at its best placement; 1 also means "too few 13C peaks to
+ *                           assess", where coverage carries the detection.
+ * @param selfConsistency    presence of the intermediate peaks a higher charge requires; always 1
+ *                           for charge 1.
+ * @param spacingConsistency how well one m/z spacing explains the on-grid positions. DIAGNOSTIC
+ *                           only - not folded into {@code score} or the selection, because a naive
+ *                           fold regressed polyhalogen combs.
+ * @param intensityAgreement share of the observed intensity within the plausible predicted bound.
+ * @param score              display value stored on the
+ *                           {@link io.github.mzmine.datamodel.IsotopePattern}. It does NOT rank the
+ *                           charges - {@code raw} does.
+ * @param raw                the winner-selection score: quality x a peak-count reward, so a genuine
+ *                           higher charge beats a lower one that fits only a subsample of the ladder.
+ * @param probability        display-only quality share among the candidate charges. Alternates are
+ *                           flagged by an absolute margin on the quality, not by this.
  */
 public record ChargeScore(int charge, double coverage, double carbonFit, double selfConsistency,
                           double spacingConsistency, double intensityAgreement, double score,

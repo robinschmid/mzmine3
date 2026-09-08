@@ -31,13 +31,10 @@ import org.jetbrains.annotations.NotNull;
 import org.openscience.cdk.Element;
 
 /**
- * Shared, top-level configuration handed to an {@link EnvelopeModel} when it is created. Holds the
- * values that the isotope finder collects once per run and that the model needs regardless of which
- * mode is selected.
+ * Configuration handed to an {@link EnvelopeModel} at construction: the values the isotope finder
+ * collects once per run, whichever mode is selected.
  *
- * @param elements    the user-selected chemical elements whose stable isotopes are considered. Used
- *                    by the signal-based model to widen heavy-isotope (S/Cl/Br) upper bounds.
- * @param mzTolerance the shared m/z tolerance used for signal matching.
+ * @param elements the user-selected elements, used to widen the heavy-isotope upper bounds.
  */
 public record EnvelopeContext(@NotNull List<Element> elements, @NotNull MZTolerance mzTolerance) {
 

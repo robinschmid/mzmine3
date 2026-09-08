@@ -28,29 +28,24 @@ package io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A charge-resolved, predicted isotope intensity envelope. Intensities are relative to the base
- * peak (the most intense offset is normalized to 1.0). Index {@code i} of the arrays corresponds to
- * the nominal isotope offset {@code i} (0 = monoisotopic anchor, 1 = M+1, ...) where the m/z
- * spacing between consecutive offsets is {@link #spacingDa()} = 13C distance / charge.
+ * A charge-resolved predicted isotope envelope. Array index {@code i} is the nominal isotope offset
+ * (0 = monoisotopic anchor), consecutive offsets are {@link #spacingDa()} apart, and intensities are
+ * relative to the most intense offset.
  * <p>
- * {@link #expected()} is the best estimate of the relative intensity at each offset and is used for
- * the envelope-fit score and to decide the carbon-driven shape. {@link #upperBound()} is the
- * maximum plausible relative intensity at each offset (widened for heavy isotopes such as S, Cl,
- * Br). The upper bound drives inclusion/termination: an observed signal that exceeds it is
- * implausible for this charge hypothesis.
+ * {@link #expected()} is the best estimate, driving the envelope-fit score. {@link #upperBound()} is
+ * the maximum plausible intensity, widened for heavy isotopes, and drives inclusion/termination: an
+ * observed signal above it is implausible for this charge hypothesis.
  * <p>
- * <b>The arrays are exposed directly and must never be mutated by callers.</b> An envelope is built
- * once per (m/z, charge) hypothesis and shared by every scoring step; a caller that needs to keep a
- * snapshot must clone.
+ * <b>The arrays are exposed directly and must never be mutated.</b> One envelope is built per
+ * (m/z, charge) and shared by every scoring step, so a caller keeping a snapshot must clone.
  */
 public record IsotopeEnvelope(@NotNull double[] expected, @NotNull double[] upperBound,
                               double spacingDa, int charge) {
 
   /**
-   * Relative intensity from which on an offset counts as predicted ("the envelope supports a peak
-   * here"). Single definition on purpose: the engine's coverage/self-consistency/termination, the
-   * cross-scan refiner's recovery test and the default envelope cutoff have to agree, otherwise the
-   * refiner recovers offsets the engine would have terminated at.
+   * Relative intensity from which on the envelope counts as supporting a peak. One definition on
+   * purpose: the engine's coverage / self-consistency / termination and the cross-scan refiner's
+   * recovery test must agree, or the refiner recovers offsets the engine terminated at.
    */
   public static final double SUPPORT_CUTOFF = 0.02;
 
@@ -66,9 +61,6 @@ public record IsotopeEnvelope(@NotNull double[] expected, @NotNull double[] uppe
     return offset >= 0 && offset < upperBound.length ? upperBound[offset] : 0d;
   }
 
-  /**
-   * @return the offset of the most intense expected peak (the base peak of the predicted envelope)
-   */
   public int baseOffset() {
     int idx = 0;
     double max = -1d;

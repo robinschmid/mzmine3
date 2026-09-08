@@ -37,31 +37,26 @@ import java.util.random.RandomGenerator;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Builders and seeded degradation ops for synthetic isotope-pattern spectra used by the benchmark
- * corpus. The clean builders ({@link #ladder}, {@link #fromFormula}, {@link #cdkSpectrum},
- * {@link #combine}, {@link #shift}) mirror the private helpers in {@code IsotopeFinderEngineTest};
- * the degradation ops ({@link #applyIntensityCutoff}, {@link #addRandomNoise},
- * {@link #addInterference}) add realistic stressors. All randomness is driven by a caller-supplied
- * {@link RandomGenerator} - never {@code Math.random()}.
+ * Builders and seeded degradation ops for the benchmark corpus' synthetic spectra. The clean
+ * builders mirror the private helpers in {@code IsotopeFinderEngineTest}; the degradation ops add
+ * realistic stressors. All randomness comes from a caller-supplied {@link RandomGenerator} - never
+ * {@code Math.random()}, which would make the corpus non-reproducible.
  */
 public final class SyntheticSpectra {
 
   private static final double C13 = IsotopePatternCalculator.THIRTHEEN_C_DISTANCE;
 
   /**
-   * Injected noise is kept at least this multiple of the m/z tolerance away from real (and other
-   * injected) peaks, so a noise peak never lands inside a true peak's tolerance window regardless
-   * of the mass resolution the case is scored with. At high resolution this reproduces the
-   * historical ~10 mDa spacing; at unit resolution (0.2 Da tolerance) it scales up to ~0.4 Da.
+   * Injected noise stays this multiple of the tolerance away from real (and other injected) peaks,
+   * so it can never land inside a true peak's window whatever resolution the case is scored at: ~10
+   * mDa at high resolution, ~0.4 Da at unit resolution.
    */
   private static final double NOISE_MIN_SEPARATION_TOL_FACTOR = 2.0;
 
   private SyntheticSpectra() {
   }
 
-  /**
-   * Build a clean 13C ladder at the given charge (Poisson envelope, base peak = 100).
-   */
+  /** A clean 13C ladder: Poisson envelope, base peak 100. */
   @NotNull
   public static SimpleMassSpectrum ladder(final double monoMz, final int charge, final int nCarbons,
       final int nPeaks) {
@@ -78,9 +73,6 @@ public final class SyntheticSpectra {
     return new SimpleMassSpectrum(mz, in);
   }
 
-  /**
-   * Wrap sorted m/z / intensity arrays into a spectrum.
-   */
   @NotNull
   public static SimpleMassSpectrum spec(@NotNull final double[] mz,
       @NotNull final double[] intensity) {
@@ -88,16 +80,11 @@ public final class SyntheticSpectra {
   }
 
   /**
-   * Rescale a charge-1 isotope spectrum to charge {@code charge}. The isotopologue distribution is
-   * charge-invariant - CDK enumerates and merges it in neutral-mass space and only the final m/z
-   * depends on charge - so every charge state is derived from the charge-1 spectrum without
-   * recomputing the (expensive) CDK pattern: {@code mz_z = mz_1/z - sign*ELECTRON_MASS*(z-1)/z},
-   * exactly matching {@link IsotopePatternCalculator}'s electron-loss convention
-   * ({@code (isotopeMass - sign*charge*e)/charge}). Intensities are unchanged and the ascending m/z
-   * order is preserved (the transform is monotonic for {@code charge >= 1}).
+   * Rescale a charge-1 spectrum to {@code charge}, avoiding a second (expensive) CDK enumeration:
+   * the isotopologue distribution is charge-invariant, as CDK merges it in neutral-mass space and
+   * only the final m/z depends on charge. Matches {@link IsotopePatternCalculator}'s electron-loss
+   * convention exactly; the transform is monotonic, so ascending m/z order survives.
    *
-   * @param charge1      the charge-1 spectrum (as produced by {@link #fromFormula} at charge 1)
-   * @param charge       target charge (>= 1)
    * @param polaritySign +1 for positive, -1 for negative mode
    */
   @NotNull
@@ -119,9 +106,8 @@ public final class SyntheticSpectra {
   }
 
   /**
-   * Real CDK-generated isotope distribution for a formula at the given charge and merge width. Uses
-   * the default minimum abundance (0.001). Small merge width keeps fine structure resolved, large
-   * merges it into one peak per nominal mass.
+   * Real CDK distribution at the default minimum abundance (0.001). A small merge width keeps fine
+   * structure resolved, a large one merges it into one peak per nominal mass.
    */
   @NotNull
   public static SimpleMassSpectrum fromFormula(@NotNull final String formula, final int charge,
@@ -130,9 +116,8 @@ public final class SyntheticSpectra {
   }
 
   /**
-   * Real CDK isotope distribution at a given merge width and minimum abundance, merged to a
-   * {@link SimpleMassSpectrum} sorted by m/z. A higher {@code minAbundance} prunes the tail to keep
-   * large molecules fast.
+   * As above with an explicit {@code minAbundance}, which prunes the tail to keep large molecules
+   * fast.
    */
   @NotNull
   public static SimpleMassSpectrum fromFormula(@NotNull final String formula, final int charge,
@@ -143,9 +128,7 @@ public final class SyntheticSpectra {
   }
 
   /**
-   * Real CDK isotope distribution merged to ~one peak per nominal isotope offset (fine structure
-   * collapsed), sorted by m/z. {@code minAbundance} prunes the long tail to keep large molecules
-   * fast.
+   * Real CDK distribution with the fine structure collapsed to one peak per nominal offset.
    */
   @NotNull
   public static SimpleMassSpectrum cdkSpectrum(@NotNull final String formula, final int charge,
@@ -166,9 +149,7 @@ public final class SyntheticSpectra {
     return fromSortedMap(map);
   }
 
-  /**
-   * Merge several spectra into one, summing intensities of peaks within ~1 mDa (for overlaps).
-   */
+  /** Merge spectra, summing peaks within ~1 mDa so overlaps add up. */
   @NotNull
   public static SimpleMassSpectrum combine(@NotNull final SimpleMassSpectrum... specs) {
     final TreeMap<Double, Double> map = new TreeMap<>();
@@ -206,9 +187,6 @@ public final class SyntheticSpectra {
     return new SimpleMassSpectrum(mz, in);
   }
 
-  /**
-   * Index of the most intense peak (the base peak / apex of the envelope).
-   */
   public static int baseIndex(@NotNull final MassSpectrum s) {
     int idx = 0;
     for (int i = 1; i < s.getNumberOfDataPoints(); i++) {
@@ -219,24 +197,17 @@ public final class SyntheticSpectra {
     return idx;
   }
 
-  /**
-   * Intensity of the base peak.
-   */
   public static double baseHeight(@NotNull final MassSpectrum s) {
     return s.getNumberOfDataPoints() == 0 ? 0d : s.getIntensityValue(baseIndex(s));
   }
 
   /**
-   * Model a unit-resolution (low mass resolution) readout of an already-collapsed (one-peak-per-
-   * nominal-offset) spectrum: perturb each centroid by a seeded m/z jitter drawn uniformly from
-   * {@code [-jitterMaxDa, +jitterMaxDa]} (the instrument's low mass accuracy) and round to a single
-   * decimal (the coarse reported precision of a unit-mass-resolution instrument). Intensities are
-   * unchanged; the result is re-sorted by m/z so it stays ascending even if a large jitter reorders
-   * adjacent peaks.
+   * Model a unit-resolution readout of an already-collapsed spectrum: jitter each centroid (the
+   * instrument's poor mass accuracy) and round to one decimal (its coarse reported precision). The
+   * result is re-sorted, since a large jitter can reorder adjacent peaks.
    *
-   * @param s           a collapsed spectrum (one peak per nominal isotope offset)
-   * @param jitterMaxDa maximum absolute m/z jitter per peak (0 = coarse rounding only)
-   * @param rnd         caller-supplied RNG (never {@code Math.random()})
+   * @param s           a collapsed spectrum, one peak per nominal isotope offset
+   * @param jitterMaxDa maximum absolute jitter per peak; 0 = coarse rounding only
    */
   @NotNull
   public static SimpleMassSpectrum quantizeUnitResolution(@NotNull final SimpleMassSpectrum s,
@@ -254,10 +225,7 @@ public final class SyntheticSpectra {
     return new SimpleMassSpectrum(sortedCopy(mz), reordered);
   }
 
-  /**
-   * Scale every intensity by {@code factor} (to place a co-eluting interferent at a realistic
-   * relative abundance rather than at the target's own intensity).
-   */
+  /** Scale intensities, to place an interferent at a realistic relative abundance. */
   @NotNull
   public static SimpleMassSpectrum scale(@NotNull final SimpleMassSpectrum s, final double factor) {
     final int n = s.getNumberOfDataPoints();
@@ -270,9 +238,7 @@ public final class SyntheticSpectra {
     return new SimpleMassSpectrum(mz, in);
   }
 
-  /**
-   * Shift every m/z by {@code dmz} (to place an interferent away from the target).
-   */
+  /** Shift every m/z, to place an interferent away from the target. */
   @NotNull
   public static SimpleMassSpectrum shift(@NotNull final SimpleMassSpectrum s, final double dmz) {
     final double[] mz = new double[s.getNumberOfDataPoints()];
@@ -284,9 +250,6 @@ public final class SyntheticSpectra {
     return new SimpleMassSpectrum(mz, in);
   }
 
-  /**
-   * Copy of the m/z values of a spectrum.
-   */
   @NotNull
   public static double[] mzArray(@NotNull final MassSpectrum s) {
     final double[] a = new double[s.getNumberOfDataPoints()];
@@ -296,9 +259,6 @@ public final class SyntheticSpectra {
     return a;
   }
 
-  /**
-   * Copy of the intensity values of a spectrum.
-   */
   @NotNull
   public static double[] intensityArray(@NotNull final MassSpectrum s) {
     final double[] a = new double[s.getNumberOfDataPoints()];
@@ -308,10 +268,7 @@ public final class SyntheticSpectra {
     return a;
   }
 
-  /**
-   * Drop peaks with intensity below {@code cutoffFraction * maxIntensity}. A cutoff of 0.0 keeps
-   * every peak. Returns a new spectrum (input peaks stay sorted).
-   */
+  /** Drop peaks below {@code cutoffFraction * maxIntensity}; 0.0 keeps every peak. */
   @NotNull
   public static SimpleMassSpectrum applyIntensityCutoff(@NotNull final SimpleMassSpectrum s,
       final double cutoffFraction) {
@@ -336,12 +293,9 @@ public final class SyntheticSpectra {
   }
 
   /**
-   * Add {@code nNoise} random peaks in the m/z window {@code [mzWindowLo, mzWindowHi]} with
-   * intensity {@code rnd * maxRelIntensity * baseHeight(s)}. Injected positions are kept a
-   * tolerance-scaled distance ({@link #NOISE_MIN_SEPARATION_TOL_FACTOR} x {@code tol} at the
-   * candidate m/z) away from existing (and previously injected) peaks, so a noise peak never lands
-   * inside a true peak's tolerance window - the separation grows with the m/z tolerance, i.e. with
-   * decreasing mass resolution. Returns the combined spectrum plus the injected m/z values.
+   * Add {@code nNoise} random peaks in {@code [mzWindowLo, mzWindowHi]}, each kept a
+   * tolerance-scaled distance ({@link #NOISE_MIN_SEPARATION_TOL_FACTOR}) from existing and
+   * previously injected peaks, so noise never lands inside a true peak's window at any resolution.
    *
    * @param tol the m/z tolerance the case will be scored with (drives the min separation)
    */

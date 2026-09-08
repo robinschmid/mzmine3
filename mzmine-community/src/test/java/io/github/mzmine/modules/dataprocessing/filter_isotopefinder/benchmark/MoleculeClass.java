@@ -26,15 +26,14 @@
 package io.github.mzmine.modules.dataprocessing.filter_isotopefinder.benchmark;
 
 /**
- * Broad molecule size class used by the benchmark corpus. Controls the maximum charge searched and
- * the CDK minimum abundance used when generating the isotope pattern (larger molecules require a
- * higher abundance cutoff to keep the peak list bounded and generation fast).
+ * Molecule size class of a benchmark case: sets the maximum charge searched and the CDK minimum
+ * abundance used to generate the pattern.
  */
 public enum MoleculeClass {
 
-  // minAbundance also acts as the CDK peak-pruning floor: heavy poly-halogen envelopes (Cl/Br up to
-  // 20) and large averagine formulas explode into huge fine-structure combs at very low cutoffs, so a
-  // realistic high-res noise-floor cutoff keeps the peak lists (and generation time) bounded.
+  // minAbundance doubles as the CDK peak-pruning floor: poly-halogen envelopes (Cl/Br up to 20) and
+  // large averagine formulas explode into huge fine-structure combs at very low cutoffs, so a
+  // realistic high-res noise floor is what keeps peak lists and generation time bounded
   SMALL(3, 0.003), PEPTIDE(5, 0.01), PROTEIN(20, 0.02);
 
   private final int maxCharge;
@@ -45,16 +44,10 @@ public enum MoleculeClass {
     this.minAbundance = minAbundance;
   }
 
-  /**
-   * Maximum charge the isotope finder should search for this molecule class.
-   */
   public int maxCharge() {
     return maxCharge;
   }
 
-  /**
-   * CDK minimum relative abundance used when generating the isotope pattern for this class.
-   */
   public double minAbundance() {
     return minAbundance;
   }

@@ -57,37 +57,22 @@ import org.openscience.cdk.interfaces.IIsotope;
 import org.openscience.cdk.interfaces.IMolecularFormula;
 
 /**
- * Generates the benchmark JSONL corpus for the isotope finder. Iterates the catalog x charge x
- * sweep defined in {@link GenerationConfig}, generates a CDK isotope pattern, applies seeded
- * degradations (cutoff, noise, interference), records the ground truth, and writes one JSON object
- * per line.
+ * Generates the benchmark JSONL corpus: iterates the catalog x charge x sweep of
+ * {@link GenerationConfig}, builds a CDK isotope pattern, applies seeded degradations and records
+ * the ground truth. Seeds come from a stable hash of each pattern id, never {@code Math.random} or
+ * the wall clock. Run via {@code ./gradlew :mzmine-community:generateBenchmarkCorpus}.
  * <p>
- * The seeded degradations are deterministic: seeds are derived from a stable hash of each pattern id
- * (no {@code Math.random} / wall-clock). Run via
- * {@code ./gradlew :mzmine-community:generateBenchmarkCorpus}.
+ * <b>The corpus is NOT bit-reproducible</b>, because CDK's enumeration is not: two identical calls
+ * in one JVM differ by ~1e-13 and that accumulates through the peak merging. A full regeneration
+ * drifted m/z by at most ~1.3 ppb - 1000x below the tightest tolerance it is scored with - but ~0.4%
+ * of cases changed peak count as a borderline peak crossed {@code minAbundance}. The metric effect
+ * is negligible (one axis by 0.002), but never write a test asserting byte equality.
  * <p>
- * <b>The corpus is NOT bit-reproducible, however</b>, because the underlying CDK isotope-pattern
- * enumeration is not: calling {@link SyntheticSpectra#fromFormula} twice with identical arguments in
- * the same JVM yields m/z values differing by ~1e-13, and those differences accumulate through the
- * peak merging. Measured over a full regeneration, m/z drifted by at most ~1.3 ppb (1.26 uDa) - some
- * 1000x below the tightest m/z tolerance the corpus is scored with - but ~0.4 % of cases ended up
- * with a different peak count, because a borderline peak crossed the {@code minAbundance} cutoff.
- * The practical effect on the accuracy metrics is negligible (one axis moved by 0.002; the rest were
- * identical to four decimals), but do NOT expect a regeneration to reproduce the committed file
- * byte for byte, and do not write a test that asserts it does.
- * <p>
- * <b>The generated corpus is committed to the repository on purpose</b>
- * ({@code src/test/resources/isotopefinder/corpus/patterns.jsonl.gz}, ~1 MB gzipped, 12 MB of JSONL).
- * Although it is fully
- * reproducible from this generator, the CDK isotopologue enumeration for the large proteins in the
- * catalog is expensive, so regenerating it on every build (or in CI) is not viable. Committing the
- * snapshot also pins the exact inputs the committed accuracy baselines were measured on, so a
- * baseline diff reflects an engine change and never a corpus change. Do not "optimise" it away by
- * generating it at build time.
- * <p>
- * Changing anything that affects the generated cases (the catalog, the sweep, a degradation op)
- * therefore requires regenerating BOTH the corpus and the baselines
- * ({@code isotopeBenchmark}), and the two must be committed together.
+ * <b>The corpus is committed on purpose.</b> It is reproducible from this generator, but the
+ * isotopologue enumeration for the catalog's large proteins is too expensive to run per build, and
+ * committing the snapshot pins the exact inputs the accuracy baselines were measured on - so a
+ * baseline diff reflects an engine change and never a corpus change. Changing the catalog, the sweep
+ * or a degradation op therefore means regenerating BOTH corpus and baselines, committed together.
  */
 public final class BenchmarkPatternGenerator {
 
@@ -106,8 +91,8 @@ public final class BenchmarkPatternGenerator {
   }
 
   /**
-   * @return the committed corpus path, relative to the {@code mzmine-community} module directory.
-   * Must stay in sync with the path the {@code generateBenchmarkCorpus} Gradle task passes.
+   * @return the committed corpus path, relative to the module directory. Must stay in sync with
+   * what the {@code generateBenchmarkCorpus} Gradle task passes.
    */
   @NotNull
   private static Path defaultOutput() {
@@ -116,9 +101,6 @@ public final class BenchmarkPatternGenerator {
             BenchmarkCorpusLoader.RESOURCE.lastIndexOf('/') + 1));
   }
 
-  /**
-   * Generate every benchmark pattern (catalog x charge x sweep).
-   */
   @NotNull
   public static List<BenchmarkPattern> generate() {
     final List<FormulaSpec> catalog = GenerationConfig.catalog();
@@ -132,16 +114,13 @@ public final class BenchmarkPatternGenerator {
     // warm up the CDK isotope factory single-threaded before the parallel enumeration below
     SyntheticSpectra.fromFormula("C", 1, GenerationConfig.RESOLVED_MERGE_WIDTH, 0.01);
 
-    // Pre-compute the charge-1 isotope pattern for each unique formula ONCE, in parallel. CDK's
-    // isotopologue enumeration/merging is charge-invariant (done in neutral-mass space; charge only
-    // rescales m/z), so every charge state is derived cheaply from the cached charge-1 spectrum via
-    // SyntheticSpectra.atCharge. This removes the per-charge CDK cost (the generation bottleneck) and
-    // parallelises the remaining (expensive) enumerations across formulas, so large proteins are viable.
+    // one charge-1 enumeration per formula, in parallel. CDK's merging is charge-invariant (neutral
+    // mass space; charge only rescales m/z), so every charge state comes cheaply from the cached
+    // charge-1 spectrum - removing the per-charge CDK cost that was the generation bottleneck.
     final Map<String, SimpleMassSpectrum> baseResolved = new ConcurrentHashMap<>();
     final Map<String, SimpleMassSpectrum> baseMerged = new ConcurrentHashMap<>();
-    // unit-resolution base (charge-1, one centroid per nominal offset) computed only for the classes
-    // that get unit-resolution cases (SMALL / PEPTIDE); low-res instruments do not resolve intact
-    // proteins, so those are skipped here.
+    // only for the classes that get unit-resolution cases: low-res instruments do not resolve
+    // intact proteins
     final Map<String, SimpleMassSpectrum> baseUnit = new ConcurrentHashMap<>();
     final AtomicInteger prepared = new AtomicInteger();
     final int uniqueCount = uniqueByFormula.size();
@@ -162,16 +141,12 @@ public final class BenchmarkPatternGenerator {
           + spec.formula() + " [" + spec.cls() + "]");
     });
 
-    // build every case deterministically in catalog order (the parallelism above only fills the caches
-    // and does not affect the output order or values)
+    // deterministic catalog order; the parallelism above only fills caches
     final int sign = PolarityType.POSITIVE.getSign();
-    // pool of co-eluting decoys for InterferenceMode.REALISTIC: SMALL molecules only, each with its
-    // cached charge-1 resolved pattern. Deterministic order (catalog order).
-    // assumption: the decoy is generated at the TARGET's charge, so for a highly charged protein
-    // target the interferent is a small molecule's envelope at that charge - chemically unusual, but
-    // the properties the axis tests are the ones that hold regardless: the decoy has a different
-    // envelope shape from the target and sits off the isotope grid, so it must be rejected without
-    // forming a clean doubled-charge comb.
+    // decoy pool for InterferenceMode.REALISTIC: SMALL molecules only, in catalog order.
+    // assumption: the decoy is generated at the TARGET's charge, so a highly charged protein target
+    // gets a small molecule's envelope at that charge - chemically unusual, but what the axis tests
+    // holds regardless: a different envelope shape, off the isotope grid, no doubled-charge comb.
     final List<DecoyCandidate> decoyPool = new ArrayList<>();
     for (final FormulaSpec spec : uniqueByFormula.values()) {
       if (spec.cls() == MoleculeClass.SMALL) {
@@ -202,8 +177,7 @@ public final class BenchmarkPatternGenerator {
 
         int variantIndex = 0;
         for (final SweepVariant variant : GenerationConfig.sweep()) {
-          // retired slots emit nothing but still consume their index, so every later variant keeps
-          // the ids and seeds its cases were generated with
+          // retired slots emit nothing but consume their index, so later variants keep their ids
           if (!variant.isRetired()) {
             result.add(build(spec, charge, monoNeutralMass, elements, heavy, halogens, minAbundance,
                 trueMonoMz, patResolved, patMerged, variant, variantIndex, decoyPool));
@@ -229,21 +203,18 @@ public final class BenchmarkPatternGenerator {
   }
 
   /**
-   * Whether a molecule class receives the special single-charge unit-resolution cases. Unit / low
-   * resolution instruments (quadrupole / ion trap) target small molecules and peptides; intact
-   * proteins are not resolved at unit resolution, so they are excluded.
+   * Unit-resolution instruments target small molecules and peptides; intact proteins are not
+   * resolved at all there, so they get no such cases.
    */
   private static boolean hasUnitResolutionCases(@NotNull final MoleculeClass cls) {
     return cls == MoleculeClass.SMALL || cls == MoleculeClass.PEPTIDE;
   }
 
   /**
-   * Build one single-charge unit-resolution case: take the collapsed charge-1 envelope (one
-   * centroid per nominal offset), apply the optional intensity cutoff, quantise it onto a coarse
-   * low-accuracy m/z axis (seeded jitter + 1-decimal rounding), then add optional noise (kept a
-   * tolerance-scaled distance from the true peaks). The ground-truth true peaks are the quantised
-   * (post-cutoff, pre-noise) positions, so they match the wide unit-resolution tolerance the case
-   * is scored with.
+   * One single-charge unit-resolution case: collapsed charge-1 envelope, optional cutoff, quantised
+   * onto a coarse m/z axis (seeded jitter + 1-decimal rounding), then optional noise. The ground
+   * truth is the QUANTISED post-cutoff, pre-noise positions, so it matches the wide tolerance the
+   * case is scored with.
    */
   @NotNull
   private static BenchmarkPattern buildUnitResolution(@NotNull final FormulaSpec spec,
@@ -349,21 +320,15 @@ public final class BenchmarkPatternGenerator {
   }
 
   /**
-   * Build a realistic co-eluting interferent for {@link InterferenceMode#REALISTIC}: a DIFFERENT
-   * small molecule from the catalog, placed at a seeded <i>non-harmonic</i> m/z offset relative to
-   * the target and scaled to a seeded fraction of the target's intensity.
+   * A co-eluting interferent for {@link InterferenceMode#REALISTIC}: a DIFFERENT small molecule, at
+   * a seeded non-harmonic m/z offset and a seeded fraction of the target's intensity.
    * <p>
-   * The fractional part of the offset (in units of the charge-adjusted 13C spacing) is drawn away
-   * from both {@code 0} (which would put the decoy on the target's own isotope grid) and
-   * {@code 0.5} (which would interleave a copy of the target's comb into a near-perfect doubled-charge
-   * ladder). The decoy therefore overlaps the isotope search window and must be rejected, without
-   * synthesising a harmonic that no real spectrum would produce.
+   * The fractional offset (in charge-adjusted 13C spacings) is drawn away from both 0, which would
+   * put the decoy on the target's own grid, and 0.5, which would interleave it into a near-perfect
+   * doubled-charge ladder. So it overlaps the search window and must be rejected, without
+   * synthesising a harmonic no real spectrum produces.
    *
-   * @param targetBase the target's (undegraded) spectrum at this charge.
-   * @param charge     the target charge; the decoy is generated at the same charge.
-   * @param seed       the case's interference seed.
-   * @param pool       the candidate decoy compounds.
-   * @return the decoy spectrum, or null when no decoy is available.
+   * @return the decoy spectrum, or null when none is available.
    */
   @Nullable
   private static SimpleMassSpectrum realisticDecoy(@NotNull final SimpleMassSpectrum targetBase,

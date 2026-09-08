@@ -43,9 +43,8 @@ import org.jetbrains.annotations.Nullable;
  * @param chargeTop1           predicted best charge equals the true charge
  * @param chargeRecallAlt      true charge is among the flagged charge scores (winner + alternates)
  * @param chargeStartInvariant the winning charge is identical when the finder is seeded from every
- *                             tested start signal (monoisotopic / base / top peak) - the
- *                             position-agnostic property; independent of whether that charge is
- *                             correct
+ *                             tested start signal - the position-agnostic property, independent of
+ *                             whether that charge is correct
  * @param patternPrecision     precision of the best detected pattern vs. the true isotope peaks
  * @param patternRecall        recall of the best detected pattern vs. the true isotope peaks
  * @param patternF1            harmonic mean of pattern precision/recall
@@ -53,18 +52,16 @@ import org.jetbrains.annotations.Nullable;
  *                             exist
  * @param noiseLeak            fraction of injected false peaks that leaked in, or {@code null} if
  *                             none
- * @param elementPrecision     heavy-element precision (Cl/Br/S/Si), or {@code null}. Read together
- *                             with {@code elementContainment}: the detector reports every element the
- *                             evidence cannot rule out, so precision necessarily falls as the
- *                             reported ambiguity set grows and is NOT on its own a quality measure.
+ * @param elementPrecision     heavy-element precision, or {@code null}. NOT a quality measure on its
+ *                             own: the detector reports every element it cannot rule out, so this
+ *                             necessarily falls as the ambiguity set grows. Read it with
+ *                             {@code elementContainment}.
  * @param elementRecall        heavy-element recall (Cl/Br/S/Si), or {@code null}
- * @param elementContainment   whether EVERY true heavy element is in the reported set (the property
- *                             that actually matters for a set of possibilities - a missing element
- *                             means the envelope's heavy upper bound is too tight), or {@code null}
- *                             when the case has no inferable heavy element
- * @param elementSetSize       size of the reported heavy-element set, or {@code null} when there was
- *                             no detection. This is the cost side of containment: how much ambiguity
- *                             was reported to achieve it.
+ * @param elementContainment   whether EVERY true heavy element is in the reported set - what
+ *                             actually matters for a set of possibilities, since a missing element
+ *                             means the heavy upper bound is too tight. Null when the case has no
+ *                             inferable heavy element.
+ * @param elementSetSize       size of the reported set: the COST of containment.
  * @param scoreMargin          best correct-charge score − best incorrect-charge score, or
  *                             {@code null} if there was no detection
  * @param winningScore         the best-first (winner) charge score, or {@code 0} if no detection

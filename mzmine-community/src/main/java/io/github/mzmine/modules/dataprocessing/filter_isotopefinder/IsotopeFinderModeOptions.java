@@ -36,26 +36,23 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Selectable isotope finder algorithms. Each maps to an {@link IsotopeFinderAlgorithmModule} that
- * carries the full setup of the detection run as its embedded parameters, so the top-level
- * {@link IsotopeFinderParameters} only has the feature lists and the algorithm choice.
- * <p>
- * Both options run the same carbon model detection; they only differ in how much of its setup they
- * expose.
+ * Selectable isotope finder algorithms, each mapping to an {@link IsotopeFinderAlgorithmModule}
+ * that carries the full detection setup as its embedded parameters - so the top-level
+ * {@link IsotopeFinderParameters} holds only the feature lists and the algorithm choice. Both
+ * options run the same carbon model and differ only in how much of its setup they expose.
  */
 public enum IsotopeFinderModeOptions implements ModuleOptionsEnum<IsotopeFinderAlgorithmModule> {
 
   /**
-   * Simplified setup: m/z tolerance, 13C requirement, and maximum charge only. Default.
+   * Simplified setup: m/z tolerance, 13C requirement and maximum charge only. Default.
    */
   AUTOMATIC,
   /**
-   * Full carbon model setup: estimates the carbon count from m/z, no formula prediction.
+   * The full carbon model setup.
    * <p>
-   * decision: currently NOT offered in the algorithm combo, see {@link IsotopeFinderParameters#mode}
-   * - the automatic option covers every setup we want users to pick from for now. The option is kept
-   * here (and its module stays registered) because the full parameter set is what the detection
-   * actually runs on and what the automatic option maps onto.
+   * decision: NOT offered in the algorithm combo (see {@link IsotopeFinderParameters#mode}) - the
+   * automatic option covers everything users should pick from for now. Kept, and its module kept
+   * registered, because this full set is what the detection actually runs on.
    */
   CARBON_MODEL;
 
@@ -84,14 +81,6 @@ public enum IsotopeFinderModeOptions implements ModuleOptionsEnum<IsotopeFinderA
     };
   }
 
-  /**
-   * @param value          selected algorithm with its embedded parameters.
-   * @param project        the current project.
-   * @param featureLists   the feature lists to process.
-   * @param topParameters  the top-level {@link IsotopeFinderParameters}, stored as applied method.
-   * @param moduleCallDate the module call date of the applied method.
-   * @return the tasks of the selected algorithm.
-   */
   public static @NotNull List<Task> createTasks(
       @NotNull final ValueWithParameters<IsotopeFinderModeOptions> value,
       @NotNull final MZmineProject project, @NotNull final ModularFeatureList[] featureLists,

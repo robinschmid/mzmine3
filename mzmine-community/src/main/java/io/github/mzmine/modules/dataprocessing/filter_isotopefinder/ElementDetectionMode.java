@@ -26,24 +26,18 @@
 package io.github.mzmine.modules.dataprocessing.filter_isotopefinder;
 
 /**
- * Opt-in element auto-detection strategy for the signal-based isotope finder. Controls whether the
- * heavy-isotope upper bound is derived from the user-configured elements only, from elements
- * inferred from the observed pattern, or both.
+ * Where the heavy-isotope upper bound gets its elements from: the user's selection, the observed
+ * pattern, or both.
  */
 public enum ElementDetectionMode {
 
   /**
-   * Heavy-isotope bounds come from the chosen elements only, with a crude atom-count estimate.
+   * The chosen elements only, with a crude atom-count estimate.
    */
   USER_DEFINED,
-  /**
-   * Infer popular heavy elements (Cl, Br, S, Si) from the pattern and use the detected atom
-   * counts.
-   */
+  /** Infer popular heavy elements (Cl, Br, S, Si) from the pattern, with the detected counts. */
   AUTO_DETECT,
-  /**
-   * Combine the user-configured heavy elements with the auto-detected ones. Default.
-   */
+  /** Both, combined. Default. */
   USER_PLUS_AUTO;
 
   @Override

@@ -45,20 +45,15 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
- * Full-corpus accuracy regression guard: runs the current engine over every committed benchmark case
- * and diffs the per-axis metrics against the committed baselines - the default one
- * ({@link BenchmarkReport#BASELINE_RESOURCE}) and the opt-in require-13C one
- * ({@link BenchmarkReport#REQUIRE_C13_BASELINE_RESOURCE}), one test each. This is what makes the
- * baselines guards rather than documentation - without them a scoring change can silently regress an
- * axis.
+ * Full-corpus accuracy guard: runs the current engine over every committed case and diffs the
+ * per-axis metrics against both committed baselines, one test each. This is what makes those
+ * baselines guards rather than documentation.
  * <p>
- * Tagged {@code benchmark}: excluded from the default {@code test} task, run via
- * {@code ./gradlew :mzmine-community:benchmark}. Each test runs ~5900 cases x 4 detections, so it is
- * far too slow for CI; the fast CI guard is {@link IsotopeAccuracyTest}.
+ * Tagged {@code benchmark}, so it is excluded from the default {@code test} task - each test runs
+ * ~5900 cases x 4 detections, far too slow for CI, where {@link IsotopeAccuracyTest} guards instead.
  * <p>
  * When a change intentionally moves the numbers, regenerate BOTH baselines
- * ({@code ./gradlew :mzmine-community:isotopeBenchmark} and the same task with
- * {@code --args="<path> requireC13"}) and commit the new CSVs.
+ * ({@code isotopeBenchmark}, and the same task with {@code --args="<path> requireC13"}).
  */
 @Tag("benchmark")
 class IsotopeBenchmarkRegressionTest {
@@ -67,22 +62,19 @@ class IsotopeBenchmarkRegressionTest {
       IsotopeBenchmarkRegressionTest.class.getName());
 
   /**
-   * Allowed absolute drop below the committed baseline value. The baseline is written with four
-   * decimals, so this is well above the rounding noise; it exists to absorb incidental jitter, not
-   * to hide a real regression.
+   * Allowed absolute drop below the baseline. Well above the four-decimal rounding noise: it
+   * absorbs incidental jitter, not a real regression.
    */
   private static final double TOLERANCE = 0.01;
 
   /**
-   * Metrics where a higher value is better. {@code scoreMargin} / {@code aucCharge} are deliberately
-   * excluded: they are separation diagnostics that legitimately shift when the scoring formula
-   * changes, so they are reported but not asserted. {@code medianDetectMs} is machine-dependent.
-   * <p>
-   * {@code elementPrecision} and {@code elementSetSize} are excluded on purpose as well: the detector
-   * reports every heavy element the evidence cannot rule out, so both move with the size of that
-   * ambiguity set rather than with detection quality, and asserting precision would fail every
-   * deliberate widening. {@code elementContainment} - did the reported set cover the true elements -
-   * is the guarded property; watch the other two in the printed table.
+   * Metrics where higher is better, i.e. the asserted ones. Deliberately excluded:
+   * {@code scoreMargin} / {@code aucCharge} are separation diagnostics that legitimately shift with
+   * the scoring formula, {@code medianDetectMs} is machine-dependent, and
+   * {@code elementPrecision} / {@code elementSetSize} move with the size of the reported ambiguity
+   * set rather than with detection quality - asserting precision would fail every deliberate
+   * widening. {@code elementContainment} is the guarded element property; watch the rest in the
+   * printed table.
    */
   private static final List<Metric> HIGHER_IS_BETTER = List.of(
       new Metric("chargeTop1", MetricRow::chargeTop1),
@@ -95,10 +87,6 @@ class IsotopeBenchmarkRegressionTest {
       new Metric("elementRecall", MetricRow::elementRecall),
       new Metric("elementContainment", MetricRow::elementContainment));
 
-  /**
-   * Metrics where a lower value is better (the fraction of injected false peaks that leaked into
-   * the detected pattern).
-   */
   private static final List<Metric> LOWER_IS_BETTER = List.of(
       new Metric("noiseLeak", MetricRow::noiseLeak));
 
@@ -108,10 +96,9 @@ class IsotopeBenchmarkRegressionTest {
   }
 
   /**
-   * The same guard for the opt-in require-13C mode against its companion baseline. Without it the
-   * committed {@code metrics_requireC13.csv} would be documentation only: the gate and its
-   * gap-truncation are a separate code path that the default run never exercises, so a change there
-   * (the ladder walk, the M+1/M gate) could regress unnoticed.
+   * The same guard for the require-13C mode. Its gate and gap-truncation are a separate code path
+   * the default run never exercises, so without this the companion baseline would be documentation
+   * only and a change to the ladder walk or the M+1/M gate could regress unnoticed.
    */
   @Test
   void requireC13DoesNotRegressAgainstCommittedBaseline() {
@@ -119,11 +106,7 @@ class IsotopeBenchmarkRegressionTest {
   }
 
   /**
-   * Run the whole corpus with the given mode and diff every guarded per-axis metric against the
-   * committed baseline.
-   *
-   * @param requireC13       whether to enable the require-13C gate (and its gap-truncation).
-   * @param baselineResource the committed baseline to diff against.
+   * Run the whole corpus and diff every guarded per-axis metric against {@code baselineResource}.
    */
   private static void assertNoRegression(final boolean requireC13,
       @NotNull final String baselineResource) {
@@ -147,7 +130,7 @@ class IsotopeBenchmarkRegressionTest {
         BenchmarkReport.readBaseline(baselineResource));
     final Map<String, MetricRow> now = BenchmarkReport.byAxis(current);
 
-    // collect every violation so one run reports the full picture instead of the first failure
+    // collect every violation, so one run reports the full picture rather than the first failure
     final List<String> problems = new ArrayList<>();
 
     for (final String axis : baseline.keySet()) {
@@ -187,10 +170,9 @@ class IsotopeBenchmarkRegressionTest {
   }
 
   /**
-   * Record a violation when {@code actual} moved in the wrong direction by more than
-   * {@link #TOLERANCE}. A baseline value of {@link Double#NaN} means the metric was undefined for
-   * every case in the axis and is skipped; a current NaN where the baseline had a value is itself a
-   * regression (the metric stopped being measurable).
+   * Record a violation when {@code actual} moved the wrong way by more than {@link #TOLERANCE}. A
+   * NaN baseline means the metric was undefined for the whole axis and is skipped, but a NaN NOW
+   * where the baseline had a value is itself a regression - the metric stopped being measurable.
    */
   private static void check(@NotNull final List<String> problems, @NotNull final String axis,
       @NotNull final Metric metric, @NotNull final MetricRow expected,
@@ -213,9 +195,6 @@ class IsotopeBenchmarkRegressionTest {
     }
   }
 
-  /**
-   * A baseline column: its name and how to read it off a {@link MetricRow}.
-   */
   private record Metric(@NotNull String name, @NotNull ToDoubleFunction<MetricRow> extractor) {
 
   }

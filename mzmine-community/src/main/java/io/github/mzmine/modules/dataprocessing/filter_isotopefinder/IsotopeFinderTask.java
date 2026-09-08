@@ -82,14 +82,12 @@ class IsotopeFinderTask extends AbstractTask {
   private static final Logger logger = Logger.getLogger(IsotopeFinderTask.class.getName());
   private final ModularFeatureList featureList;
 
-  // parameter values
   private final ParameterSet parameters;
   // only used to report which elements were searched when nothing could be found
   private final String isotopes;
 
   private final IsotopeFinderEngine engine;
 
-  // FWHM cross-scan refinement
   private final boolean fwhmRefineEnabled;
   private final MZTolerance refineMzTolerance;
   private final RatioAggregation ratioAggregation;
@@ -103,10 +101,9 @@ class IsotopeFinderTask extends AbstractTask {
   private final AtomicReference<String> errorMessage = new AtomicReference<>();
 
   /**
-   * @param parameters    the top-level {@link IsotopeFinderParameters}, only stored as the applied
-   *                      method of the feature list.
+   * @param parameters    the top-level set, stored only as the feature list's applied method.
    * @param algo          the full detection setup this task runs with.
-   * @param algorithmName name of the algorithm that created this task, only used for reporting.
+   * @param algorithmName only used for reporting.
    */
   IsotopeFinderTask(@NotNull MZmineProject project, @NotNull ModularFeatureList featureList,
       @NotNull ParameterSet parameters, @NotNull CarbonModelAlgorithmParameters algo,
@@ -119,11 +116,9 @@ class IsotopeFinderTask extends AbstractTask {
     final List<Element> isotopeElements = algo.getValue(CarbonModelAlgorithmParameters.elements);
     isotopes = isotopeElements.stream().map(Objects::toString).collect(Collectors.joining(","));
 
-    // build the detection engine (envelope model, charge scoring, element auto-detection) from the
-    // algorithm parameters
+    // envelope model, charge scoring and element auto-detection all come from the algo parameters
     this.engine = IsotopeFinderEngineFactory.create(algo, algorithmName);
 
-    // FWHM refinement parameters
     this.fwhmRefineEnabled = algo.getValue(CarbonModelAlgorithmParameters.fwhmRefine);
     final ParameterSet refineParams = algo.getParameter(CarbonModelAlgorithmParameters.fwhmRefine)
         .getEmbeddedParameters();
@@ -156,7 +151,6 @@ class IsotopeFinderTask extends AbstractTask {
       return;
     }
 
-    // start processing, all samples are processed in parallel
     final List<RawDataFile> raws = featureList.getRawDataFiles();
     totalRows = (long) featureList.getNumberOfRows() * raws.size();
     processedRows.set(0);
@@ -185,8 +179,8 @@ class IsotopeFinderTask extends AbstractTask {
   }
 
   /**
-   * Detects isotope patterns for all features of a single sample. Runs on its own thread with its
-   * own data access, so nothing here may be shared with other samples.
+   * Detects the patterns of ONE sample, on its own thread with its own data access - nothing here
+   * may be shared with another sample.
    *
    * @return the number of features with a detected isotope pattern.
    */
@@ -247,9 +241,8 @@ class IsotopeFinderTask extends AbstractTask {
         }
 
         final IsotopePattern assembled = IsotopeFinderEngine.assemble(patterns);
-        // the feature charge and the preferred pattern's charge must agree - downstream consumers
-        // (formula prediction, CCS) read one or the other. Log instead of throwing so a single odd
-        // feature cannot abort the whole run.
+        // these must agree: downstream consumers (formula prediction, CCS) read one or the other.
+        // Logged rather than thrown so one odd feature cannot abort the run.
         if (assembled.getCharge() != result.bestCharge() && chargeMismatchLogged.compareAndSet(false,
             true)) {
           logger.warning(String.format(
@@ -260,7 +253,6 @@ class IsotopeFinderTask extends AbstractTask {
         feature.setIsotopePattern(assembled);
         feature.setCharge(result.bestCharge());
 
-        // CCS calculation for IMS features using the selected charge
         final RawDataFile data = feature.getRawDataFile();
         final Float mobility = feature.getMobility();
         final MobilityType mobilityType = feature.getMobilityUnit();
@@ -277,7 +269,6 @@ class IsotopeFinderTask extends AbstractTask {
       }
     } catch (Exception ex) {
       logger.log(Level.WARNING, "Error in isotope finder " + ex.getMessage(), ex);
-      // only keep the first error, all other sample threads stop on it
       errorMessage.compareAndSet(null,
           "Error in isotope finder on %s: %s".formatted(raw.getName(), ex.getMessage()));
     }
@@ -285,8 +276,8 @@ class IsotopeFinderTask extends AbstractTask {
   }
 
   /**
-   * @return the mass lists of all scans of the feature within +/- FWHM/2 of the apex RT (or all
-   * feature scans if no FWHM is available).
+   * @return the mass lists within +/- FWHM/2 of the apex RT, or all feature scans if no FWHM is
+   * available.
    */
   private @NotNull List<MassSpectrum> collectFwhmMassLists(@NotNull final Feature feature) {
     final List<MassSpectrum> result = new ArrayList<>();

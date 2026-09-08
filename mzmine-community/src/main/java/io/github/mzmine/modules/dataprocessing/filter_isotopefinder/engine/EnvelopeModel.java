@@ -31,46 +31,34 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Strategy that predicts the isotope intensity envelope for a searched signal at a given charge.
- * This is the part of the detection a future alternative model (e.g. formula prediction) would
- * replace; today {@link io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeModel}
- * is the only implementation and models are built directly by the module-package
- * {@code IsotopeFinderEngineFactory}.
+ * Predicts the isotope intensity envelope for a searched signal at a given charge - the seam a
+ * future alternative model (formula prediction, say) would replace. Today
+ * {@link io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeModel}
+ * is the only implementation.
  */
 public interface EnvelopeModel {
 
   /**
-   * @param observedMz the observed m/z of the searched signal (any signal in the pattern).
-   * @param charge     the hypothesized charge state (>= 1).
-   * @param polarity   ion polarity, used for the (minor) ionization mass correction.
-   * @return the predicted envelope for this charge hypothesis. Never null; may be a near-empty
-   * envelope if nothing meaningful can be predicted.
+   * @param observedMz any signal of the pattern, not necessarily the monoisotopic.
+   * @param polarity   used for the (minor) ionization mass correction.
+   * @return the predicted envelope, possibly near-empty when nothing can be predicted.
    */
   @NotNull IsotopeEnvelope buildEnvelope(double observedMz, int charge,
       @NotNull PolarityType polarity);
 
   /**
-   * Build the envelope using per-element detected heavy-atom counts.
-   *
-   * @param detectedHeavyCounts element symbol -> atom count to model for the heavy upper bound, or
-   *                            null to use the model's own default. Overrides/extends the
-   *                            user-configured heavy elements.
-   * @param includeUserHeavies  whether to also model the user-configured heavy elements (at the
-   *                            model's default estimated count) in addition to
-   *                            {@code detectedHeavyCounts}.
+   * @param detectedHeavyCounts element symbol -> atom count for the heavy upper bound, or null for
+   *                            the model's own default.
+   * @param includeUserHeavies  whether to model the user-configured heavy elements as well.
    */
   @NotNull IsotopeEnvelope buildEnvelope(double observedMz, int charge,
       @NotNull PolarityType polarity, @Nullable Map<String, Integer> detectedHeavyCounts,
       boolean includeUserHeavies);
 
   /**
-   * Estimated lower/upper bound of the expected M+1 / M (13C) relative intensity for the searched
-   * neutral mass, used by the optional "require 13C" gate and by the carbon-ratio plausibility
-   * penalty.
+   * Bounds of the expected M+1/M (13C) relative intensity, read by the require-13C gate and the
+   * carbon-ratio plausibility penalty.
    *
-   * @param observedMz the observed m/z of the searched signal.
-   * @param charge     the hypothesized charge state (>= 1).
-   * @param polarity   ion polarity.
    * @return {@code {low, high}} bounds of the M+1/M ratio.
    */
   double @NotNull [] expectedM1RatioBounds(double observedMz, int charge,

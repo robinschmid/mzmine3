@@ -37,15 +37,12 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The simplified isotope finder setup: only the three parameters that usually need tuning per
- * dataset. Everything else is filled with the defaults of the
- * {@link CarbonModelAlgorithmParameters}, which this option is mapped onto (see
- * {@link AutomaticIsotopeFinderModule}).
+ * dataset, with the rest defaulted from {@link CarbonModelAlgorithmParameters}.
  * <p>
- * The three parameters are defined again here rather than reusing the instances of
- * {@link CarbonModelAlgorithmParameters}: a parameter instance carries its value, and both
- * option sets live in the configuration at the same time, so a shared instance would make the two
- * options share one value. Only the names, descriptions and defaults are shared, so the two dialogs
- * cannot describe the same setting differently.
+ * decision: the three are declared again here rather than reusing that class's instances. An
+ * instance carries its value and both option sets live in the configuration at once, so sharing
+ * would make them share one value; only names, descriptions and defaults are shared, so the two
+ * dialogs cannot describe one setting differently.
  */
 public class AutomaticIsotopeFinderParameters extends SimpleParameterSet {
 
@@ -82,9 +79,6 @@ public class AutomaticIsotopeFinderParameters extends SimpleParameterSet {
 
   /**
    * Map the few exposed values onto the full carbon-model setup, defaulting everything else.
-   *
-   * @param params an {@link AutomaticIsotopeFinderParameters} value set.
-   * @return a new, independent full parameter set.
    */
   public static @NotNull CarbonModelAlgorithmParameters toCarbonModelParameters(
       @NotNull final ParameterSet params) {

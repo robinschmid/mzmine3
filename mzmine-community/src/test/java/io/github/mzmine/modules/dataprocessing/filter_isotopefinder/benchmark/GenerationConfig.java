@@ -32,45 +32,35 @@ import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The formula catalog, per-formula sweep, and charge rule for the benchmark corpus. Kept
+ * The formula catalog, per-formula sweep and charge rule for the benchmark corpus, kept
  * data-driven so the generator only iterates {@code catalog() x chargesFor() x sweep()}.
  * <p>
- * The catalog is generated programmatically (loops only, deterministic - no {@code Math.random}) to
- * cover a broad element / molecule-class space: a rising halogen series (the core request), a CHNO
- * drug-like grid, S / P / Si / metal families, polyhalogenated aromatics, averagine peptides and
- * proteins, plus the original hand-picked named real compounds. The family sizes are tuned so the
- * total (formula x charge) pairs land the corpus near ~5000 cases (7 sweep variants each).
+ * The catalog is built with loops only - no {@code Math.random}, so it stays deterministic - across a
+ * broad element and molecule-class space: rising halogen series, a CHNO drug-like grid, S / P / Si /
+ * metal families, polyhalogenated aromatics, averagine peptides and proteins, and the hand-picked
+ * named real compounds. Family sizes are tuned to land near ~5000 cases at 7 sweep variants each.
  */
 public final class GenerationConfig {
 
   /**
-   * Merge width that keeps the isotope fine structure resolved.
+   * Keeps the isotope fine structure resolved.
    */
   public static final double RESOLVED_MERGE_WIDTH = 0.00005;
 
-  /**
-   * Merge width that collapses fine structure to ~one peak per nominal isotope offset.
-   */
+  /** Collapses fine structure to ~one peak per nominal isotope offset. */
   public static final double MERGED_MERGE_WIDTH = 0.05;
 
-  /**
-   * Merge width modelling a unit-resolution (quadrupole / ion-trap) instrument: everything within
-   * ~half a nominal mass merges into a single centroid per nominal isotope offset.
-   */
+  /** Unit resolution (quadrupole / ion trap): everything within ~half a nominal mass merges. */
   public static final double UNIT_MERGE_WIDTH = 0.5;
 
   public static final String RESOLVED = "RESOLVED";
   public static final String MERGED = "MERGED";
   public static final String UNIT = "UNIT";
 
-  /**
-   * Axis label for the special single-charge unit-resolution (low mass resolution) cases.
-   */
+  /** Axis label for the single-charge unit-resolution cases. */
   public static final String UNIT_RESOLUTION_AXIS = "unit_resolution";
 
-  /**
-   * Axis label for the co-elution cases ({@link InterferenceMode#REALISTIC}).
-   */
+  /** Axis label for the co-elution cases ({@link InterferenceMode#REALISTIC}). */
   public static final String REALISTIC_INTERFERENCE_AXIS = "interference_real";
 
   /**
@@ -89,51 +79,37 @@ public final class GenerationConfig {
   private GenerationConfig() {
   }
 
-  /**
-   * A catalog entry: a neutral formula and its molecule class.
-   */
+  /** A catalog entry: a neutral formula and its molecule class. */
   public record FormulaSpec(@NotNull String formula, @NotNull MoleculeClass cls) {
 
   }
 
   /**
-   * One sweep variant applied to every (formula x charge). {@code axisHint} names the applied
-   * stressor; when null the generator derives the structural axis (charge / polyhalogen /
-   * protein_highz / clean).
+   * One sweep variant applied to every (formula x charge).
    *
-   * @param axisHint        the stressor label, or null to use the structural axis
-   * @param resolutionLabel RESOLVED or MERGED
-   * @param mergeWidth      CDK merge width for this resolution
-   * @param cutoffFraction  intensity cutoff as a fraction of the base peak
-   * @param nNoise          number of random noise peaks to add
-   * @param noiseMaxRel     max noise intensity as a fraction of the base peak
-   * @param interference    which kind of co-eluting decoy interferent to add
+   * @param axisHint       the stressor label, or null to derive the structural axis (charge /
+   *                       polyhalogen / protein_highz / clean)
+   * @param cutoffFraction intensity cutoff as a fraction of the base peak
+   * @param noiseMaxRel    max noise intensity as a fraction of the base peak
    */
   public record SweepVariant(String axisHint, @NotNull String resolutionLabel, double mergeWidth,
                              double cutoffFraction, int nNoise, double noiseMaxRel,
                              @NotNull InterferenceMode interference) {
 
-    /**
-     * A retired sweep slot: generates no cases but holds its index so later variants keep theirs.
-     * See {@link GenerationConfig#RETIRED_AXIS}.
-     */
+    /** Generates no cases but holds its index; see {@link GenerationConfig#RETIRED_AXIS}. */
     @NotNull
     public static SweepVariant retired() {
       return new SweepVariant(RETIRED_AXIS, RESOLVED, RESOLVED_MERGE_WIDTH, 0.0, 0, 0.0,
           InterferenceMode.NONE);
     }
 
-    /**
-     * @return whether this slot is retired and must not produce any case.
-     */
     public boolean isRetired() {
       return RETIRED_AXIS.equals(axisHint);
     }
   }
 
   /**
-   * Formula catalog covering the important elements and molecule classes. Built programmatically
-   * from per-family helpers so the corpus can scale to ~5000 cases while staying deterministic.
+   * Built from the per-family helpers below, so the corpus scales while staying deterministic.
    */
   @NotNull
   public static List<FormulaSpec> catalog() {
@@ -154,9 +130,7 @@ public final class GenerationConfig {
     return list;
   }
 
-  /**
-   * The original hand-picked named real compounds, so named real chemistry stays represented.
-   */
+  /** Hand-picked named real compounds, so real chemistry stays represented. */
   private static void addNamedReal(@NotNull final List<FormulaSpec> list) {
     // SMALL: CHNO, polyhalogens (Cl/Br), Cu, Si, P+S
     list.add(new FormulaSpec("C8H10N4O2", MoleculeClass.SMALL));      // caffeine
@@ -178,10 +152,7 @@ public final class GenerationConfig {
     list.add(new FormulaSpec("C600H900N150O180S3", MoleculeClass.PROTEIN));// ~13 kDa synthetic
   }
 
-  /**
-   * Chlorinated series: for n=1..20 a compound {@code C{20+4n}H{...}Cl{n}} where the carbon count
-   * is >20 and rises with n; halogens displace H. The core of the user's request.
-   */
+  /** Chlorinated series {@code C{20+4n}H{...}Cl{n}}: carbons above 20 and rising, H displaced. */
   private static void addChlorinatedSeries(@NotNull final List<FormulaSpec> list) {
     for (int n = 1; n <= 20; n++) {
       final int c = 20 + 4 * n;
@@ -194,9 +165,7 @@ public final class GenerationConfig {
     }
   }
 
-  /**
-   * Brominated series: for n=1..20 a compound {@code C{20+4n}H{...}Br{n}}, carbons >20 and rising.
-   */
+  /** Brominated series {@code C{20+4n}H{...}Br{n}}. */
   private static void addBrominatedSeries(@NotNull final List<FormulaSpec> list) {
     for (int n = 1; n <= 20; n++) {
       final int c = 20 + 4 * n;
@@ -209,10 +178,7 @@ public final class GenerationConfig {
     }
   }
 
-  /**
-   * Mixed halogen series: for n=1..10 a compound {@code C{20+5n}H{...}Cl{n}Br{n}}, carbons >20 and
-   * rising with the total heteroatom count.
-   */
+  /** Mixed halogen series {@code C{20+5n}H{...}Cl{n}Br{n}}. */
   private static void addMixedHalogenSeries(@NotNull final List<FormulaSpec> list) {
     for (int n = 1; n <= 10; n++) {
       final int c = 20 + 5 * n;
@@ -226,10 +192,7 @@ public final class GenerationConfig {
     }
   }
 
-  /**
-   * Oxygenated chlorinated series (ether / dioxin-like realism): for n=1..15 a compound
-   * {@code C{20+4n}H{...}Cl{n}O2}, carbons >20 and rising with n.
-   */
+  /** Oxygenated chlorinated series {@code C{20+4n}H{...}Cl{n}O2}, ether / dioxin-like. */
   private static void addChlorinatedOxygenSeries(@NotNull final List<FormulaSpec> list) {
     for (int n = 1; n <= 15; n++) {
       final int c = 20 + 4 * n;
@@ -243,10 +206,7 @@ public final class GenerationConfig {
     }
   }
 
-  /**
-   * Realistic polyhalogenated aromatics: PCB-like {@code C12H{10-n}Cl{n}}, PBDE-like
-   * {@code C12H{10-n}Br{n}O}, plus a few chlorinated dioxins / furans.
-   */
+  /** PCB-like {@code C12H{10-n}Cl{n}}, PBDE-like {@code C12H{10-n}Br{n}O}, dioxins and furans. */
   private static void addPolyhalogenatedAromatics(@NotNull final List<FormulaSpec> list) {
     for (int n = 1; n <= 10; n++) {
       final StringBuilder pcb = new StringBuilder();
@@ -271,9 +231,7 @@ public final class GenerationConfig {
     list.add(new FormulaSpec("C12H6Cl2O2", MoleculeClass.SMALL));
   }
 
-  /**
-   * CHNO drug-like grid: carbons x N x O, with H = round(1.5*c).
-   */
+  /** CHNO drug-like grid: carbons x N x O, with H = round(1.5*c). */
   private static void addChnoGrid(@NotNull final List<FormulaSpec> list) {
     for (final int c : CHNO_CARBONS) {
       final int h = (int) Math.round(1.5 * c);
@@ -290,9 +248,7 @@ public final class GenerationConfig {
     }
   }
 
-  /**
-   * Sulfur family: CHNO backbones with S in {1,2,4,6} at several carbon sizes.
-   */
+  /** CHNO backbones with S in {1,2,4,6} at several carbon sizes. */
   private static void addSulfurFamily(@NotNull final List<FormulaSpec> list) {
     final int[] carbons = {16, 24, 34, 44, 54};
     final int[] sulfur = {1, 2, 4, 6};
@@ -311,9 +267,7 @@ public final class GenerationConfig {
     }
   }
 
-  /**
-   * Phosphorus family: P in {1,2,3} (+ O, and S on the larger ones) at a few carbon sizes.
-   */
+  /** P in {1,2,3}, plus O and S on the larger backbones. */
   private static void addPhosphorusFamily(@NotNull final List<FormulaSpec> list) {
     final int[] carbons = {10, 18, 26, 34};
     final int[] phosphorus = {1, 2, 3};
@@ -332,9 +286,7 @@ public final class GenerationConfig {
     }
   }
 
-  /**
-   * Silicon family: Si in {1,2,3,4} with C/H/O (siloxane-like), a few backbone sizes each.
-   */
+  /** Siloxane-like: Si in {1,2,3,4} with C/H/O. */
   private static void addSiliconFamily(@NotNull final List<FormulaSpec> list) {
     for (int si = 1; si <= 4; si++) {
       for (int k = 0; k < 3; k++) {
@@ -351,8 +303,8 @@ public final class GenerationConfig {
   }
 
   /**
-   * Metal / organometallic family: Fe, Cu, Zn, Ni, Mg, B (1-2 atoms) on a C/H/N/O(/Cl) backbone.
-   * These stress M+2 / heavy-isotope handling with non-halogen heavy elements.
+   * Fe, Cu, Zn, Ni, Mg, B on a C/H/N/O(/Cl) backbone: stresses M+2 handling with NON-halogen heavy
+   * elements.
    */
   private static void addMetalFamily(@NotNull final List<FormulaSpec> list) {
     final String[] metals = {"Fe", "Cu", "Zn", "Ni", "Mg", "B"};

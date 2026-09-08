@@ -58,7 +58,7 @@ import org.jetbrains.annotations.Nullable;
 public final class IsotopeMetrics {
 
   /**
-   * Heavy elements the element metric is restricted to (both detected and true sets), matching the
+   * Both the detected and the true set are restricted to these, matching the
    * {@link ElementAutoDetector} candidate set so precision/recall stay comparable.
    */
   private static final Set<String> INFERABLE_HEAVY = new LinkedHashSet<>(
@@ -68,12 +68,8 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * Compute the per-case primitives for one benchmark case, seeded only from the base peak (the
-   * start-signal-invariance flag is then trivially true). Used by the fast CI test.
-   *
-   * @param c        the ground-truth case
-   * @param result   the engine detection, or {@code null} when the engine returned nothing
-   * @param detectMs wall time of the detect call in milliseconds
+   * Score one case seeded only from the base peak, so the start-signal-invariance flag is trivially
+   * true. Used by the fast CI test.
    */
   @NotNull
   public static CaseMetrics computeCase(@NotNull final GroundTruthCase c,
@@ -82,16 +78,11 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * Compute the per-case primitives for one benchmark case. Every metric except start-signal
-   * invariance is derived from {@code result} (the base-peak-seeded detection);
-   * {@code seedBestCharges} holds the winning charge obtained when the finder is seeded from each
-   * tested start signal (monoisotopic / base / top peak) and drives
-   * {@link CaseMetrics#chargeStartInvariant()}.
+   * Score one case. Every metric except start-signal invariance comes from {@code result}, the
+   * base-peak-seeded detection.
    *
-   * @param c               the ground-truth case
-   * @param result          the base-peak-seeded detection, or {@code null} when nothing was found
-   * @param seedBestCharges winning charge from each start signal (0 = no detection)
-   * @param detectMs        wall time of the base-peak detect call in milliseconds
+   * @param seedBestCharges winning charge per tested start signal (0 = no detection), which drives
+   *                        {@link CaseMetrics#chargeStartInvariant()} alone
    */
   @NotNull
   public static CaseMetrics computeCase(@NotNull final GroundTruthCase c,
@@ -104,12 +95,10 @@ public final class IsotopeMetrics {
     final boolean chargeRecallAlt =
         result != null && result.scores().stream().anyMatch(s -> s.charge() == c.trueCharge());
 
-    // best detected pattern (best-first); empty when there is no detection
     final IsotopePattern best =
         (result == null || result.patterns().isEmpty()) ? null : result.patterns().get(0);
     final double[] detected = patternMz(best);
 
-    // pattern precision / recall / F1
     final int matchedDetected = countMatched(detected, c.trueOffsetsMz(), tol);
     final int matchedTrue = countMatched(c.trueOffsetsMz(), detected, tol);
     final double precision = detected.length == 0 ? 0d : (double) matchedDetected / detected.length;
@@ -132,20 +121,18 @@ public final class IsotopeMetrics {
         detectHeavyElements(best, c.spectrum(), c.seedMz(), tol));
     final Set<String> trueHeavy = restrictHeavy(c.trueHeavyElements());
     final Double[] elementPr = elementPrecisionRecall(detectedHeavy, trueHeavy);
-    // containment: is every true element among the reported possibilities? This is the property a set
-    // of possibilities is supposed to have - precision only measures how large the set is.
+    // containment is the property a set of possibilities is supposed to have; precision only
+    // measures how large that set got
     final Boolean elementContainment =
         trueHeavy.isEmpty() ? null : detectedHeavy.containsAll(trueHeavy);
     final Integer elementSetSize = best == null ? null : detectedHeavy.size();
 
-    // score margin (only meaningful when there is a detection)
     final Double scoreMargin = result == null ? null : scoreMargin(result.scores(), c.trueCharge());
 
     final double winningScore =
         (result == null || result.scores().isEmpty()) ? 0d : result.scores().get(0).score();
 
-    // start-signal invariance (position-agnostic property): every tested start signal must yield the
-    // same winning charge, regardless of whether that charge is correct
+    // every start signal must yield the same winning charge, correct or not
     final boolean chargeStartInvariant = allEqual(seedBestCharges);
 
     return new CaseMetrics(c.axis(), c.trueCharge(), predictedCharge, chargeTop1, chargeRecallAlt,
@@ -154,10 +141,8 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * Start signals to seed the finder from for the invariance check: the monoisotopic (lowest-m/z),
-   * the base (most intense), and the top (highest-m/z) TRUE isotope peak, de-duplicated. Each entry
-   * is {@code {mz, height}} with the height read from the spectrum. Falls back to the case seed
-   * when the case has no true peaks.
+   * Seeds for the invariance check: the monoisotopic, base and top TRUE isotope peak, deduplicated,
+   * as {@code {mz, height}}. Falls back to the case seed when there are no true peaks.
    */
   @NotNull
   public static List<double[]> startSeeds(@NotNull final GroundTruthCase c) {
@@ -189,9 +174,6 @@ public final class IsotopeMetrics {
     return seeds;
   }
 
-  /**
-   * Intensity of the spectrum peak closest to {@code mz} within tolerance, or 0 if none.
-   */
   private static double heightAt(@NotNull final SimpleMassSpectrum s, final double mz,
       @NotNull final MZTolerance tol) {
     double bestErr = Double.POSITIVE_INFINITY;
@@ -206,10 +188,6 @@ public final class IsotopeMetrics {
     return height;
   }
 
-  /**
-   * @return whether all entries are equal (an empty or single-element array is trivially
-   * invariant).
-   */
   private static boolean allEqual(@NotNull final int[] values) {
     for (int i = 1; i < values.length; i++) {
       if (values[i] != values[0]) {
@@ -220,9 +198,8 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * Aggregate a list of per-case metrics (all belonging to {@code axisLabel}) into a single
-   * {@link MetricRow}. Boolean rates are means of 0/1; excludable metrics average only their
-   * defined cases; {@code aucCharge} and any all-undefined metric are {@link Double#NaN}.
+   * Aggregate the per-case metrics of one axis. Boolean rates are means of 0/1, excludable metrics
+   * average only their defined cases, and an all-undefined metric becomes {@link Double#NaN}.
    */
   @NotNull
   public static MetricRow aggregate(@NotNull final String axisLabel,
@@ -261,8 +238,7 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * Group cases by axis, produce one {@link MetricRow} per axis (sorted by axis name) plus a final
-   * overall {@code ALL} row.
+   * One {@link MetricRow} per axis, sorted by name, plus a final overall {@code ALL} row.
    */
   @NotNull
   public static List<MetricRow> aggregateByAxis(@NotNull final List<CaseMetrics> cases) {
@@ -283,9 +259,6 @@ public final class IsotopeMetrics {
 
   // ---- per-case helpers ----------------------------------------------------
 
-  /**
-   * The m/z of every point of the pattern, or an empty array if the pattern is null/empty.
-   */
   @NotNull
   private static double[] patternMz(@Nullable final IsotopePattern p) {
     if (p == null) {
@@ -300,8 +273,7 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * Count how many values in {@code query} have at least one value in {@code reference} within
-   * tolerance.
+   * @return how many {@code query} values have a {@code reference} value within tolerance.
    */
   private static int countMatched(@NotNull final double[] query, @NotNull final double[] reference,
       @NotNull final MZTolerance tol) {
@@ -318,8 +290,7 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * best correct-charge score − best incorrect-charge score (each defaulting to 0 when no such
-   * charge was scored).
+   * @return best correct-charge score − best incorrect-charge score, each 0 when unscored.
    */
   private static double scoreMargin(@NotNull final List<ChargeScore> scores, final int trueCharge) {
     double bestCorrect = 0d;
@@ -335,19 +306,12 @@ public final class IsotopeMetrics {
   }
 
   /**
-   * Heavy-element detector for the element metric, run on the SAME input the engine gives the
-   * detector during processing: the raw spectrum window around the detected pattern
-   * ({@link ElementAutoDetector#collectDetectionWindow}), not the emitted pattern alone.
+   * Run the element detector on the SAME input the engine gives it during processing: the raw
+   * spectrum window around the pattern, not the emitted pattern alone.
    * <p>
-   * decision: this used to pass only the pattern's own signals, which measured a strictly weaker
-   * detector than the one that ships - heavy M+2 evidence often sits at an offset the pattern did not
-   * keep, so the metric under-reported recall for reasons the engine does not suffer from. The window
-   * definition is shared with {@link IsotopeFinderEngine} so the two cannot drift apart.
-   *
-   * @param p        the detected pattern (null / empty -> no detection).
-   * @param spectrum the source spectrum the pattern was detected in.
-   * @param seedMz   the m/z the search was seeded from (the feature m/z in the engine).
-   * @param tol      the case's m/z tolerance.
+   * decision: passing only the pattern's own signals measured a strictly weaker detector than the
+   * one that ships, because heavy M+2 evidence often sits at an offset the pattern did not keep. The
+   * window definition is shared with {@link IsotopeFinderEngine} so the two cannot drift apart.
    */
   @NotNull
   static Set<String> detectHeavyElements(@Nullable final IsotopePattern p,
@@ -369,9 +333,6 @@ public final class IsotopeMetrics {
     return composition.elements();
   }
 
-  /**
-   * Restrict a ground-truth heavy-element set to those the stub can infer.
-   */
   @NotNull
   private static Set<String> restrictHeavy(@NotNull final Set<String> heavy) {
     final Set<String> out = new LinkedHashSet<>();

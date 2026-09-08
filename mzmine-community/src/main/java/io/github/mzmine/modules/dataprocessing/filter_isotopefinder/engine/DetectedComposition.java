@@ -30,21 +30,16 @@ import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Result of {@link ElementAutoDetector}: the heavy elements inferred to be present in an isotope
- * pattern, together with a best-effort rough atom count and a confidence per element.
+ * Result of {@link ElementAutoDetector}: the heavy elements it could not rule out, ranked best
+ * first.
  *
- * @param elements   detected heavy-element symbols (e.g. {@code {"Cl", "Br"}})
- * @param counts     symbol to a rough {@code {min, max}} atom count; may be empty when no estimate
- *                   could be made. The benchmark element metric ignores this and reads only
- *                   {@link #elements()}.
+ * @param counts     symbol to a ROUGH {@code {min, max}} atom count, possibly empty. Best-effort
+ *                   only - the atom count is deliberately not resolved.
  * @param confidence symbol to a 0..1 confidence that the element is present
  */
 public record DetectedComposition(@NotNull Set<String> elements, @NotNull Map<String, int[]> counts,
                                   @NotNull Map<String, Double> confidence) {
 
-  /**
-   * @return an empty composition (nothing detected).
-   */
   @NotNull
   public static DetectedComposition empty() {
     return new DetectedComposition(Set.of(), Map.of(), Map.of());
