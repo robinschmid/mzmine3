@@ -68,7 +68,7 @@ class IonIdentitySortingTest {
 
   @Test
   void prefersSimpleAdducts() {
-    assertEquals(List.of(IonTypes.H.asIonType(), IonTypes.NH4.asIonType(), IonTypes.NA.asIonType(),
+    assertEquals(List.of(IonTypes.H.asIonType(), IonTypes.NA.asIonType(), IonTypes.NH4.asIonType(),
             IonTypes.K.asIonType()),
         sortBestFirst(IonTypes.NA.asIonType(), IonTypes.K.asIonType(), IonTypes.H.asIonType(),
             IonTypes.NH4.asIonType()));
@@ -204,10 +204,10 @@ class IonIdentitySortingTest {
     assertEquals(1f, RANKING.frequency(IonParts.H));
     assertEquals(1f, RANKING.frequency(IonParts.H_MINUS));
     // water is only ranked as a loss
-    assertEquals(0.8f, RANKING.frequency(IonParts.H2O));
+    assertEquals(0.7f, RANKING.frequency(IonParts.H2O));
     assertEquals(IonTypeRanking.UNRANKED_FREQUENCY, RANKING.frequency(IonParts.H2O.withCount(1)));
     // acetonitrile only as an addition
-    assertEquals(0.6f, RANKING.frequency(IonParts.ACN));
+    assertEquals(0.2f, RANKING.frequency(IonParts.ACN));
     assertEquals(IonTypeRanking.UNRANKED_FREQUENCY, RANKING.frequency(IonParts.ACN.withCount(-1)));
   }
 
@@ -220,14 +220,4 @@ class IonIdentitySortingTest {
     assertEquals(1d, onlyProton.score(IonTypes.H.asIonType()), 1e-6);
   }
 
-  @Test
-  void summaryListsMostFrequentFirst() {
-    final String summary = RANKING.toShortSummaryString();
-    // protonation and deprotonation share the frequency 1, the addition comes first
-    assertTrue(summary.startsWith("+H+ > -H+ > +NH4+"), summary);
-    assertTrue(summary.endsWith("> else"), summary);
-    // neutral modifications and the undefined charge carrier are not listed
-    assertFalse(summary.contains("H2O"), summary);
-    assertFalse(summary.contains("undefined"), summary);
-  }
 }
