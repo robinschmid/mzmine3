@@ -36,11 +36,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The full carbon-averagine isotope finder algorithm: estimates the carbon count from the searched
+ * The full carbon-model isotope finder algorithm: estimates the carbon count from the searched
  * m/z to model the 13C envelope, with heavy-isotope-aware upper bounds. Requires no formula
  * prediction and exposes every parameter of the detection run.
  */
-public class CarbonAveragineAlgorithmModule implements IsotopeFinderAlgorithmModule {
+public class CarbonModelAlgorithmModule implements IsotopeFinderAlgorithmModule {
 
   @Override
   public @NotNull String getName() {
@@ -49,7 +49,7 @@ public class CarbonAveragineAlgorithmModule implements IsotopeFinderAlgorithmMod
 
   @Override
   public @Nullable Class<? extends ParameterSet> getParameterSetClass() {
-    return CarbonAveragineAlgorithmParameters.class;
+    return CarbonModelAlgorithmParameters.class;
   }
 
   @Override
@@ -57,7 +57,7 @@ public class CarbonAveragineAlgorithmModule implements IsotopeFinderAlgorithmMod
       @NotNull final ModularFeatureList[] featureLists, @NotNull final ParameterSet parameters,
       @NotNull final ParameterSet topParameters, @NotNull final Instant moduleCallDate) {
     // clone so a task never reads the live GUI/config instance while it is running
-    final CarbonAveragineAlgorithmParameters algo = (CarbonAveragineAlgorithmParameters) parameters.cloneParameterSet();
+    final CarbonModelAlgorithmParameters algo = (CarbonModelAlgorithmParameters) parameters.cloneParameterSet();
 
     final List<Task> tasks = new ArrayList<>(featureLists.length);
     for (final ModularFeatureList featureList : featureLists) {

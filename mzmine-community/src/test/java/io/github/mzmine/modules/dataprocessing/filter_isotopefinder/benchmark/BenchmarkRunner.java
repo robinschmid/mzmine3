@@ -30,8 +30,8 @@ import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.Envel
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.EnvelopeModel;
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.IsotopeFinderEngine;
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.IsotopeFinderEngineConfig;
-import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonAveragineEnvelopeModel;
-import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonAveragineEnvelopeParameters;
+import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeModel;
+import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeParameters;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -48,7 +48,7 @@ public final class BenchmarkRunner {
   }
 
   /**
-   * Build a fresh engine for one case in signal / carbon-averagine mode (standalone, no
+   * Build a fresh engine for one case in signal / carbon-model mode (standalone, no
    * MZmineCore).
    *
    * @param c          the case, which carries the elements, tolerance and max charge.
@@ -58,8 +58,7 @@ public final class BenchmarkRunner {
   @NotNull
   public static IsotopeFinderEngine buildEngine(@NotNull final GroundTruthCase c,
       final boolean requireC13) {
-    final EnvelopeModel model = new CarbonAveragineEnvelopeModel(
-        CarbonAveragineEnvelopeParameters.createDefault(),
+    final EnvelopeModel model = new CarbonEnvelopeModel(CarbonEnvelopeParameters.createDefault(),
         new EnvelopeContext(c.elements(), c.tol()));
     return new IsotopeFinderEngine(
         IsotopeFinderEngineConfig.of(c.elements(), c.maxCharge(), c.tol(), model, "benchmark",

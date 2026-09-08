@@ -41,13 +41,18 @@ import org.jetbrains.annotations.Nullable;
 import org.openscience.cdk.Element;
 
 /**
- * Carbon-averagine envelope model. Estimates the carbon count from the searched neutral mass and
- * models the 13C isotope envelope (Poisson or binomial). The {@code expected} intensities are the
- * pure-carbon envelope. The {@code upperBound} additionally convolves heavy-isotope contributions
- * (S/Cl/Br ... at M+2, M+4, ...) derived from the user's element list, so halogenated patterns are
- * not penalized while implausibly large signals are still flagged.
+ * Carbon envelope model. Estimates the carbon count from the searched neutral mass via a
+ * configurable carbon-per-Dalton ratio and models the 13C isotope envelope (Poisson or binomial).
+ * The {@code expected} intensities are the pure-carbon envelope. The {@code upperBound}
+ * additionally convolves heavy-isotope contributions (S/Cl/Br ... at M+2, M+4, ...) derived from
+ * the user's element list, so halogenated patterns are not penalized while implausibly large
+ * signals are still flagged.
+ * <p>
+ * This is NOT the averagine model: no average amino-acid residue formula is assumed anywhere. Only
+ * the carbon-per-mass ratio matters, and its min/typical/max bounds are user parameters wide enough
+ * to cover small molecules, halogen-rich compounds and peptides alike.
  */
-public class CarbonAveragineEnvelopeModel implements EnvelopeModel {
+public class CarbonEnvelopeModel implements EnvelopeModel {
 
   // natural abundance fraction of 13C (CDK 0-100 scale -> here as fraction)
   private static final double P_13C = 0.0107;
@@ -65,14 +70,13 @@ public class CarbonAveragineEnvelopeModel implements EnvelopeModel {
   // user-configured heavy elements keyed by element symbol, used for the crude upper-bound estimate
   private final LinkedHashMap<String, HeavyContribution> userHeavies;
 
-  public CarbonAveragineEnvelopeModel(@NotNull final ParameterSet params,
+  public CarbonEnvelopeModel(@NotNull final ParameterSet params,
       @NotNull final EnvelopeContext ctx) {
-    this.carbonPerDaltonMin = params.getValue(CarbonAveragineEnvelopeParameters.carbonPerDaltonMin);
-    this.carbonPerDaltonTypical = params.getValue(
-        CarbonAveragineEnvelopeParameters.carbonPerDaltonTypical);
-    this.carbonPerDaltonMax = params.getValue(CarbonAveragineEnvelopeParameters.carbonPerDaltonMax);
-    this.minRelIntensity = params.getValue(CarbonAveragineEnvelopeParameters.minRelIntensity);
-    this.usePoisson = params.getValue(CarbonAveragineEnvelopeParameters.usePoissonNotBinomial);
+    this.carbonPerDaltonMin = params.getValue(CarbonEnvelopeParameters.carbonPerDaltonMin);
+    this.carbonPerDaltonTypical = params.getValue(CarbonEnvelopeParameters.carbonPerDaltonTypical);
+    this.carbonPerDaltonMax = params.getValue(CarbonEnvelopeParameters.carbonPerDaltonMax);
+    this.minRelIntensity = params.getValue(CarbonEnvelopeParameters.minRelIntensity);
+    this.usePoisson = params.getValue(CarbonEnvelopeParameters.usePoissonNotBinomial);
     this.userHeavies = extractHeavyContributions(ctx.elements());
   }
 

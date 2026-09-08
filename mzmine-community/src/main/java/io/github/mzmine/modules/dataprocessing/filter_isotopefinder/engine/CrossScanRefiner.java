@@ -25,6 +25,7 @@
 
 package io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine;
 
+import com.google.common.collect.Range;
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.datamodel.IsotopePattern;
 import io.github.mzmine.datamodel.IsotopePattern.IsotopePatternStatus;
@@ -37,7 +38,8 @@ import io.github.mzmine.util.DataPointSorter;
 import io.github.mzmine.util.MathUtils;
 import io.github.mzmine.util.SortingDirection;
 import io.github.mzmine.util.SortingProperty;
-import io.github.mzmine.util.collections.BinarySearch.DefaultTo;
+import io.github.mzmine.util.collections.BinarySearch;
+import io.github.mzmine.util.collections.IndexRange;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import java.util.ArrayList;
 import java.util.List;
@@ -202,16 +204,21 @@ public final class CrossScanRefiner {
   private static @Nullable ScanAggregate aggregateAcrossScans(final double targetMz,
       final double baseMz, @NotNull final List<? extends MassSpectrum> scans,
       @NotNull final MZTolerance tol, @NotNull final RatioAggregation aggregation) {
+    // the two m/z windows do not depend on the scan, so they are built once here: each scan then
+    // costs two binary searches plus a sum over the matched index range, with no per-data-point
+    // tolerance checks at all
+    final Range<Double> baseWindow = tol.getToleranceRange(baseMz);
+    final Range<Double> targetWindow = tol.getToleranceRange(targetMz);
     final DoubleArrayList ratios = new DoubleArrayList();
     int presentCount = 0;
     double weightedMzSum = 0d;
     double weightSum = 0d;
     for (final MassSpectrum scan : scans) {
-      final MatchedSignal base = matchWithinTolerance(scan, baseMz, tol);
+      final MatchedSignal base = matchWithinTolerance(scan, baseWindow);
       if (base.intensity() <= 0) {
         continue; // this scan does not contain the base peak -> skip
       }
-      final MatchedSignal target = matchWithinTolerance(scan, targetMz, tol);
+      final MatchedSignal target = matchWithinTolerance(scan, targetWindow);
       ratios.add(target.intensity() / base.intensity());
       if (target.intensity() > 0) {
         presentCount++;
@@ -227,40 +234,38 @@ public final class CrossScanRefiner {
   }
 
   /**
-   * Match a probed m/z in one scan, summing ALL data points within the tolerance rather than taking
-   * the single nearest one.
+   * Match a probed m/z window in one scan, summing ALL data points inside it rather than taking the
+   * single nearest one.
    * <p>
    * decision: a split centroid (one peak reported as two adjacent points, common on FT data and
    * after mass-list recalibration) otherwise contributes only part of its intensity, which biases
    * every ratio it takes part in - and asymmetrically, since the base peak may be split in one scan
    * and the target in another. The returned m/z is intensity-weighted over the matched points.
    *
+   * @param mzWindow the tolerance window of the probed m/z, built once by the caller.
    * @return the summed intensity and intensity-weighted m/z; intensity 0 (m/z {@code NaN}) when no
-   * data point falls within the tolerance.
+   * data point falls inside the window.
    */
   private static @NotNull MatchedSignal matchWithinTolerance(@NotNull final MassSpectrum scan,
-      final double mz, @NotNull final MZTolerance tol) {
+      @NotNull final Range<Double> mzWindow) {
     final int n = scan.getNumberOfDataPoints();
     if (n == 0) {
       return MatchedSignal.ABSENT;
     }
-    final int idx = scan.binarySearch(mz, DefaultTo.CLOSEST_VALUE);
-    if (idx < 0 || !tol.checkWithinTolerance(mz, scan.getMzValue(idx))) {
+    // data points are sorted by m/z, so the matches are exactly one contiguous index range
+    final IndexRange matched = BinarySearch.indexRange(mzWindow, n, scan::getMzValue);
+    if (matched.isEmpty()) {
       return MatchedSignal.ABSENT;
     }
     double sum = 0d;
     double weightedMz = 0d;
-    // data points are sorted by m/z, so the matches form a contiguous run around idx
-    for (int i = idx; i >= 0 && tol.checkWithinTolerance(mz, scan.getMzValue(i)); i--) {
-      sum += scan.getIntensityValue(i);
-      weightedMz += scan.getMzValue(i) * scan.getIntensityValue(i);
-    }
-    for (int i = idx + 1; i < n && tol.checkWithinTolerance(mz, scan.getMzValue(i)); i++) {
-      sum += scan.getIntensityValue(i);
-      weightedMz += scan.getMzValue(i) * scan.getIntensityValue(i);
+    for (int i = matched.min(); i <= matched.maxInclusive(); i++) {
+      final double intensity = scan.getIntensityValue(i);
+      sum += intensity;
+      weightedMz += scan.getMzValue(i) * intensity;
     }
     return sum > 0d ? new MatchedSignal(sum, weightedMz / sum)
-        : new MatchedSignal(0d, scan.getMzValue(idx));
+        : new MatchedSignal(0d, scan.getMzValue(matched.min()));
   }
 
   /**

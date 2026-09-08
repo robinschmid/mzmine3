@@ -27,6 +27,8 @@ package io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine;
 
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
+import io.github.mzmine.util.collections.BinarySearch;
+import io.github.mzmine.util.collections.BinarySearch.DefaultTo;
 import java.util.Arrays;
 import java.util.List;
 import java.util.TreeMap;
@@ -37,12 +39,12 @@ import org.jetbrains.annotations.Nullable;
  * The observed signals of one charge hypothesis, indexed once by their integer offset on the
  * charge-adjusted 13C grid ({@code baseMz + k * spacingDa}).
  * <p>
- * This is the single place the 13C grid is walked. Previously the same
- * {@code round((mz - baseMz) / spacingDa)} mapping was recomputed in four places with three
- * different tolerance windows (the exact-13C ladder, the spacing regression, the require-13C gap
- * probe and the fine-structure collapse), which made it easy for the definitions of "on the 13C
- * grid" to drift apart. Here the mapping is done once and every consumer expresses its own window
- * as a {@code toleranceFactor} on top of the shared {@link MZTolerance}.
+ * decision: this is the single place the 13C grid is walked. The same
+ * {@code round((mz - baseMz) / spacingDa)} mapping used to be recomputed by the exact-13C ladder,
+ * the spacing regression, the require-13C gap probe and the fine-structure collapse with three
+ * different tolerance windows, so their definitions of "on the 13C grid" could drift apart. Here the
+ * mapping happens once and every consumer expresses its own window as a {@code toleranceFactor} on
+ * the shared {@link MZTolerance}.
  * <p>
  * Two views are available per offset:
  * <ul>
@@ -58,18 +60,16 @@ final class CarbonLadder {
   /**
    * The m/z tolerance is widened by this factor when testing whether a 13C-grid position is
    * occupied, so a heavy isotope (37Cl/81Br) merged with the expected 13C signal - which pulls the
-   * observed centroid a few mDa off the exact grid - still counts as present and does not open a
-   * false hole that would truncate the pattern early.
+   * observed centroid a few mDa off grid - still counts as present and does not open a false hole
+   * that would truncate the pattern early.
    */
   private static final double GAP_TOL_FACTOR = 3d;
 
   /**
-   * Cluster connectivity (see {@link #clusterSpanAround}): how many offsets a single step of the
-   * chained walk may span, i.e. one missing position may be bridged. Deliberately tiny: the test
-   * only has to tell the searched signal's own envelope (whose isotope peaks are one or two offsets
-   * apart, even where a weak intermediate 13C peak fell below the noise floor) from an unrelated
-   * cluster the candidate collection chained to through unrelated isotope distances, which is many
-   * offsets away.
+   * Cluster connectivity (see {@link #clusterSpanAround}): how many offsets one step of the chained
+   * walk may span, i.e. one missing position may be bridged. Deliberately tiny: the test only has to
+   * tell the searched signal's own envelope from an unrelated cluster the candidate collection
+   * chained to through unrelated isotope distances, which is many offsets away.
    */
   private static final int CLUSTER_MAX_GAP = 2;
 
@@ -77,7 +77,7 @@ final class CarbonLadder {
   private final double spacingDa;
   private final MZTolerance tol;
   /**
-   * All candidate m/z ascending, so {@link #nearestMzWithin} can binary-search a widened window
+   * All candidate m/z ascending, so {@link #nearestMzWithin} can binary-search the closest one
    * instead of scanning every candidate per probed offset.
    */
   private final double[] sortedMz;
@@ -118,10 +118,9 @@ final class CarbonLadder {
       } else {
         // accumulate the collapsed view; keep the closest-to-grid signal as the isolated one
         final boolean closer = error < prev.gridError();
-        byOffset.put(offset,
-            new LadderPeak(closer ? mz : prev.nearestMz(), closer ? intensity : prev.nearestIntensity(),
-                closer ? error : prev.gridError(), prev.summedIntensity() + intensity,
-                prev.weightedMzSum() + mz * intensity));
+        byOffset.put(offset, new LadderPeak(closer ? mz : prev.nearestMz(),
+            closer ? intensity : prev.nearestIntensity(), closer ? error : prev.gridError(),
+            prev.summedIntensity() + intensity, prev.weightedMzSum() + mz * intensity));
       }
     }
     Arrays.sort(mzs);
@@ -190,21 +189,13 @@ final class CarbonLadder {
    * @return the closest candidate m/z, or {@link Double#NaN} when the position is unoccupied.
    */
   private double nearestMzWithin(final double mz, final double toleranceFactor) {
-    if (sortedMz.length == 0) {
-      return Double.NaN;
+    final int idx = BinarySearch.binarySearch(sortedMz, mz, DefaultTo.CLOSEST_VALUE);
+    if (idx < 0) {
+      return Double.NaN; // no candidates at all
     }
     final double window = tol.getMzToleranceForMass(mz) * toleranceFactor;
-    int idx = Arrays.binarySearch(sortedMz, mz);
-    if (idx >= 0) {
-      return sortedMz[idx];
-    }
-    idx = -idx - 1; // insertion point: first element greater than mz
-    final double above = idx < sortedMz.length ? sortedMz[idx] - mz : Double.MAX_VALUE;
-    final double below = idx > 0 ? mz - sortedMz[idx - 1] : Double.MAX_VALUE;
-    if (Math.min(above, below) > window) {
-      return Double.NaN;
-    }
-    return above <= below ? sortedMz[idx] : sortedMz[idx - 1];
+    final double nearest = sortedMz[idx];
+    return Math.abs(nearest - mz) <= window ? nearest : Double.NaN;
   }
 
   /**
@@ -227,23 +218,20 @@ final class CarbonLadder {
 
   /**
    * Select the gap-free 13C ladder through the observed base (offset 0), as the optional require-13C
-   * gate needs it. Prefers the every-13C (step 1) ladder; when that reaches fewer than two signals it
-   * falls back to an every-second (step 2) ladder for molecules whose pattern shows only on every
+   * gate needs it. Prefers the every-13C (step 1) ladder; when that reaches fewer than two signals
+   * it falls back to an every-second (step 2) ladder for molecules whose pattern shows only on every
    * second 13C position (an intense +2 heavy comb: Cl/Br/Cu). The step-2 ladder must reach at least
    * three signals so a lone monoisotopic + single heavy M+2 does not qualify as a 13C pattern.
    *
-   * @return inclusive {@code [minOffset, maxOffset, step]}, or {@code null} if no ladder qualifies.
+   * @return the qualifying span, or {@code null} if neither ladder qualifies.
    */
-  public int @Nullable [] requireC13Span() {
-    final int[] s1 = gapFreeSpan(1);
-    if (s1[1] - s1[0] >= 1) { // >= 2 signals on the every-13C grid
-      return new int[]{s1[0], s1[1], 1};
+  public @Nullable OffsetSpan requireC13Span() {
+    final OffsetSpan everyC13 = gapFreeSpan(1);
+    if (everyC13.size() >= 2) {
+      return everyC13;
     }
-    final int[] s2 = gapFreeSpan(2);
-    if (s2[1] - s2[0] >= 4) { // >= 3 signals on the every-second grid
-      return new int[]{s2[0], s2[1], 2};
-    }
-    return null;
+    final OffsetSpan everySecond = gapFreeSpan(2);
+    return everySecond.size() >= 3 ? everySecond : null;
   }
 
   /**
@@ -260,9 +248,9 @@ final class CarbonLadder {
    * inside the pattern by widening the crop instead (see the caller).
    *
    * @param step the offset step (1 = every 13C, 2 = every second 13C).
-   * @return inclusive {@code [minOffset, maxOffset]} span containing offset 0.
+   * @return the span containing offset 0.
    */
-  private int @NotNull [] gapFreeSpan(final int step) {
+  private @NotNull OffsetSpan gapFreeSpan(final int step) {
     int hi = 0;
     while (!Double.isNaN(nearestMzWithin(exactMzAt(hi + step), GAP_TOL_FACTOR))) {
       hi += step;
@@ -271,7 +259,7 @@ final class CarbonLadder {
     while (!Double.isNaN(nearestMzWithin(exactMzAt(lo - step), GAP_TOL_FACTOR))) {
       lo -= step;
     }
-    return new int[]{lo, hi};
+    return new OffsetSpan(lo, hi, step);
   }
 
   /**
@@ -283,12 +271,12 @@ final class CarbonLadder {
    *
    * @param from     the searched signal's offset on this ladder's grid.
    * @param anchorMz the searched signal's m/z.
-   * @return inclusive {@code [minOffset, maxOffset]} span containing {@code from}.
+   * @return the span containing {@code from}.
    */
-  public int @NotNull [] clusterSpanAround(final int from, final double anchorMz) {
+  public @NotNull OffsetSpan clusterSpanAround(final int from, final double anchorMz) {
     final int up = countClusterSteps(anchorMz, spacingDa);
     final int down = countClusterSteps(anchorMz, -spacingDa);
-    return new int[]{from - down, from + up};
+    return OffsetSpan.of(from - down, from + up);
   }
 
   /**

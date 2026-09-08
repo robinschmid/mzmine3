@@ -57,26 +57,26 @@ class IsotopeFinderParametersTest {
   }
 
   @Test
-  void automaticMapsOntoCarbonAveragineDefaultsWithItsOwnValues() {
+  void automaticMapsOntoCarbonModelDefaultsWithItsOwnValues() {
     final IsotopeFinderParameters params = cloned();
     final ParameterSet automatic = params.getParameter(IsotopeFinderParameters.mode)
         .setOptionGetParameters(IsotopeFinderModeOptions.AUTOMATIC);
     automatic.setParameter(AutomaticIsotopeFinderParameters.maxCharge, 3);
     automatic.setParameter(AutomaticIsotopeFinderParameters.requireC13, true);
 
-    final CarbonAveragineAlgorithmParameters resolved = AutomaticIsotopeFinderParameters.toCarbonAveragineParameters(
+    final CarbonModelAlgorithmParameters resolved = AutomaticIsotopeFinderParameters.toCarbonModelParameters(
         automatic);
 
     // exposed values are carried over
-    assertEquals(3, resolved.getValue(CarbonAveragineAlgorithmParameters.maxCharge));
-    assertTrue(resolved.getValue(CarbonAveragineAlgorithmParameters.requireC13));
+    assertEquals(3, resolved.getValue(CarbonModelAlgorithmParameters.maxCharge));
+    assertTrue(resolved.getValue(CarbonModelAlgorithmParameters.requireC13));
     // everything else falls back to the documented defaults
-    assertEquals(CarbonAveragineAlgorithmParameters.DEFAULT_ELEMENTS,
-        resolved.getValue(CarbonAveragineAlgorithmParameters.elements));
-    assertEquals(CarbonAveragineAlgorithmParameters.DEFAULT_ELEMENT_DETECTION_MODE,
-        resolved.getValue(CarbonAveragineAlgorithmParameters.elementDetectionMode));
-    assertFalse(resolved.getValue(CarbonAveragineAlgorithmParameters.explainableSignalsOnly));
-    assertFalse(resolved.getValue(CarbonAveragineAlgorithmParameters.fwhmRefine));
+    assertEquals(CarbonModelAlgorithmParameters.DEFAULT_ELEMENTS,
+        resolved.getValue(CarbonModelAlgorithmParameters.elements));
+    assertEquals(CarbonModelAlgorithmParameters.DEFAULT_ELEMENT_DETECTION_MODE,
+        resolved.getValue(CarbonModelAlgorithmParameters.elementDetectionMode));
+    assertFalse(resolved.getValue(CarbonModelAlgorithmParameters.explainableSignalsOnly));
+    assertFalse(resolved.getValue(CarbonModelAlgorithmParameters.fwhmRefine));
   }
 
   @Test

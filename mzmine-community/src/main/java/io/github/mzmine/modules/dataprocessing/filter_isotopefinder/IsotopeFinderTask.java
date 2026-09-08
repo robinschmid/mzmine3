@@ -109,15 +109,14 @@ class IsotopeFinderTask extends AbstractTask {
    * @param algorithmName name of the algorithm that created this task, only used for reporting.
    */
   IsotopeFinderTask(@NotNull MZmineProject project, @NotNull ModularFeatureList featureList,
-      @NotNull ParameterSet parameters, @NotNull CarbonAveragineAlgorithmParameters algo,
+      @NotNull ParameterSet parameters, @NotNull CarbonModelAlgorithmParameters algo,
       @NotNull String algorithmName, @NotNull Instant moduleCallDate) {
     super(featureList.getMemoryMapStorage(), moduleCallDate);
 
     this.featureList = featureList;
     this.parameters = parameters;
 
-    final List<Element> isotopeElements = algo.getValue(
-        CarbonAveragineAlgorithmParameters.elements);
+    final List<Element> isotopeElements = algo.getValue(CarbonModelAlgorithmParameters.elements);
     isotopes = isotopeElements.stream().map(Objects::toString).collect(Collectors.joining(","));
 
     // build the detection engine (envelope model, charge scoring, element auto-detection) from the
@@ -125,9 +124,9 @@ class IsotopeFinderTask extends AbstractTask {
     this.engine = IsotopeFinderEngineFactory.create(algo, algorithmName);
 
     // FWHM refinement parameters
-    this.fwhmRefineEnabled = algo.getValue(CarbonAveragineAlgorithmParameters.fwhmRefine);
-    final ParameterSet refineParams = algo.getParameter(
-        CarbonAveragineAlgorithmParameters.fwhmRefine).getEmbeddedParameters();
+    this.fwhmRefineEnabled = algo.getValue(CarbonModelAlgorithmParameters.fwhmRefine);
+    final ParameterSet refineParams = algo.getParameter(CarbonModelAlgorithmParameters.fwhmRefine)
+        .getEmbeddedParameters();
     this.refineMzTolerance = refineParams.getValue(FwhmRefineParameters.refineMzTolerance);
     this.ratioAggregation = refineParams.getValue(FwhmRefineParameters.ratioAggregation);
     this.minScansPresent = refineParams.getValue(FwhmRefineParameters.minScansPresent);

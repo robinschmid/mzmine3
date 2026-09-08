@@ -48,7 +48,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Top-level isotope finder parameters: the feature lists plus the algorithm choice. The whole setup
  * of a detection run lives in the algorithm's embedded parameters, see
- * {@link IsotopeFinderModeOptions} and {@link CarbonAveragineAlgorithmParameters}.
+ * {@link IsotopeFinderModeOptions} and {@link CarbonModelAlgorithmParameters}.
  */
 public class IsotopeFinderParameters extends SimpleParameterSet {
 
@@ -68,7 +68,7 @@ public class IsotopeFinderParameters extends SimpleParameterSet {
 
   private final IntegerParameter legacyMaxChargeTemplate = new IntegerParameter(
       "Maximum charge of isotope m/z", "Legacy parameter, moved into the algorithm parameters.",
-      CarbonAveragineAlgorithmParameters.DEFAULT_MAX_CHARGE, true, 1, 1000);
+      CarbonModelAlgorithmParameters.DEFAULT_MAX_CHARGE, true, 1, 1000);
 
   public IsotopeFinderParameters() {
     super(new UserParameter[]{featureLists, mode},

@@ -49,8 +49,8 @@ import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.Isoto
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.IsotopeFinderEngineConfig;
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.PatternAnchor;
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.RatioAggregation;
-import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonAveragineEnvelopeModel;
-import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonAveragineEnvelopeParameters;
+import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeModel;
+import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeParameters;
 import io.github.mzmine.modules.tools.isotopeprediction.IsotopePatternCalculator;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
 import java.util.List;
@@ -61,7 +61,7 @@ import org.junit.jupiter.api.Test;
 import org.openscience.cdk.Element;
 
 /**
- * Tests for the signal-based isotope finder: carbon-averagine envelope shape, charge-state
+ * Tests for the signal-based isotope finder: carbon-model envelope shape, charge-state
  * selection across element mixes / resolutions / charges, envelope-shape-aware termination, and
  * cross-scan refinement.
  */
@@ -71,7 +71,7 @@ class IsotopeFinderEngineTest {
   private static final MZTolerance TOL = new MZTolerance(0.005, 10);
 
   private static EnvelopeModel signalModel(final List<Element> elements) {
-    return new CarbonAveragineEnvelopeModel(CarbonAveragineEnvelopeParameters.createDefault(),
+    return new CarbonEnvelopeModel(CarbonEnvelopeParameters.createDefault(),
         new EnvelopeContext(elements, TOL));
   }
 
@@ -254,7 +254,7 @@ class IsotopeFinderEngineTest {
   private static IsotopeFinderEngine engineTol(final List<Element> elements, final int maxCharge,
       final MZTolerance tol) {
     return new IsotopeFinderEngine(IsotopeFinderEngineConfig.of(elements, maxCharge, tol,
-        new CarbonAveragineEnvelopeModel(CarbonAveragineEnvelopeParameters.createDefault(),
+        new CarbonEnvelopeModel(CarbonEnvelopeParameters.createDefault(),
             new EnvelopeContext(elements, tol)), "test", false));
   }
 
@@ -279,7 +279,7 @@ class IsotopeFinderEngineTest {
   }
 
   @Test
-  void carbonAveragineM1RatioMatchesCarbonCount() {
+  void carbonModelM1RatioMatchesCarbonCount() {
     final EnvelopeModel model = signalModel(
         List.of(new Element("C"), new Element("H"), new Element("N"), new Element("O")));
     final IsotopeEnvelope env = model.buildEnvelope(500.0, 1, PolarityType.POSITIVE);
@@ -1147,7 +1147,7 @@ class IsotopeFinderEngineTest {
 
   /**
    * Build an engine matching the user's reported settings: elements H,C,N,O,S (no Cl), m/z
-   * tolerance 0.009 Da / 25 ppm, max charge 10, signal (carbon-averagine) mode with default carbon
+   * tolerance 0.009 Da / 25 ppm, max charge 10, signal (carbon-model) mode with default carbon
    * params, element auto-detection on. {@code requireC13} toggles the "require 13C isotope peak"
    * option.
    */
@@ -1156,8 +1156,8 @@ class IsotopeFinderEngineTest {
     final List<Element> els = List.of(new Element("H"), new Element("C"), new Element("N"),
         new Element("O"), new Element("S"));
     final MZTolerance tol = new MZTolerance(0.009, 25);
-    final EnvelopeModel model = new CarbonAveragineEnvelopeModel(
-        CarbonAveragineEnvelopeParameters.createDefault(), new EnvelopeContext(els, tol));
+    final EnvelopeModel model = new CarbonEnvelopeModel(CarbonEnvelopeParameters.createDefault(),
+        new EnvelopeContext(els, tol));
     return new IsotopeFinderEngine(
         IsotopeFinderEngineConfig.of(els, 10, tol, model, "test", requireC13)
             .withElementDetection(ElementDetectionMode.AUTO_DETECT,
@@ -1191,7 +1191,7 @@ class IsotopeFinderEngineTest {
   @Test
   void requireC13AcceptsCarbonPoorHeteroatomRichPattern() {
     // a carbon-poor, heteroatom-rich molecule (~11 C at 400 Da = 1 C per ~36 Da, below the 1/20-per-Da
-    // averagine floor): mono 400, 13C M+1 at 401.003 with ratio ~0.13, and a 37Cl M+2 at 401.997. The
+    // carbon-model floor): mono 400, 13C M+1 at 401.003 with ratio ~0.13, and a 37Cl M+2 at 401.997. The
     // "require 13C" gate must NOT reject it just because its M+1 is below the (too high) carbon-min
     // prediction - the 13C M+1 is clearly present and plausible.
     final List<Element> elements = List.of(new Element("C"), new Element("H"), new Element("Cl"));

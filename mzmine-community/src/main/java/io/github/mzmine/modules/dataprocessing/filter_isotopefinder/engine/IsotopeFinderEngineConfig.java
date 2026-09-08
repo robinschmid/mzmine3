@@ -49,7 +49,7 @@ import org.openscience.cdk.Element;
  *                               the 13C grid nor a combination of the elements' isotopes. Off by
  *                               default - it lowers the noise leak at the cost of pattern
  *                               completeness, see
- *                               {@code CarbonAveragineAlgorithmParameters#explainableSignalsOnly}.
+ *                               {@code CarbonModelAlgorithmParameters#explainableSignalsOnly}.
  */
 public record IsotopeFinderEngineConfig(@NotNull List<Element> elements, int maxCharge,
                                         @NotNull MZTolerance tol, @NotNull EnvelopeModel model,

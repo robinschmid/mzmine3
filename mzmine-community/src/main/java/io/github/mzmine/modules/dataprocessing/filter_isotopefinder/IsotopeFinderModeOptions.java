@@ -63,7 +63,7 @@ public enum IsotopeFinderModeOptions implements ModuleOptionsEnum<IsotopeFinderA
   public Class<? extends IsotopeFinderAlgorithmModule> getModuleClass() {
     return switch (this) {
       case AUTOMATIC -> AutomaticIsotopeFinderModule.class;
-      case CARBON_MODEL -> CarbonAveragineAlgorithmModule.class;
+      case CARBON_MODEL -> CarbonModelAlgorithmModule.class;
     };
   }
 

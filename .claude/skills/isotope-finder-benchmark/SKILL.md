@@ -1,6 +1,6 @@
 ---
 name: Isotope finder benchmark
-description: How to run and interpret the isotope-finder accuracy benchmark before/after changing the engine or related scoring/model code. Use when editing IsotopeFinderEngine, ChargeScore, the EnvelopeModel implementation (CarbonAveragineEnvelopeModel), ElementAutoDetector, or anything under the filter_isotopefinder engine/signal packages that affects charge-state, pattern, or element detection.
+description: How to run and interpret the isotope-finder accuracy benchmark before/after changing the engine or related scoring/model code. Use when editing IsotopeFinderEngine, ChargeScore, the EnvelopeModel implementation (CarbonEnvelopeModel), ElementAutoDetector, or anything under the filter_isotopefinder engine/signal packages that affects charge-state, pattern, or element detection.
 ---
 
 # Isotope finder benchmark
@@ -132,7 +132,7 @@ Run from the repo root (`D:\git\mzmine3`). Gradle supplies the test classpath an
 automatically for all three tasks below.
 
 ```bash
-# 1. Regenerate the baseline over the whole corpus with the CURRENT engine (signal/carbon-averagine
+# 1. Regenerate the baseline over the whole corpus with the CURRENT engine (signal/carbon-model
 #    mode, requireC13=false). Overwrites metrics_baseline.csv; prints the table + confusion matrix.
 #    This is the main tool for before/after measurement. ~1–2 min.
 ./gradlew :mzmine-community:isotopeBenchmark
@@ -230,7 +230,7 @@ place to look next, not the reporting rule.
 
 ### Element alternatives are combined with max, not convolution
 
-`CarbonAveragineEnvelopeModel.buildEnvelope` treats the **user's** elements as co-present (convolved)
+`CarbonEnvelopeModel.buildEnvelope` treats the **user's** elements as co-present (convolved)
 but **detected** elements as mutually exclusive alternatives, taking the element-wise maximum of each
 alternative's bound. Convolving them would bound the pattern as if the molecule contained Cl and Br
 and S and Si at once, which loosens the bound multiplicatively and thereby widens `computeKeptOffsets`
@@ -293,5 +293,5 @@ signals instead of a raw window (the open half of review item 6.5).
   truth/tolerance.
 - `IsotopeAccuracyTest` (CI) and `IsotopeFinderEngineTest` (locked unit behaviors) — the test gates.
 - Engine under test: `engine/IsotopeFinderEngine`, `engine/ChargeScore`,
-  `signal/CarbonAveragineEnvelopeModel`,
+  `signal/CarbonEnvelopeModel`,
   `engine/ElementAutoDetector`.

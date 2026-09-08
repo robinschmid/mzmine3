@@ -25,7 +25,7 @@
 
 package io.github.mzmine.modules.dataprocessing.filter_isotopefinder;
 
-import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonAveragineEnvelopeParameters;
+import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeParameters;
 import io.github.mzmine.parameters.Parameter;
 import io.github.mzmine.parameters.impl.SimpleParameterSet;
 import io.github.mzmine.parameters.parametertypes.BooleanParameter;
@@ -42,7 +42,7 @@ import org.jetbrains.annotations.NotNull;
 import org.openscience.cdk.Element;
 
 /**
- * The full parameter setup of the carbon-averagine isotope finder algorithm. This is the single
+ * The full parameter setup of the carbon-model isotope finder algorithm. This is the single
  * complete configuration of a detection run: allowed elements, m/z tolerance, charge range, the
  * optional gates, the optional FWHM cross-scan refinement, and the envelope model parameters.
  * <p>
@@ -50,7 +50,7 @@ import org.openscience.cdk.Element;
  * and fill the rest via {@link #setAll} before the engine is built, so there is only one algorithm
  * implementation to maintain.
  */
-public class CarbonAveragineAlgorithmParameters extends SimpleParameterSet {
+public class CarbonModelAlgorithmParameters extends SimpleParameterSet {
 
   // default values - single source of truth, used both to build the parameters below and by
   // createDefault()/setAll() to actively set them on a fresh cloned instance (so callers never
@@ -97,7 +97,7 @@ public class CarbonAveragineAlgorithmParameters extends SimpleParameterSet {
       instead.
       Additionally, when the base peak is the monoisotopic, its M+1/M relative intensity must \
       be roughly plausible for the carbon count the mass implies. The lower bound is \
-      deliberately far below the averagine carbon minimum so that heteroatom-rich, carbon-poor \
+      deliberately far below the carbon-model minimum so that heteroatom-rich, carbon-poor \
       molecules are not rejected; mid-envelope patterns without a visible monoisotopic (e.g. \
       proteins) are exempt from this ratio check.""";
 
@@ -132,37 +132,37 @@ public class CarbonAveragineAlgorithmParameters extends SimpleParameterSet {
           + "across the scans within the feature FWHM (instead of pre-merging the scans).",
       new FwhmRefineParameters(), DEFAULT_FWHM_REFINE);
 
-  public static final ParameterSetParameter<CarbonAveragineEnvelopeParameters> envelope = new ParameterSetParameter<>(
+  public static final ParameterSetParameter<CarbonEnvelopeParameters> envelope = new ParameterSetParameter<>(
       "Carbon model envelope",
       "Parameters of the predicted 13C envelope: the carbon count is estimated from the searched mass "
           + "and drives the expected relative intensities used to score charges and bound the pattern.",
-      new CarbonAveragineEnvelopeParameters());
+      new CarbonEnvelopeParameters());
 
-  public CarbonAveragineAlgorithmParameters() {
+  public CarbonModelAlgorithmParameters() {
     super(new Parameter[]{elements, elementDetectionMode, isotopeMzTolerance, maxCharge, requireC13,
         explainableSignalsOnly, fwhmRefine, envelope});
   }
 
   /**
    * Create an independent parameter set with every value actively set to its default. Prefer this
-   * over {@code new CarbonAveragineAlgorithmParameters()} wherever a defaulted set is needed: the
+   * over {@code new CarbonModelAlgorithmParameters()} wherever a defaulted set is needed: the
    * plain constructor stores the shared static parameter templates (a {@link SimpleParameterSet}
    * does not clone), whose values may have been overwritten elsewhere (config load / GUI); this
    * clones and re-sets the documented defaults so the result is self-contained and correct.
    *
    * @return a new, independent parameter set with default values.
    */
-  public static @NotNull CarbonAveragineAlgorithmParameters createDefault() {
-    final CarbonAveragineAlgorithmParameters params = (CarbonAveragineAlgorithmParameters) new CarbonAveragineAlgorithmParameters().cloneParameterSet();
+  public static @NotNull CarbonModelAlgorithmParameters createDefault() {
+    final CarbonModelAlgorithmParameters params = (CarbonModelAlgorithmParameters) new CarbonModelAlgorithmParameters().cloneParameterSet();
     params.setAll(DEFAULT_ELEMENTS, DEFAULT_ELEMENT_DETECTION_MODE, DEFAULT_MZ_TOLERANCE,
         DEFAULT_MAX_CHARGE, DEFAULT_REQUIRE_C13, DEFAULT_EXPLAINABLE_SIGNALS_ONLY,
-        DEFAULT_FWHM_REFINE, CarbonAveragineEnvelopeParameters.createDefault());
+        DEFAULT_FWHM_REFINE, CarbonEnvelopeParameters.createDefault());
     return params;
   }
 
   /**
    * Actively set every value of this parameter set. Used by simplified algorithm options to map their
-   * few parameters onto the full carbon-averagine setup.
+   * few parameters onto the full carbon-model setup.
    * <p>
    * Only call this on a cloned (self-contained) instance - see {@link #createDefault()}.
    *
@@ -178,8 +178,7 @@ public class CarbonAveragineAlgorithmParameters extends SimpleParameterSet {
   public void setAll(@NotNull final List<Element> elementsValue,
       @NotNull final ElementDetectionMode detectionMode, @NotNull final MZTolerance tolerance,
       final int maxChargeValue, final boolean requireC13Value, final boolean explainableOnly,
-      final boolean refineAcrossFwhm,
-      @NotNull final CarbonAveragineEnvelopeParameters envelopeParameters) {
+      final boolean refineAcrossFwhm, @NotNull final CarbonEnvelopeParameters envelopeParameters) {
     setParameter(elements, List.copyOf(elementsValue));
     setParameter(elementDetectionMode, detectionMode);
     setParameter(isotopeMzTolerance, tolerance);

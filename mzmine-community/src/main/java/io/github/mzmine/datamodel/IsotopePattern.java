@@ -27,6 +27,7 @@ package io.github.mzmine.datamodel;
 
 import io.github.mzmine.datamodel.impl.MultiChargeStateIsotopePattern;
 import io.github.mzmine.datamodel.impl.SimpleIsotopePattern;
+import java.util.Comparator;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import org.jetbrains.annotations.NotNull;
@@ -35,6 +36,28 @@ import org.jetbrains.annotations.NotNull;
  * This interface defines an isotope pattern which can be attached to a peak
  */
 public interface IsotopePattern extends MassSpectrum {
+
+  /**
+   * Comparator for sorting isotope patterns by their size in descending order, and then by charge
+   * state in ascending order. Charge state -1 (not detected) is considered as the highest charge
+   * state.
+   */
+  Comparator<IsotopePattern> patternSizeComparator = Comparator.comparingInt(
+          IsotopePattern::getNumberOfDataPoints).reversed()
+      .thenComparingInt(ip -> ip.getCharge() == -1 ? Integer.MAX_VALUE : ip.getCharge());
+  /**
+   * Comparator for sorting isotope patterns by their quality
+   * {@link IsotopePattern#getScore() score} in descending order (best first). Unscored patterns
+   * ({@link Double#NaN}, e.g. predicted patterns) sort after scored ones and then fall back to
+   * {@link #patternSizeComparator} (size descending, charge ascending), preserving the legacy
+   * ordering when no scores are present.
+   */
+  Comparator<IsotopePattern> patternScoreComparator = Comparator.comparingDouble(
+          // decision: an unscored (NaN) pattern is ranked as the worst score, so a scored pattern
+          // always outranks it and a set without any score falls through to the size ordering
+          (IsotopePattern ip) -> Double.isNaN(ip.getScore()) ? Double.NEGATIVE_INFINITY : ip.getScore())
+      .reversed() // higher score first
+      .thenComparing(patternSizeComparator);
 
   /**
    * The charge state for the detected pattern

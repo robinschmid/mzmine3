@@ -49,7 +49,7 @@ import org.jetbrains.annotations.NotNull;
  * @param anchorIsBase   whether the anchor is the observed base peak ({@code placement == 0}). The
  *                       aggressive lower-bound tests additionally require this: a carbon-poor
  *                       halogenated molecule whose apex sits mid-envelope legitimately has an M+1/M
- *                       far below the averagine carbon minimum, and penalising it costs real
+ *                       far below the carbon-model minimum, and penalising it costs real
  *                       polyhalogen charge calls.
  */
 record CarbonRatio(boolean present, double value, boolean anchorIsMono,
@@ -73,7 +73,7 @@ record CarbonRatio(boolean present, double value, boolean anchorIsMono,
   private static final double LOWER_PENALTY_FLOOR = 1e-3;
   // lower bound of the "require 13C" gate as a fraction of the carbon MINIMUM (1/20-C-per-Da) M+1/M
   // prediction. Deliberately well below 1: heteroatom-rich (Cl/Br/S/metal) molecules legitimately
-  // have far fewer carbons per Dalton than the averagine minimum, so their real 13C M+1/M falls below
+  // have far fewer carbons per Dalton than the carbon-model minimum, so their real 13C M+1/M falls below
   // that minimum; a too-tight lower bound wrongly rejected such valid singly charged patterns. This
   // effectively allows down to ~1/40 C per Da while still rejecting an "M+1" too small to be a real
   // 13C peak. Looser than LOWER_FACTOR is NOT possible here - this gate rejects outright.
@@ -138,7 +138,7 @@ record CarbonRatio(boolean present, double value, boolean anchorIsMono,
     }
     // the lower bound is far more aggressive, so it only fires when the anchor demonstrably is the
     // dominant monoisotopic AND the observed base; mid-envelope apices (proteins, halogen combs) are
-    // exempt because their real M+1/M is legitimately below the averagine carbon minimum.
+    // exempt because their real M+1/M is legitimately below the carbon-model minimum.
     final double lo = m1Bounds[0] * LOWER_FACTOR;
     if (supportsLowerBound() && lo > 0d && value < lo) {
       return Math.max(LOWER_PENALTY_FLOOR, value / lo);
@@ -152,7 +152,7 @@ record CarbonRatio(boolean present, double value, boolean anchorIsMono,
    * The lower bound uses {@link #REQUIRE_C13_LOWER_FACTOR} rather than the (much looser)
    * {@link #LOWER_FACTOR} of {@link #plausibility}: this gate is opt-in and is meant to reject
    * outright, but it must still not reject heteroatom-rich, carbon-poor molecules whose real 13C
-   * M+1/M is legitimately below the averagine carbon minimum. The upper bound is the same as the soft
+   * M+1/M is legitimately below the carbon-model minimum. The upper bound is the same as the soft
    * penalty's - an "M+1" too large to be 13C (a co-eluting mono).
    *
    * @param m1Bounds {@code {min, max}} carbon M+1/M prediction for the implied neutral mass.

@@ -33,7 +33,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Baseline regenerator for the isotope-finder benchmark: runs the CURRENT engine (signal /
- * carbon-averagine mode, {@code requireC13 = false}) over the whole committed corpus, measures the
+ * carbon-model mode, {@code requireC13 = false}) over the whole committed corpus, measures the
  * accuracy metrics, and writes the committed baseline CSV. Also prints an aligned metrics table,
  * the charge confusion matrix, and the harmonic/neighbour charge-error rates.
  * <p>

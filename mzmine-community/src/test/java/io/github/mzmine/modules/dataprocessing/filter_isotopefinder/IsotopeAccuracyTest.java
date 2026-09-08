@@ -35,8 +35,8 @@ import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.Envel
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.EnvelopeModel;
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.IsotopeFinderEngine;
 import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.engine.IsotopeFinderEngineConfig;
-import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonAveragineEnvelopeModel;
-import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonAveragineEnvelopeParameters;
+import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeModel;
+import io.github.mzmine.modules.dataprocessing.filter_isotopefinder.signal.CarbonEnvelopeParameters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -87,8 +87,7 @@ class IsotopeAccuracyTest {
 
   @NotNull
   private static IsotopeFinderEngine buildEngine(@NotNull final GroundTruthCase c) {
-    final EnvelopeModel model = new CarbonAveragineEnvelopeModel(
-        CarbonAveragineEnvelopeParameters.createDefault(),
+    final EnvelopeModel model = new CarbonEnvelopeModel(CarbonEnvelopeParameters.createDefault(),
         new EnvelopeContext(c.elements(), c.tol()));
     return new IsotopeFinderEngine(
         IsotopeFinderEngineConfig.of(c.elements(), c.maxCharge(), c.tol(), model, "ci", false));

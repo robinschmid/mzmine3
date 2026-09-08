@@ -31,7 +31,6 @@ import io.github.mzmine.datamodel.IsotopePattern;
 import io.github.mzmine.datamodel.MassSpectrumType;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -49,29 +48,6 @@ public class MultiChargeStateIsotopePattern implements IsotopePattern {
 
   public static final String XML_ELEMENT = "multi_charge_state_isotopepattern";
 
-  /**
-   * Comparator for sorting isotope patterns by their size in descending order, and then by charge
-   * state in ascending order. Charge state -1 (not detected) is considered as the highest charge
-   * state.
-   */
-  public static final Comparator<IsotopePattern> patternSizeComparator = Comparator.comparingInt(
-          IsotopePattern::getNumberOfDataPoints).reversed()
-      .thenComparingInt(ip -> ip.getCharge() == -1 ? Integer.MAX_VALUE : ip.getCharge());
-
-  /**
-   * Comparator for sorting isotope patterns by their quality
-   * {@link IsotopePattern#getScore() score} in descending order (best first). Unscored patterns
-   * ({@link Double#NaN}, e.g. predicted patterns) sort after scored ones and then fall back to
-   * {@link #patternSizeComparator} (size descending, charge ascending), preserving the legacy
-   * ordering when no scores are present.
-   */
-  public static final Comparator<IsotopePattern> patternScoreComparator = Comparator.comparingDouble(
-          // decision: an unscored (NaN) pattern is ranked as the worst score, so a scored pattern
-          // always outranks it and a set without any score falls through to the size ordering
-          (IsotopePattern ip) -> Double.isNaN(ip.getScore()) ? Double.NEGATIVE_INFINITY : ip.getScore())
-      .reversed() // higher score first
-      .thenComparing(patternSizeComparator);
-
   @NotNull
   private final List<IsotopePattern> patterns = new ArrayList<>();
 
@@ -85,7 +61,7 @@ public class MultiChargeStateIsotopePattern implements IsotopePattern {
 
   /**
    * @param patterns the isotope patterns, one per charge state (must not be empty).
-   * @param sort     whether to (re-)rank the patterns by {@link #patternScoreComparator}. Pass
+   * @param sort     whether to (re-)rank the patterns by {@link IsotopePattern#patternScoreComparator}. Pass
    *                 {@code false} when the caller already ranked them with more information than a
    *                 single score carries - e.g. the isotope finder, which selects the winning
    *                 charge from the bounded quality AND a peak-count reward. Re-deriving the order
