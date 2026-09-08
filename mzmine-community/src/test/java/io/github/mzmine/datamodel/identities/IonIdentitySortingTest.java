@@ -90,6 +90,10 @@ class IonIdentitySortingTest {
             IonTypes.H.asIonType()));
   }
 
+  /**
+   * The charge state is not scored, prefilters take care of it. [M+H]+ and [M+2H]2+ therefore score
+   * the same and only the smaller mass difference decides.
+   */
   @Test
   void prefersLowerCharge() {
     assertEquals(List.of(IonTypes.H.asIonType(), IonTypes.H2_PLUS.asIonType()),
@@ -133,15 +137,14 @@ class IonIdentitySortingTest {
   }
 
   @Test
-  void scoresByMeanFrequencyMinusPenalties() {
+  void scoresByMeanFrequencyMinusMultimerPenalty() {
     // [M+H]+ is the reference with frequency 1 and no penalty
     assertEquals(1d, RANKING.score(IonTypes.H.asIonType()), 1e-6);
     // [2M+H]+ loses one multimer penalty
     assertEquals(1d - IonTypeRanking.MULTIMER_PENALTY, RANKING.score(IonTypes.M2_H.asIonType()),
         1e-6);
-    // [M+2H]2+ is a single part with count 2, so only the charge penalty applies
-    assertEquals(1d - IonTypeRanking.CHARGE_PENALTY, RANKING.score(IonTypes.H2_PLUS.asIonType()),
-        1e-6);
+    // [M+2H]2+ is a single part with count 2 and the charge is not scored, so it ties with [M+H]+
+    assertEquals(1d, RANKING.score(IonTypes.H2_PLUS.asIonType()), 1e-6);
     // mean of H2O and H
     final double h2o = RANKING.frequency(IonParts.H2O);
     assertEquals((h2o + 1d) / 2d, RANKING.score(IonTypes.H_H2O.asIonType()), 1e-6);

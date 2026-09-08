@@ -95,7 +95,7 @@ public class IonNetworkLogic {
       return result;
     }
 
-    // the ranking covers ion part frequency, in-source modifications, multimers and charge state
+    // the ranking covers ion part frequency, in-source modifications and multimers
     result = Double.compare(ranking.score(typeA), ranking.score(typeB));
     if (result != 0) {
       return result;

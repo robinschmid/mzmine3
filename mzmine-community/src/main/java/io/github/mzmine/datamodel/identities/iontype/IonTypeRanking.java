@@ -38,8 +38,8 @@ import org.jetbrains.annotations.NotNull;
 /**
  * User definable ranking of {@link IonType}s. Each {@link IonPart} gets a frequency factor that
  * says how commonly it is observed and the score of a whole ion type is the mean frequency of its
- * parts, reduced by penalties for multimers and higher charge states. A higher score means the ion
- * type is the more likely explanation.
+ * parts, reduced by a penalty for multimers. A higher score means the ion type is the more likely
+ * explanation.
  * <p>
  * decision: one single ranking holds the charge carriers of both polarities and the neutral
  * modifications. Positive and negative adducts never collide because {@link IonPartReference}
@@ -64,11 +64,6 @@ public final class IonTypeRanking {
    * separate a multimer from an equally common monomer and users tune the ranking itself.
    */
   public static final double MULTIMER_PENALTY = 0.2;
-
-  /**
-   * Score subtracted per charge above the first, so [M+2H]2+ loses this once.
-   */
-  public static final double CHARGE_PENALTY = 0.3;
 
   /**
    * Number of charged adducts listed in {@link #toSummaryString()} before it is truncated.
@@ -106,64 +101,45 @@ public final class IonTypeRanking {
    * preferences.
    */
   public static @NotNull IonTypeRanking createDefault() {
-    final List<IonPartFrequency> entries = new ArrayList<>(defaultChargeCarriers());
-    entries.addAll(defaultNeutralModifications());
-    return new IonTypeRanking(entries);
-  }
-
-  /**
-   * Charge carriers of both polarities. Protonation and deprotonation share the H part and only
-   * differ in the count direction, the same holds for the electron of [M]+ and [M]- and for the
-   * undefined charge carrier.
-   */
-  private static @NotNull List<IonPartFrequency> defaultChargeCarriers() {
-    return List.of( //
+    return new IonTypeRanking(new ArrayList<>(List.of(
         // positive
         IonPartFrequency.of(IonParts.H, 1f), //
         IonPartFrequency.of(IonParts.NH4, 0.7f), //
-        IonPartFrequency.of(IonParts.NA, 0.6f), //
-        IonPartFrequency.of(IonParts.K, 0.4f), //
+        IonPartFrequency.of(IonParts.NA, 0.71f), //
+        IonPartFrequency.of(IonParts.K, 0.35f), //
         IonPartFrequency.of(IonParts.CA, 0.2f), //
-        IonPartFrequency.of(IonParts.MG, 0.2f), //
+        IonPartFrequency.of(IonParts.MG, 0.15f), //
         IonPartFrequency.of(IonParts.FEII, 0.1f), //
         IonPartFrequency.of(IonParts.FEIII, 0.05f), //
         // negative, halides and organic acids are added to the molecule
         IonPartFrequency.of(IonParts.H_MINUS, 1f), //
         IonPartFrequency.of(IonParts.CL, 0.6f), //
-        IonPartFrequency.of(IonParts.FORMATE_FA, 0.6f), //
-        IonPartFrequency.of(IonParts.ACETATE_AC, 0.5f), //
-        IonPartFrequency.of(IonParts.BR, 0.3f), //
-        IonPartFrequency.of(IonParts.I, 0.3f), //
-        IonPartFrequency.of(IonParts.F, 0.2f), //
+        IonPartFrequency.of(IonParts.FORMATE_FA, 0.65f), //
+        IonPartFrequency.of(IonParts.ACETATE_AC, 0.45f), //
+        IonPartFrequency.of(IonParts.BR, 0.2f), //
+        IonPartFrequency.of(IonParts.I, 0.15f), //
+        IonPartFrequency.of(IonParts.F, 0.1f), //
         // the [M]+ and [M]- radicals and an undefined charge carrier are far less common than
         // protonation and deprotonation
-        IonPartFrequency.of(IonParts.M_PLUS, 0.3f), //
-        IonPartFrequency.of(IonParts.M_MINUS, 0.3f), //
-        IonPartFrequency.of(IonParts.SILENT_CHARGE, 0.3f), //
-        IonPartFrequency.of(IonParts.SILENT_CHARGE.withCount(-1), 0.3f));
-  }
-
-  /**
-   * Neutral modifications pull the mean down, so an ion type with an in-source loss ranks below the
-   * same adduct without one. assumption: each modification is only observed in the direction
-   * {@link IonParts} defines it, e.g. water as a loss and acetonitrile as an addition. The opposite
-   * direction stays unlisted and therefore counts as {@link #UNRANKED_FREQUENCY}.
-   */
-  private static @NotNull List<IonPartFrequency> defaultNeutralModifications() {
-    return List.of( //
-        IonPartFrequency.of(IonParts.H2O, 0.8f), //
-        IonPartFrequency.of(IonParts.NH3, 0.6f), //
-        IonPartFrequency.of(IonParts.ACN, 0.6f), //
-        IonPartFrequency.of(IonParts.CO, 0.5f), //
-        IonPartFrequency.of(IonParts.CO2, 0.5f), //
-        IonPartFrequency.of(IonParts.H2, 0.5f), //
-        IonPartFrequency.of(IonParts.HCL, 0.5f), //
-        IonPartFrequency.of(IonParts.FORMIC_ACID, 0.5f), //
-        IonPartFrequency.of(IonParts.ACETIC_ACID, 0.5f), //
-        IonPartFrequency.of(IonParts.METHANOL, 0.5f), //
-        IonPartFrequency.of(IonParts.ETHANOL, 0.5f), //
-        IonPartFrequency.of(IonParts.C2H4, 0.4f), //
-        IonPartFrequency.of(IonParts.ISO_PROPANOL, 0.4f));
+        IonPartFrequency.of(IonParts.M_PLUS, 0.61f), //
+        IonPartFrequency.of(IonParts.M_MINUS, 0.61f), //
+        IonPartFrequency.of(IonParts.SILENT_CHARGE, 0.6f), //
+        IonPartFrequency.of(IonParts.SILENT_CHARGE.withCount(-1), 0.6f), //
+        // neutral
+        IonPartFrequency.of(IonParts.H2O, 0.7f), //
+        IonPartFrequency.of(IonParts.NH3, 0.35f), //
+        IonPartFrequency.of(IonParts.ACN, 0.2f), //
+        IonPartFrequency.of(IonParts.CO, 0.2f), //
+        IonPartFrequency.of(IonParts.CO2, 0.25f), //
+        IonPartFrequency.of(IonParts.H2, 0.2f), //
+        IonPartFrequency.of(IonParts.HCL, 0.25f), //
+        IonPartFrequency.of(IonParts.FORMIC_ACID, 0.36f), //
+        IonPartFrequency.of(IonParts.ACETIC_ACID, 0.21f), //
+        IonPartFrequency.of(IonParts.METHANOL, 0.23f), //
+        IonPartFrequency.of(IonParts.ETHANOL, 0.16f), //
+        IonPartFrequency.of(IonParts.C2H4, 0.05f), //
+        IonPartFrequency.of(IonParts.ISO_PROPANOL, 0.04f) //
+    )));
   }
 
   /**
@@ -180,9 +156,12 @@ public final class IonTypeRanking {
    * Scores how likely an ion type is the correct explanation. Higher is better.
    * <p>
    * The score is the mean frequency of all {@link IonType#parts()} minus {@link #MULTIMER_PENALTY}
-   * per additional molecule and {@link #CHARGE_PENALTY} per charge above the first. Using the mean
-   * rather than the sum keeps ion types with a different number of parts comparable and lets a
-   * rarely observed modification drag a common adduct down.
+   * per additional molecule. Using the mean rather than the sum keeps ion types with a different
+   * number of parts comparable and lets a rarely observed modification drag a common adduct down.
+   * <p>
+   * decision: the charge state is not scored at all. Prefilters reject an ion type whose charge
+   * does not match the row, so a higher charge that survives them is a real observation and must
+   * not be penalized against a monomer.
    */
   public double score(@NotNull final IonType ion) {
     final List<IonPart> parts = ion.parts();
@@ -193,10 +172,8 @@ public final class IonTypeRanking {
     }
     final double mean = parts.isEmpty() ? UNRANKED_FREQUENCY : sum / parts.size();
 
-    // a neutral ion type has no charge to penalize, therefore clamp at 0
-    final int extraCharges = Math.max(0, ion.absTotalCharge() - 1);
     final int extraMolecules = Math.max(0, ion.molecules() - 1);
-    return mean - MULTIMER_PENALTY * extraMolecules - CHARGE_PENALTY * extraCharges;
+    return mean - MULTIMER_PENALTY * extraMolecules;
   }
 
   /**

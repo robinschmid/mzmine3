@@ -38,8 +38,8 @@ import org.jetbrains.annotations.NotNull;
  * parts users care about, e.g. Fe+2 from Fe+3 and +H from -H. Ignoring mass and formula makes a
  * reference stable even when the global ion part definition changes its formula spelling or its
  * delta mass. Ignoring the count magnitude means one reference covers +H and +2H alike, so the
- * ranking stays short and the charge state is handled by {@link IonTypeRanking#CHARGE_PENALTY}
- * instead.
+ * ranking stays short. The charge state is not ranked at all, prefilters reject an ion type whose
+ * charge does not match the row.
  *
  * @param name         the {@link IonPart#name()}, blank only for {@link IonParts#SILENT_CHARGE}
  * @param singleCharge the {@link IonPart#singleCharge()}, so the charge of a single item. Both +H

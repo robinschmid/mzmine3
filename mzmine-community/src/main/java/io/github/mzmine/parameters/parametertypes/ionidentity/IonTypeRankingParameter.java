@@ -64,9 +64,9 @@ public class IonTypeRankingParameter implements
     this("Ion type ranking", """
             Defines how likely each ion building block is to be observed. One list covers positive and negative charge
             carriers as well as neutral modifications, where a loss like -H2O is ranked separately from an addition.
-            The score of an ion type is the mean frequency of all its parts, reduced by penalties for multimers (2M) and
-            higher charge states. It decides which ion identity is shown first on a row when two ion identity networks
-            have the same size. Any building block that is not listed counts as frequency 0.""",
+            The score of an ion type is the mean frequency of all its parts, reduced by a penalty for multimers (2M).
+            It decides which ion identity is shown first on a row when two ion identity networks have the same size.
+            Any building block that is not listed counts as frequency 0.""",
         IonTypeRanking.createDefault());
   }
 

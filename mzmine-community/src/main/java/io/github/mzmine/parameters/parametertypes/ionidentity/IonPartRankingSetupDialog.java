@@ -27,7 +27,6 @@ package io.github.mzmine.parameters.parametertypes.ionidentity;
 
 import io.github.mzmine.datamodel.identities.global.GlobalIonLibraryService;
 import io.github.mzmine.datamodel.identities.iontype.IonPart;
-import io.github.mzmine.datamodel.identities.iontype.IonPartDefinition;
 import io.github.mzmine.datamodel.identities.iontype.IonPartFrequency;
 import io.github.mzmine.datamodel.identities.iontype.IonPartReference;
 import io.github.mzmine.datamodel.identities.iontype.IonParts;
@@ -74,10 +73,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Setup dialog for the single ion building block ranking. The left list offers all known building
- * blocks as an addition and as a loss, the right table holds the current ranking with an editable
- * frequency and re-sorts itself as soon as a frequency is changed. Both lists grow with the
- * dialog.
+ * Setup dialog for the single ion building block ranking. The left list offers the building blocks
+ * of the global ion library, the right table holds the current ranking with an editable frequency
+ * and re-sorts itself as soon as a frequency is changed. Both lists grow with the dialog.
  */
 final class IonPartRankingSetupDialog extends Dialog<List<IonPartFrequency>> {
 
@@ -150,10 +148,13 @@ final class IonPartRankingSetupDialog extends Dialog<List<IonPartFrequency>> {
   }
 
   /**
-   * All references known to the global ion library plus the ones already ranked, so a ranking entry
-   * never disappears just because the global definitions changed. decision: every building block is
-   * offered as an addition and as a loss because {@link IonPartDefinition} carries no count and the
-   * ranking now distinguishes the two directions.
+   * The ion parts that are currently in the global ion library, plus the ones already ranked so a
+   * ranking entry never disappears just because the global library changed.
+   * <p>
+   * decision: only the count direction a part is defined with is offered, so +H and -H2O show up
+   * but +H2O does not. {@link IonPartReference#of(IonPart)} reduces the count to its sign, which
+   * also collapses +H, +2H and +3H into the one entry +H. The opposite direction can still be typed
+   * in the manual entry row.
    */
   private static @NotNull List<IonPartReference> collectAvailableParts(
       final @NotNull List<IonPartFrequency> current) {
@@ -161,21 +162,12 @@ final class IonPartRankingSetupDialog extends Dialog<List<IonPartFrequency>> {
     // linked set keeps insertion order stable, the list view sorts anyway
     final Set<IonPartReference> references = new LinkedHashSet<>();
     for (final IonPart part : global.getIonPartsUnmodifiable()) {
-      addBothDirections(references, IonPartReference.of(part));
-    }
-    for (final IonPartDefinition definition : global.getIonPartDefinitionsCopy()) {
-      addBothDirections(references, IonPartReference.of(definition));
+      references.add(IonPartReference.of(part));
     }
     for (final IonPartFrequency entry : current) {
       references.add(entry.part());
     }
     return new ArrayList<>(references);
-  }
-
-  private static void addBothDirections(final @NotNull Set<IonPartReference> references,
-      final @NotNull IonPartReference reference) {
-    references.add(reference.withCountSign(1));
-    references.add(reference.withCountSign(-1));
   }
 
   private @NotNull FilterableListView<IonPartReference> createAvailableList() {
