@@ -222,7 +222,7 @@ class IonIdentitySortingTest {
 
   @Test
   void summaryListsMostFrequentFirst() {
-    final String summary = RANKING.toSummaryString();
+    final String summary = RANKING.toShortSummaryString();
     // protonation and deprotonation share the frequency 1, the addition comes first
     assertTrue(summary.startsWith("+H+ > -H+ > +NH4+"), summary);
     assertTrue(summary.endsWith("> else"), summary);

@@ -63,10 +63,10 @@ public final class IonTypeRanking {
    * twice. decision: kept as a code constant instead of a parameter - the value only has to
    * separate a multimer from an equally common monomer and users tune the ranking itself.
    */
-  public static final double MULTIMER_PENALTY = 0.2;
+  public static final double MULTIMER_PENALTY = 0.37;
 
   /**
-   * Number of charged adducts listed in {@link #toSummaryString()} before it is truncated.
+   * Number of charged adducts listed in {@link #toShortSummaryString()} before it is truncated.
    */
   private static final int MAX_SUMMARY_ENTRIES = 6;
 
@@ -193,9 +193,9 @@ public final class IonTypeRanking {
    * are omitted to keep it readable. The trailing "else" stands for every unlisted part with
    * {@link #UNRANKED_FREQUENCY}.
    */
-  public @NotNull String toSummaryString() {
+  public @NotNull String toShortSummaryString() {
     final List<IonPartFrequency> entries = frequencies.stream()
-        .filter(e -> !e.part().isNeutralModification() && !e.part().isSilentCharge()).toList();
+        .filter(e -> !e.part().isSilentCharge()).toList();
     if (entries.isEmpty()) {
       return "else";
     }
@@ -203,6 +203,24 @@ public final class IonTypeRanking {
         .collect(Collectors.joining(" > "));
     final String truncated = entries.size() > MAX_SUMMARY_ENTRIES ? " > ..." : "";
     return listed + truncated + " > else";
+  }
+
+  /**
+   * A short one line summary of the most frequent charged adducts of both polarities, e.g.
+   * {@code +H+ > -H+ > +NH4+ > ... > else}. Neutral modifications and the undefined charge carrier
+   * are omitted to keep it readable. The trailing "else" stands for every unlisted part with
+   * {@link #UNRANKED_FREQUENCY}.
+   */
+  public @NotNull String toFullSummaryString() {
+    final String elseFreq = "else (%s)".formatted(UNRANKED_FREQUENCY);
+    final List<IonPartFrequency> entries = frequencies.stream()
+        .filter(e -> !e.part().isNeutralModification() && !e.part().isSilentCharge()).toList();
+    if (entries.isEmpty()) {
+      return elseFreq;
+    }
+    final String listed = entries.stream().map(IonPartFrequency::toString)
+        .collect(Collectors.joining(", "));
+    return listed + ", " + elseFreq;
   }
 
   @Override
@@ -217,6 +235,6 @@ public final class IonTypeRanking {
 
   @Override
   public String toString() {
-    return "IonTypeRanking{%s}".formatted(toSummaryString());
+    return "ion ranking [%s]".formatted(toFullSummaryString());
   }
 }

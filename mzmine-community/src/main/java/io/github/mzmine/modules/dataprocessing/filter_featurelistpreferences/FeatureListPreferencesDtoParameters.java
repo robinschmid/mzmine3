@@ -27,8 +27,11 @@ package io.github.mzmine.modules.dataprocessing.filter_featurelistpreferences;
 
 import io.github.mzmine.datamodel.features.preferences.FeatureListPreferences;
 import io.github.mzmine.modules.io.projectload.version_3_0.CONST;
+import io.github.mzmine.modules.visualization.projectmetadata.SampleTypeFilter;
+import io.github.mzmine.modules.visualization.projectmetadata.table.columns.MetadataColumn;
 import io.github.mzmine.parameters.impl.IonMobilitySupport;
 import io.github.mzmine.parameters.impl.SimpleParameterSet;
+import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomParameter;
 import io.github.mzmine.parameters.parametertypes.ionidentity.IonTypeRankingParameter;
 import io.github.mzmine.parameters.parametertypes.metadata.SampleTypeFilterParameter;
 import org.jetbrains.annotations.NotNull;
@@ -42,9 +45,19 @@ import org.w3c.dom.Element;
  */
 public class FeatureListPreferencesDtoParameters extends SimpleParameterSet {
 
-  public static final SampleTypeFilterParameter rsdSampleTypes = FeatureListPreferencesParameters.rsdSampleTypes.cloneParameter();
+  /**
+   * decision: the plain parameters live here and not in {@link FeatureListPreferencesParameters},
+   * which wraps clones of them in a {@link DefaultOffCustomParameter}. This class is the
+   * persistence shape and always stores the resolved value.
+   */
+  public static final SampleTypeFilterParameter rsdSampleTypes = new SampleTypeFilterParameter(
+      "Samples for RSD columns", """
+      Select all sample types (in %s metadata column) that are used to calculate the relative standard deviation (RSD)
+      columns, e.g., the area RSD. The sample type is defined by the sample type column in the
+      metadata (CTRL/CMD + M).""".formatted(MetadataColumn.SAMPLE_TYPE_HEADER),
+      SampleTypeFilter.qc(), true);
 
-  public static final IonTypeRankingParameter ionTypeRanking = FeatureListPreferencesParameters.ionTypeRanking.cloneParameter();
+  public static final IonTypeRankingParameter ionTypeRanking = new IonTypeRankingParameter();
 
   public FeatureListPreferencesDtoParameters() {
     super(rsdSampleTypes, ionTypeRanking);
