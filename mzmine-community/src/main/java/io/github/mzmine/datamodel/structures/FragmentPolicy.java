@@ -23,26 +23,23 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io.github.mzmine.modules.dataprocessing.norm_intensity;
-
-import io.github.mzmine.datamodel.features.ModularFeatureList;
-import io.github.mzmine.modules.MZmineModule;
-import io.github.mzmine.modules.visualization.projectmetadata.table.MetadataTable;
-import io.github.mzmine.parameters.ParameterSet;
-import org.jetbrains.annotations.NotNull;
+package io.github.mzmine.datamodel.structures;
 
 /**
- * A base normalization module. {@link NormalizationTypeWithReferencesModule} if the normalization
- * may be applied to references samples and then interpolated for others.
+ * Controls whether a structure that consists of multiple disconnected components is reduced to its
+ * main component.
  */
-public sealed interface NormalizationTypeModule extends MZmineModule permits
-    InternalStandardSelectingNormalizer, MetadataColumnNormalizationTypeModule,
-    NoNormalizationTypeModule, NormalizationTypeWithReferencesModule {
+public enum FragmentPolicy {
 
-  void createAllNormalizationFunctionsToSummary(
-      @NotNull IntensityNormalizationSearchableSummary summary,
-      @NotNull ModularFeatureList featureList, @NotNull SamplesBatch samplesBatch,
-      @NotNull MetadataTable metadata, @NotNull ParameterSet mainParameters,
-      @NotNull ParameterSet moduleSpecificParameters);
+  /**
+   * Keep the component with the most heavy atoms and discard the rest. Known counter ions and
+   * solvates are demoted so that they never win against the actual analyte, and the fallback to
+   * pure size applies when every component is a counter ion.
+   */
+  MAJOR_FRAGMENT,
 
+  /**
+   * Keep all components. Charges are then still balanced across the whole structure.
+   */
+  KEEP_ALL
 }
