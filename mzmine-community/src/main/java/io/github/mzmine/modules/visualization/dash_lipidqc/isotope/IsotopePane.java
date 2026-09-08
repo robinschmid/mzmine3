@@ -140,7 +140,6 @@ public class IsotopePane extends DashboardComputationPane {
     final IonType adductType = type;
     IsotopePattern pattern = null;
     final IMolecularFormula neutralFormula = selectedMatch.getLipidAnnotation().getMolecularFormula();
-    // empty if the ion type cannot be applied to the lipid formula
     final IMolecularFormula ionFormula = neutralFormula == null || adductType == null ? null
         : adductType.addToFormula(neutralFormula, true).orElse(null);
     if (adductType != null && ionFormula != null) {

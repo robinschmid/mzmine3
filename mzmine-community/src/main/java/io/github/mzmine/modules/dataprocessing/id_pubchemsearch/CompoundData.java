@@ -130,7 +130,6 @@ public record CompoundData(
     }
 
     if (ionType != null && formula != null) {
-      // null if the ion type cannot be applied, then no scoring is possible
       formula = ionType.addToFormula(formula, true).orElse(null);
     }
 

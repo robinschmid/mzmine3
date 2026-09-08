@@ -209,7 +209,7 @@ public class LipidFragmentFactory implements ILipidFragmentFactory {
 
   private List<LipidFragment> checkForOnlyPrecursor(LipidFragmentationRule rule,
       ILipidAnnotation lipidAnnotation, Scan msMsScan) {
-    // empty if the ionization cannot be applied to the lipid formula
+
     final IMolecularFormula lipidFormula = rule.getIonizationType()
         .ionizeFormula(lipidAnnotation.getMolecularFormula()).orElse(null);
     if (lipidFormula == null) {
@@ -229,7 +229,7 @@ public class LipidFragmentFactory implements ILipidFragmentFactory {
       ILipidAnnotation lipidAnnotation, Scan msMsScan) {
     IMolecularFormula formulaNL = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
         rule.getMolecularFormula());
-    // empty if the ionization cannot be applied to the lipid formula
+
     final IMolecularFormula lipidFormula = rule.getIonizationType()
         .ionizeFormula(lipidAnnotation.getMolecularFormula()).orElse(null);
     if (lipidFormula == null) {
@@ -252,7 +252,6 @@ public class LipidFragmentFactory implements ILipidFragmentFactory {
           onlySearchForEvenChains);
       List<LipidFragment> matchedFragments = new ArrayList<>();
       for (ILipidChain lipidChain : fattyAcylChains) {
-        // empty if the ionization cannot be applied to the chain formula
         final IMolecularFormula lipidChainFormula = IonTypes.H_MINUS.asIonType()
             .addToFormula(lipidChain.getChainMolecularFormula(), true).orElse(null);
         if (lipidChainFormula == null) {
@@ -353,7 +352,7 @@ public class LipidFragmentFactory implements ILipidFragmentFactory {
         rule.getMolecularFormula());
     final List<ILipidChain> chains = LIPID_CHAIN_FACTORY.buildLipidChainsInRange(chainType,
         minChainLength, maxChainLength, minDoubleBonds, maxDoubleBonds, onlySearchForEvenChains);
-    // empty if the ionization cannot be applied to the lipid formula
+
     final IMolecularFormula lipidFormula = rule.getIonizationType()
         .ionizeFormula(lipidAnnotation.getMolecularFormula()).orElse(null);
     if (lipidFormula == null) {
@@ -459,7 +458,7 @@ public class LipidFragmentFactory implements ILipidFragmentFactory {
       ILipidAnnotation lipidAnnotation, Scan msMsScan, LipidChainType lipidChainType) {
     final List<ILipidChain> chains = LIPID_CHAIN_FACTORY.buildLipidChainsInRange(lipidChainType,
         minChainLength, maxChainLength, minDoubleBonds, maxDoubleBonds, onlySearchForEvenChains);
-    // empty if the ionization cannot be applied to the lipid formula
+
     final IMolecularFormula lipidFormula = rule.getIonizationType()
         .ionizeFormula(lipidAnnotation.getMolecularFormula()).orElse(null);
     if (lipidFormula == null) {
@@ -486,7 +485,7 @@ public class LipidFragmentFactory implements ILipidFragmentFactory {
         rule.getMolecularFormula());
     final List<ILipidChain> chains = LIPID_CHAIN_FACTORY.buildLipidChainsInRange(lipidChainType,
         minChainLength, maxChainLength, minDoubleBonds, maxDoubleBonds, onlySearchForEvenChains);
-    // empty if the ionization cannot be applied to the lipid formula
+
     final IMolecularFormula lipidFormula = rule.getIonizationType()
         .ionizeFormula(lipidAnnotation.getMolecularFormula()).orElse(null);
     if (lipidFormula == null) {

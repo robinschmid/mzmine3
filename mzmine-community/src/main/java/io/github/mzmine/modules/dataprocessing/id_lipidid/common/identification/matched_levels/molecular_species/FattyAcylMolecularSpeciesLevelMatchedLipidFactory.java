@@ -69,7 +69,7 @@ public class FattyAcylMolecularSpeciesLevelMatchedLipidFactory implements
             .equals(LipidAnnotationLevel.MOLECULAR_SPECIES_LEVEL)).collect(Collectors.toSet());
     if (!molecularSpeciesFragments.isEmpty() && LipidQcScoringUtils.hasSufficientEvidence(
         molecularSpeciesFragments)) {
-      // empty if the ionization cannot be applied to the lipid formula
+
       final IMolecularFormula lipidFormula = ionizationType.ionizeFormula(
           molecularSpeciesLevelAnnotation.getMolecularFormula()).orElse(null);
       if (lipidFormula == null) {
@@ -229,7 +229,7 @@ public class FattyAcylMolecularSpeciesLevelMatchedLipidFactory implements
         int carbonEstimateSecondChain = totalNumberOfCAtoms - chain.getNumberOfCarbons();
         if (carbonEstimateSecondChain > 0 && totalNumberOfDBEs >= 0) {
           //Fall back to Species Level annotation to avoid over annotation
-          // empty if the ionization cannot be applied to the lipid formula
+
           final IMolecularFormula lipidFormula = ionizationType.ionizeFormula(
               lipidAnnotation.getMolecularFormula()).orElse(null);
           if (lipidFormula == null) {

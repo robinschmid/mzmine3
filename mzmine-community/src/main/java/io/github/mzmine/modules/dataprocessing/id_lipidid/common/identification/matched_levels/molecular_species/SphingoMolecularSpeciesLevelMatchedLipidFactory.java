@@ -69,7 +69,7 @@ public class SphingoMolecularSpeciesLevelMatchedLipidFactory implements
             .equals(LipidAnnotationLevel.MOLECULAR_SPECIES_LEVEL)).collect(Collectors.toSet());
     if (!molecularSpeciesFragments.isEmpty() && LipidQcScoringUtils.hasSufficientEvidence(
         molecularSpeciesFragments)) {
-      // empty if the ionization cannot be applied to the lipid formula
+
       final IMolecularFormula lipidFormula = ionizationType.ionizeFormula(
           molecularSpeciesLevelAnnotation.getMolecularFormula()).orElse(null);
       if (lipidFormula == null) {

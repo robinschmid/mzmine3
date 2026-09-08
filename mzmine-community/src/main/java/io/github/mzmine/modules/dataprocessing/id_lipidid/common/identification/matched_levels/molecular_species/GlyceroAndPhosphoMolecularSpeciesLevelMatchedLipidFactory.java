@@ -72,7 +72,7 @@ public class GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implement
             .equals(LipidAnnotationLevel.MOLECULAR_SPECIES_LEVEL)).collect(Collectors.toSet());
     if (!molecularSpeciesFragments.isEmpty() && LipidQcScoringUtils.hasSufficientEvidence(
         molecularSpeciesFragments)) {
-      // empty if the ionization cannot be applied to the lipid formula
+
       final IMolecularFormula lipidFormula = ionizationType.ionizeFormula(
           molecularSpeciesLevelAnnotation.getMolecularFormula()).orElse(null);
       if (lipidFormula == null) {
@@ -338,7 +338,7 @@ public class GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory implement
             continue;
           }
           //Fall back to Species Level annotation to avoid over annotation
-          // empty if the ionization cannot be applied to the lipid formula
+
           final IMolecularFormula lipidFormula = ionizationType.ionizeFormula(
               lipidAnnotation.getMolecularFormula()).orElse(null);
           if (lipidFormula == null) {

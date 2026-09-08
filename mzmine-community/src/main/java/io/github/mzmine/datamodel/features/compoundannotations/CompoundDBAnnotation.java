@@ -704,7 +704,6 @@ public interface CompoundDBAnnotation extends Cloneable, FeatureAnnotation,
       if (majorIsotopeMolFormula == null) {
         continue;
       }
-      // skip if the adduct cannot be applied to this formula
       final IMolecularFormula majorIsotopeIon = adduct.addToFormula(majorIsotopeMolFormula, true)
           .orElse(null);
       if (majorIsotopeIon == null) {

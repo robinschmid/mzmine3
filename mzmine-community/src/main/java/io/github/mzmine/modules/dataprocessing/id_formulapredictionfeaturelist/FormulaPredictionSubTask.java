@@ -288,7 +288,6 @@ class FormulaPredictionSubTask extends AbstractTask {
     IsotopePattern detectedPattern = peakListRow.getBestIsotopePattern();
     IsotopePattern predictedIsotopePattern = null;
     Float isotopeScore = null;
-    // empty if the ionization cannot be applied to this formula, then no isotope score
     final IMolecularFormula ionFormula =
         checkIsotopes ? ionType.ionizeFormula(cdkFormula).orElse(null) : null;
     if ((checkIsotopes) && (detectedPattern != null) && ionFormula != null) {

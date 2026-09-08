@@ -384,7 +384,6 @@ class AddCustomLipidClassSetupDialog extends ParameterSetupDialog {
         }
         for (IonizationType ionNotation : ionizationTypeList) {
           lipidGridPane.add(new Label(ionNotation.getAdductName()), 1, ionNotationStartColumn);
-          // no m/z shown if the ionization cannot be applied to the lipid formula
           final String ionMz = ionNotation.ionizeFormula(
               speciesLevelAnnotation.getMolecularFormula()).map(
               ionFormula -> MZmineCore.getConfiguration().getMZFormat()

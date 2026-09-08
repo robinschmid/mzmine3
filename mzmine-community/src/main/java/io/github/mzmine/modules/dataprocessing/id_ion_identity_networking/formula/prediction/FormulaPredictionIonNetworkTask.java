@@ -271,7 +271,6 @@ public class FormulaPredictionIonNetworkTask extends AbstractTask {
 
     IMolecularFormula cdkFormula;
     while ((cdkFormula = generator.getNextFormula()) != null) {
-      // ionized formula, skip candidates that the ion cannot be applied to
       final IMolecularFormula cdkFormulaIon = ion.addToFormula(cdkFormula, true).orElse(null);
       if (cdkFormulaIon == null) {
         continue;
@@ -318,7 +317,6 @@ public class FormulaPredictionIonNetworkTask extends AbstractTask {
         if (ion.isUndefinedAdduct()) {
           continue;
         }
-        // ionized formula, skip candidates that the ion cannot be applied to
         final IMolecularFormula cdkFormulaIon = ion.addToFormula(cdkFormula, true).orElse(null);
         if (cdkFormulaIon == null) {
           continue;

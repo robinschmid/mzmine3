@@ -258,7 +258,6 @@ public class SingleRowPredictionTask extends AbstractTask {
     // Calculate isotope similarity score
     final IsotopePattern detectedPattern = peakListRow.getBestIsotopePattern();
 
-    // empty if the ionization cannot be applied to this formula, then no isotope pattern
     final IMolecularFormula ionFormula = ionType.ionizeFormula(cdkFormula).orElse(null);
 
     // Fixed min abundance

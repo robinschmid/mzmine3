@@ -249,7 +249,6 @@ public class LipidAnnotationMatchPane extends AbstractFeatureListRowsPane {
       formula.setWrapText(true);
       panelOther.getChildren().addAll(formula);
 
-      // no m/z shown if the ionization cannot be applied to the lipid formula
       final String ionMz = matchedLipid.getIonizationType()
           .ionizeFormula(matchedLipid.getLipidAnnotation().getMolecularFormula()).map(
               ionFormula -> MZmineCore.getConfiguration().getMZFormat()
