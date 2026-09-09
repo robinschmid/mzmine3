@@ -103,12 +103,12 @@ public class WizardBatchBuilderLcDDA extends BaseWizardBatchBuilder {
       makeAndAddSmoothingStep(q, rtSmoothing, minImsDataPoints, imsSmoothing);
     }
 
-    makeAndAddDeisotopingStep(q, intraSampleRtTol);
-    makeAndAddFeatureFilterStep(q);
-    makeAndAddIsotopeFinderStep(q);
     if (scanRtCorrection) {
       makeAndAddScanRtCorrectionStep(q, mzTolInterSample, interSampleRtTol);
     }
+    makeAndAddDeisotopingStep(q, intraSampleRtTol);
+    makeAndAddFeatureFilterStep(q);
+    makeAndAddIsotopeFinderStep(q);
     makeAndAddJoinAlignmentStep(q, interSampleRtTol);
     makeAndAddRowFilterStep(q);
     makeAndAddGapFillStep(q, interSampleRtTol, minRtDataPoints);

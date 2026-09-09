@@ -127,14 +127,15 @@ public class WizardBatchBuilderLcDIA extends BaseWizardBatchBuilder {
       makeAndAddSmoothingStep(q, rtSmoothing, minRtDataPoints, imsSmoothing);
     }
 
+    if (scanRtCorrection) {
+      makeAndAddScanRtCorrectionStep(q, mzTolInterSample, interSampleRtTol);
+    }
+
     makeAndAddDeisotopingStep(q, intraSampleRtTol);
     makeAndAddFeatureFilterStep(q);
     makeAndAddDiaMs2GroupingStep(q);
 
     makeAndAddIsotopeFinderStep(q);
-    if (scanRtCorrection) {
-      makeAndAddScanRtCorrectionStep(q, mzTolInterSample, interSampleRtTol);
-    }
     makeAndAddJoinAlignmentStep(q, interSampleRtTol);
     makeAndAddRowFilterStep(q);
     makeAndAddGapFillStep(q, interSampleRtTol, minRtDataPoints);
