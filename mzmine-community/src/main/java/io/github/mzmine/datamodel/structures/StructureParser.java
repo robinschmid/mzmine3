@@ -70,10 +70,11 @@ public class StructureParser {
 
   // decision: two-tier cache. RAW_CACHE stores the original (un-harmonized) input strings the
   // caller passed in — these may repeat exactly across imports but are not reused for downstream
-  // computations, so a smaller bound is fine. CLEAN_CACHE stores the canonical/isomeric SMILES,
-  // standard InChI and InChIKey derived after a successful parse; downstream code uses these
-  // strings repeatedly (lookups, joins, comparisons), so they get a much larger bound. Multiple
-  // clean keys point to the SAME MolecularStructure instance — instance identity is intentional.
+  // computations, so a smaller bound is fine. CLEAN_CACHE stores the isomeric SMILES, standard
+  // InChI and InChIKey derived after a successful parse; downstream code uses these strings
+  // repeatedly (lookups, joins, comparisons), so they get a much larger bound. Multiple clean keys
+  // point to the SAME MolecularStructure instance — instance identity is intentional and the
+  // isomeric SMILES is also what a newly parsed structure is deduplicated on.
   // assumption: callers treat MolecularStructure as immutable. Mutating a returned structure
   // will corrupt cached entries for other callers.
   private static final Cache<String, MolecularStructure> RAW_CACHE = Caffeine.newBuilder()
@@ -130,8 +131,8 @@ public class StructureParser {
 
   /**
    * Snapshot of cumulative clean-form cache statistics since JVM start. The clean cache is keyed by
-   * canonical SMILES, isomeric SMILES, standard InChI and InChIKey derived after a successful
-   * parse. Multiple keys can point to the same {@link MolecularStructure} instance.
+   * isomeric SMILES, standard InChI and InChIKey derived after a successful parse. Multiple keys
+   * can point to the same {@link MolecularStructure} instance.
    */
   @NotNull
   public static CacheStats getCleanCacheStats() {
@@ -149,7 +150,7 @@ public class StructureParser {
   /**
    * @return current number of entries in the clean-form cache (best-effort under concurrent
    * access). Note: this counts cache keys, not distinct structures — each structure contributes up
-   * to four keys.
+   * to three keys.
    */
   public static long getCleanCacheSize() {
     return CLEAN_CACHE.estimatedSize();
@@ -213,21 +214,37 @@ public class StructureParser {
       return null;
     }
 
+    // deduplicate on the isomeric smiles before a new instance is built. It is the only clean form
+    // that identifies the molecule, being canonically ordered and carrying stereo and isotopes
+    final String parsedIsomericSmiles = parsed.isomericSmiles();
+    if (parsedIsomericSmiles != null) {
+      final MolecularStructure cached = CLEAN_CACHE.getIfPresent(parsedIsomericSmiles);
+      if (cached != null) {
+        // the raw input cannot be one of the cached structure's clean keys, the lookup above would
+        // have hit, so no putRaw guard is needed here
+        if (cacheRawInput) {
+          RAW_CACHE.put(structure, cached);
+        }
+        return cached;
+      }
+    }
+
     // decision: keep the derived values instead of discarding them. Generating them for the cache
     // keys costs roughly 1400 us per structure while an on demand inchiKey() call costs another
     // ~220 us and formulaString() ~16 us. Since a cached structure is handed to many callers,
     // storing what was already paid for makes value access about 8x cheaper at zero extra cost.
-    final MolecularStructure mol = parsed.precomputeValues();
+    // the isomeric smiles was already generated for the deduplication lookup above
+    final MolecularStructure mol = parsed.precomputeValues(parsedIsomericSmiles);
 
-    // Populate CLEAN_CACHE with all derivable clean keys → same MolecularStructure instance.
-    final HashSet<String> cleanKeys = HashSet.newHashSet(4);
-    putClean(cleanKeys, mol, mol.canonicalSmiles());
+    // Populate CLEAN_CACHE with all identifying clean keys → same MolecularStructure instance.
+    // the canonical smiles is not a key. It drops stereo, so a lookup might result in wrong structure
+    final HashSet<String> cleanKeys = HashSet.newHashSet(3);
     putClean(cleanKeys, mol, mol.isomericSmiles());
     putClean(cleanKeys, mol, mol.inchi());
     putClean(cleanKeys, mol, mol.inchiKey());
 
     // Populate RAW_CACHE with the original caller inputs — skip if the input string already
-    // appears in CLEAN_CACHE (avoids redundant storage of already-canonical inputs).
+    // appears in CLEAN_CACHE (avoids redundant storage of inputs that are already a clean form).
     if (cacheRawInput) {
       putRaw(cleanKeys, mol, structure);
     }

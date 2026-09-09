@@ -534,4 +534,72 @@ class StructureParserTest {
         "V3000 body tagged as V2000");
   }
 
+  /// the clean cache deduplicates on the isomeric smiles, so inputs that describe the same molecule
+  /// share one instance no matter how they were written. decision: none of these inputs is a clean
+  /// form of the molecule, otherwise the first cache lookup would hit before deduplication and the
+  /// test would pass without it.
+  @Test
+  void parseStructureReusesInstanceForSameMolecule() {
+    final StructureParser parser = StructureParser.silent();
+    final MolecularStructure a = parser.parseStructure("OC(=O)CCCCCCCC", StructureInputType.SMILES);
+    final MolecularStructure b = parser.parseStructure("C(CCCCCCCC)(=O)O",
+        StructureInputType.SMILES);
+    final MolecularStructure c = parser.parseStructure("CCCCCCCCC(=O)[OH]",
+        StructureInputType.SMILES);
+    Assertions.assertNotNull(a);
+
+    Assertions.assertEquals("CCCCCCCCC(=O)O", a.isomericSmiles());
+    Assertions.assertSame(a, b, "second writing of the same molecule");
+    Assertions.assertSame(a, c, "third writing of the same molecule");
+    // the isomeric smiles is a clean key, so it resolves to the very same instance as well
+    Assertions.assertSame(a, parser.parseStructure(a.isomericSmiles(), StructureInputType.SMILES));
+  }
+
+  /// a different molecule must not be deduplicated onto an existing instance
+  @Test
+  void parseStructureKeepsInstancesForDifferentMolecules() {
+    final StructureParser parser = StructureParser.silent();
+    final MolecularStructure nonanoic = parser.parseStructure("OC(=O)CCCCCCCC",
+        StructureInputType.SMILES);
+    final MolecularStructure decanoic = parser.parseStructure("OC(=O)CCCCCCCCC",
+        StructureInputType.SMILES);
+    Assertions.assertNotNull(nonanoic);
+    Assertions.assertNotNull(decanoic);
+
+    Assertions.assertNotSame(nonanoic, decanoic);
+    Assertions.assertNotEquals(nonanoic.isomericSmiles(), decanoic.isomericSmiles());
+  }
+
+  /// the canonical smiles drops stereo, so it is deliberately not a clean cache key. Serving it
+  /// would hand a stereo free input back whichever stereoisomer was parsed before it.
+  @Test
+  void canonicalSmilesIsNotACleanCacheKey() {
+    final StructureParser parser = StructureParser.silent();
+    // parse the stereo defined molecule first so its canonical smiles could pollute the cache
+    final MolecularStructure stereo = parser.parseStructure("C/C=C/CCCCCCCC",
+        StructureInputType.SMILES);
+    Assertions.assertNotNull(stereo);
+    final String canonicalSmiles = stereo.canonicalSmiles();
+    Assertions.assertNotEquals(canonicalSmiles, stereo.isomericSmiles(),
+        "test needs a molecule whose canonical smiles differs from its isomeric smiles");
+
+    // the canonical smiles as input describes the molecule without the double bond geometry
+    final MolecularStructure withoutStereo = parser.parseStructure(canonicalSmiles,
+        StructureInputType.SMILES);
+    Assertions.assertNotNull(withoutStereo);
+
+    Assertions.assertNotSame(stereo, withoutStereo);
+    Assertions.assertNotEquals(stereo.isomericSmiles(), withoutStereo.isomericSmiles());
+    Assertions.assertNotEquals(stereo.inchiKey(), withoutStereo.inchiKey());
+    // without any stereo to write, both smiles flavors give the same string
+    Assertions.assertEquals(canonicalSmiles, withoutStereo.isomericSmiles());
+
+    // and the cached result equals what a parse without any cache gives
+    final MolecularStructure uncached = parser.parseStructureWithoutCache(canonicalSmiles,
+        StructureInputType.SMILES);
+    Assertions.assertNotNull(uncached);
+    Assertions.assertEquals(uncached.inchiKey(), withoutStereo.inchiKey());
+    Assertions.assertEquals(uncached.isomericSmiles(), withoutStereo.isomericSmiles());
+  }
+
 }
