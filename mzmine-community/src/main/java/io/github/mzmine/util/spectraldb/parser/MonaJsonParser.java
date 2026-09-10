@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2025 The mzmine Development Team
+ * Copyright (c) 2004-2026 The mzmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,34 +25,27 @@
 
 package io.github.mzmine.util.spectraldb.parser;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.datamodel.impl.SimpleDataPoint;
 import io.github.mzmine.taskcontrol.AbstractTask;
+import io.github.mzmine.util.io.JsonUtils;
 import io.github.mzmine.util.spectraldb.entry.DBEntryField;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibrary;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntry;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntryFactory;
-import jakarta.json.Json;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
-import jakarta.json.JsonValue.ValueType;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -156,15 +149,12 @@ public class MonaJsonParser extends SpectralDBTextParser {
 
   @Nullable
   private SpectralLibraryEntry parseToEntry(LibraryParsingErrors errors, SpectralLibrary library,
-      String line) {
-    try (JsonReader reader = Json.createReader(new StringReader(line))) {
-      JsonObject json = reader.readObject();
-      return getDBEntry(errors, library, json);
-    }
+      String line) throws IOException {
+    return getDBEntry(errors, library, JsonUtils.MAPPER.readTree(line));
   }
 
   private SpectralLibraryEntry getDBEntry(LibraryParsingErrors errors, SpectralLibrary library,
-      JsonObject main) {
+      JsonNode main) {
     // extract dps
     DataPoint[] dps = getDataPoints(errors, main);
     if (dps == null || dps.length == 0) {
@@ -176,11 +166,11 @@ public class MonaJsonParser extends SpectralDBTextParser {
     return SpectralLibraryEntryFactory.create(library.getStorage(), map, dps);
   }
 
-  private void extractAllFields(LibraryParsingErrors errors, JsonObject main,
+  private void extractAllFields(LibraryParsingErrors errors, JsonNode main,
       Map<DBEntryField, Object> map) {
     for (DBEntryField f : DBEntryField.values()) {
       Object value = null;
-      JsonValue j = null;
+      JsonNode j = null;
 
       switch (f) {
         case INCHI:
@@ -249,9 +239,7 @@ public class MonaJsonParser extends SpectralDBTextParser {
           break;
         case NAME:
           // can have multiple names
-          JsonArray names = main.getJsonArray(COMPOUND).getJsonObject(0).getJsonArray("names");
-          value = names.stream().map(v -> v.asJsonObject()).map(v -> v.getString("name", null))
-              .filter(Objects::nonNull).collect(Collectors.joining(", "));
+          value = readCompoundNames(main);
           break;
         case NUM_PEAKS:
           break;
@@ -261,22 +249,22 @@ public class MonaJsonParser extends SpectralDBTextParser {
         case CHEMSPIDER:
           j = readCompoundMetaDataJson(main, "chemspider");
           if (j != null) {
-            if (j.getValueType().equals(ValueType.STRING)) {
-              value = ((JsonString) j).getString();
+            if (j.isTextual()) {
+              value = j.textValue();
             }
-            if (j.getValueType().equals(ValueType.NUMBER)) {
-              value = ((JsonNumber) j).intValue();
+            if (j.isNumber()) {
+              value = j.intValue();
             }
           }
           break;
         case PUBCHEM:
           j = readCompoundMetaDataJson(main, "pubchem cid");
           if (j != null) {
-            if (j.getValueType().equals(ValueType.STRING)) {
-              value = ((JsonString) j).getString();
+            if (j.isTextual()) {
+              value = j.textValue();
             }
-            if (j.getValueType().equals(ValueType.NUMBER)) {
-              value = ((JsonNumber) j).intValue();
+            if (j.isNumber()) {
+              value = j.intValue();
             }
           }
           break;
@@ -335,35 +323,29 @@ public class MonaJsonParser extends SpectralDBTextParser {
    * @param id
    * @return String or Number or null
    */
-  private Object readMetaData(JsonObject main, String id) {
-    JsonValue j = main.getJsonArray(META_DATA).stream().map(v -> v.asJsonObject())
-        .filter(v -> v.getString("name").equals(id)).map(v -> v.get("value")).findFirst()
-        .orElse(null);
-
+  private Object readMetaData(JsonNode main, String id) {
+    final JsonNode j = findMetaDataValue(main.path(META_DATA), id);
     if (j != null) {
-      if (j.getValueType().equals(ValueType.STRING)) {
-        return ((JsonString) j).getString();
+      if (j.isTextual()) {
+        return j.textValue();
       }
-      if (j.getValueType().equals(ValueType.NUMBER)) {
-        return ((JsonNumber) j).numberValue();
+      if (j.isNumber()) {
+        return j.numberValue();
       }
     }
     return null;
   }
 
-  private Double readMetaDataDouble(JsonObject main, String id) {
-    return main.getJsonArray(META_DATA).stream().map(v -> v.asJsonObject())
-        .filter(v -> v.getString("name").equals(id)).map(v -> {
-          var value = v.get("value");
-          return value.getValueType().equals(ValueType.NUMBER) ? v.getJsonNumber("value")
-              .doubleValue() : Double.parseDouble(v.getString("value"));
-        }).findFirst().orElse(null);
+  private Double readMetaDataDouble(JsonNode main, String id) {
+    final JsonNode value = findMetaDataValue(main.path(META_DATA), id);
+    if (value == null) {
+      return null;
+    }
+    return value.isNumber() ? value.doubleValue() : Double.parseDouble(value.asText());
   }
 
-  private JsonValue readCompoundMetaDataJson(JsonObject main, String id) {
-    return main.getJsonArray(COMPOUND).getJsonObject(0).getJsonArray(META_DATA).stream()
-        .map(v -> v.asJsonObject()).filter(v -> v.getString("name").equals(id))
-        .map(v -> v.get("value")).findFirst().orElse(null);
+  private JsonNode readCompoundMetaDataJson(JsonNode main, String id) {
+    return findMetaDataValue(firstCompound(main).path(META_DATA), id);
   }
 
   /**
@@ -373,10 +355,8 @@ public class MonaJsonParser extends SpectralDBTextParser {
    * @param id
    * @return
    */
-  private String readCompoundMetaData(JsonObject main, String id) {
-    return main.getJsonArray(COMPOUND).getJsonObject(0).getJsonArray(META_DATA).stream()
-        .map(v -> v.asJsonObject()).filter(v -> v.getString("name").equals(id))
-        .map(v -> v.getString("value")).findFirst().orElse(null);
+  private String readCompoundMetaData(JsonNode main, String id) {
+    return text(findMetaDataValue(firstCompound(main).path(META_DATA), id));
   }
 
   /**
@@ -386,12 +366,59 @@ public class MonaJsonParser extends SpectralDBTextParser {
    * @param id
    * @return
    */
-  private String readCompound(JsonObject main, String id) {
-    return main.getJsonArray(COMPOUND).getJsonObject(0).getString(id, null);
+  private String readCompound(JsonNode main, String id) {
+    return text(firstCompound(main).get(id));
   }
 
-  private DataPoint[] getDataPoints(LibraryParsingErrors errors, JsonObject main) {
-    String spec = main.getString("spectrum");
+  /**
+   * @return all names of the first compound joined by ", " or null if it carries none
+   */
+  @Nullable
+  private static String readCompoundNames(JsonNode main) {
+    final StringJoiner joiner = new StringJoiner(", ");
+    int found = 0;
+    for (final JsonNode entry : firstCompound(main).path("names")) {
+      final String name = text(entry.get("name"));
+      if (name != null) {
+        joiner.add(name);
+        found++;
+      }
+    }
+    return found == 0 ? null : joiner.toString();
+  }
+
+  /**
+   * The first entry of the compound array, or a missing node so callers can keep chaining.
+   */
+  private static JsonNode firstCompound(JsonNode main) {
+    return main.path(COMPOUND).path(0);
+  }
+
+  /**
+   * Value of the first {name, value} pair in a metaData array that carries this name.
+   *
+   * @return the value node or null if no pair matches
+   */
+  @Nullable
+  private static JsonNode findMetaDataValue(JsonNode metaData, String name) {
+    for (final JsonNode pair : metaData) {
+      if (name.equals(text(pair.get("name")))) {
+        return pair.get("value");
+      }
+    }
+    return null;
+  }
+
+  /**
+   * @return the text of a json string, null for anything else including missing values
+   */
+  @Nullable
+  private static String text(@Nullable JsonNode node) {
+    return node != null && node.isTextual() ? node.textValue() : null;
+  }
+
+  private DataPoint[] getDataPoints(LibraryParsingErrors errors, JsonNode main) {
+    String spec = text(main.get("spectrum"));
     if (spec == null) {
       errors.addUnknownException("'spectrum' key for data points not found");
       return null;

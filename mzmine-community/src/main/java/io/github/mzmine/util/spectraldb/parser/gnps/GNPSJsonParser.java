@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2025 The mzmine Development Team
+ * Copyright (c) 2004-2026 The mzmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -30,6 +30,7 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mzmine.taskcontrol.AbstractTask;
 import io.github.mzmine.util.MemoryMapStorage;
+import io.github.mzmine.util.io.JsonUtils;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibrary;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntry;
 import io.github.mzmine.util.spectraldb.parser.LibraryEntryProcessor;
@@ -52,6 +53,7 @@ import org.jetbrains.annotations.Nullable;
 public class GNPSJsonParser extends SpectralDBParser {
 
   private static final Logger logger = Logger.getLogger(GNPSJsonParser.class.getName());
+
   private final boolean extensiveErrorLogging;
   private boolean finished = false;
 
@@ -70,7 +72,7 @@ public class GNPSJsonParser extends SpectralDBParser {
         library != null ? library.getName() : dataBaseFile.getName());
 
     int error = 0;
-    ObjectMapper mapper = new ObjectMapper();
+    final ObjectMapper mapper = JsonUtils.MAPPER;
     // Create a JsonParser instance
     try (JsonParser jsonParser = mapper.getFactory().createParser(dataBaseFile)) {
 
