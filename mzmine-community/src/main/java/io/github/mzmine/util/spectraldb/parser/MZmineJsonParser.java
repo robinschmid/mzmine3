@@ -25,6 +25,7 @@
 
 package io.github.mzmine.util.spectraldb.parser;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import io.github.mzmine.taskcontrol.AbstractTask;
@@ -33,10 +34,12 @@ import io.github.mzmine.util.spectraldb.entry.DBEntryField;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibrary;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntry;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntryFactory;
-import java.io.BufferedReader;
+import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Map;
@@ -53,6 +56,7 @@ public class MZmineJsonParser extends SpectralDBTextParser {
   private final static Logger logger = Logger.getLogger(MZmineJsonParser.class.getName());
 
   private static final String PEAKS_KEY = "peaks";
+  private static final int READ_BUFFER = 1 << 16;
   private static final int INITIAL_SIGNALS = 128;
 
   public MZmineJsonParser(int bufferEntries, LibraryEntryProcessor processor,
@@ -63,7 +67,9 @@ public class MZmineJsonParser extends SpectralDBTextParser {
   @Override
   public boolean parse(@Nullable AbstractTask mainTask, @NotNull File dataBaseFile,
       @NotNull SpectralLibrary library) throws IOException {
-    super.parse(mainTask, dataBaseFile, library);
+    // byte progress instead of the line counting pass of the super implementation, which would
+    // read the whole file a second time
+    initByteProgress(dataBaseFile);
 
     logger.info("Parsing MZmine spectral library " + dataBaseFile.getAbsolutePath());
 
@@ -72,15 +78,19 @@ public class MZmineJsonParser extends SpectralDBTextParser {
     int correct = 0;
     int error = 0;
     // create db
-    try (BufferedReader br = new BufferedReader(new FileReader(dataBaseFile))) {
-      for (String l; (l = br.readLine()) != null; ) {
+    // decision: one parser for the whole file instead of one per line. json lines is a sequence of
+    // root level objects, which jackson reads natively, and feeding it bytes lets its utf-8 parser
+    // decode inline instead of building a String for every line first.
+    try (InputStream in = new BufferedInputStream(new FileInputStream(dataBaseFile),
+        READ_BUFFER); JsonParser p = JsonUtils.FACTORY.createParser(in)) {
+      while (p.nextToken() == JsonToken.START_OBJECT) {
         // main task was canceled?
         if (mainTask != null && mainTask.isCanceled()) {
           return false;
         }
 
         try {
-          SpectralLibraryEntry entry = getDBEntry(errors, library, l);
+          SpectralLibraryEntry entry = getDBEntry(errors, library, p);
           if (entry != null) {
             correct++;
             // add entry and process
@@ -97,6 +107,8 @@ public class MZmineJsonParser extends SpectralDBTextParser {
           }
 
           error++;
+          // the entry may have failed part way through, drop the rest of it
+          p.skipChildren();
         }
         // to many errors? wrong data format?
         if (error > 5 && correct < 5) {
@@ -104,6 +116,7 @@ public class MZmineJsonParser extends SpectralDBTextParser {
           return false;
         }
         processedLines.incrementAndGet();
+        processedBytes.set(p.currentLocation().getByteOffset());
       }
     }
     // finish and process last entries
@@ -116,51 +129,46 @@ public class MZmineJsonParser extends SpectralDBTextParser {
   }
 
   /**
-   * @param line one json object, one library entry
+   * Reads one library entry. The parser is positioned on its opening brace and is left on the
+   * matching closing brace.
+   *
    * @return the entry or null if it carried no signals
    */
   @Nullable
   private SpectralLibraryEntry getDBEntry(@NotNull final LibraryParsingErrors errors,
-      @NotNull final SpectralLibrary library, @NotNull final String line) throws IOException {
+      @NotNull final SpectralLibrary library, @NotNull final JsonParser p) throws IOException {
     final Map<DBEntryField, Object> map = new EnumMap<>(DBEntryField.class);
     double[] mzs = null;
     double[] intensities = null;
 
-    try (JsonParser p = JsonUtils.FACTORY.createParser(line)) {
-      if (p.nextToken() != JsonToken.START_OBJECT) {
-        errors.addUnknownException("Line is no json object");
-        return null;
+    while (p.nextToken() == JsonToken.FIELD_NAME) {
+      final String id = p.currentName();
+      final JsonToken value = p.nextToken();
+
+      if (PEAKS_KEY.equals(id)) {
+        final double[][] signals = readSignals(p);
+        mzs = signals[0];
+        intensities = signals[1];
+        continue;
       }
 
-      while (p.nextToken() == JsonToken.FIELD_NAME) {
-        final String id = p.currentName();
-        final JsonToken value = p.nextToken();
+      final DBEntryField f = DBEntryField.forMZmineJsonIDExact(id);
+      if (f == null) {
+        // nested values of unknown keys still need to be consumed
+        p.skipChildren();
+        continue;
+      }
 
-        if (PEAKS_KEY.equals(id)) {
-          final double[][] signals = readSignals(p);
-          mzs = signals[0];
-          intensities = signals[1];
-          continue;
+      Object o = null;
+      try {
+        o = getValue(p, value, f);
+        // add value
+        if (o != null) {
+          map.put(f, o);
         }
-
-        final DBEntryField f = DBEntryField.forMZmineJsonIDExact(id);
-        if (f == null) {
-          // nested values of unknown keys still need to be consumed
-          p.skipChildren();
-          continue;
-        }
-
-        Object o = null;
-        try {
-          o = getValue(p, value, f, line);
-          // add value
-          if (o != null) {
-            map.put(f, o);
-          }
-        } catch (Exception e) {
-          errors.addValueParsingError(f, id, o == null ? "null value" : o.toString());
-          // pushed logging to later in the errors object to not overflow log
-        }
+      } catch (Exception e) {
+        errors.addValueParsingError(f, id, o == null ? "null value" : o.toString());
+        // pushed logging to later in the errors object to not overflow log
       }
     }
 
@@ -209,11 +217,10 @@ public class MZmineJsonParser extends SpectralDBTextParser {
 
   /**
    * @param value the token of the value, the parser is positioned on it
-   * @param line  the whole json line, source of the raw text of nested values
    */
   @Nullable
   private static Object getValue(@NotNull final JsonParser p, @NotNull final JsonToken value,
-      @NotNull final DBEntryField f, @NotNull final String line) throws IOException {
+      @NotNull final DBEntryField f) throws IOException {
     final Object o = switch (value) {
       case VALUE_STRING -> f.convertValue(p.getText());
       case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> {
@@ -235,7 +242,7 @@ public class MZmineJsonParser extends SpectralDBTextParser {
       case VALUE_FALSE -> Boolean.FALSE;
       case VALUE_NULL -> null;
       // objects and arrays are converted from their json text
-      case START_OBJECT, START_ARRAY -> f.convertValue(readRawJson(p, line));
+      case START_OBJECT, START_ARRAY -> f.convertValue(copyRawJson(p));
       default -> null;
     };
     if (o != null && o.equals("N/A")) {
@@ -246,17 +253,51 @@ public class MZmineJsonParser extends SpectralDBTextParser {
 
   /**
    * Nested arrays and objects are handed to {@link DBEntryField#convertValue(String)} as json text.
-   * Cutting it out of the line preserves the original notation and avoids building any intermediate
-   * value. Leaves the parser on the closing bracket.
+   * Copies the structure the parser sits on, writing numbers with the notation they have in the
+   * file so nothing is reformatted on the way through a double. Leaves the parser on the closing
+   * bracket.
    *
    * @return the json text of the structure the parser is positioned on
    */
-  private static String readRawJson(@NotNull final JsonParser p, @NotNull final String line)
-      throws IOException {
-    final int start = (int) p.currentTokenLocation().getCharOffset();
-    p.skipChildren();
-    // location right behind the closing bracket that skipChildren stopped on
-    final int end = (int) p.currentLocation().getCharOffset();
-    return line.substring(start, end);
+  private static String copyRawJson(@NotNull final JsonParser p) throws IOException {
+    final StringWriter out = new StringWriter(64);
+    try (JsonGenerator gen = JsonUtils.FACTORY.createGenerator(out)) {
+      int depth = 0;
+      for (JsonToken t = p.currentToken(); ; t = p.nextToken()) {
+        if (t == null) {
+          throw new IOException("Json ended inside a nested value");
+        }
+        switch (t) {
+          case START_OBJECT -> {
+            gen.writeStartObject();
+            depth++;
+          }
+          case END_OBJECT -> {
+            gen.writeEndObject();
+            depth--;
+          }
+          case START_ARRAY -> {
+            gen.writeStartArray();
+            depth++;
+          }
+          case END_ARRAY -> {
+            gen.writeEndArray();
+            depth--;
+          }
+          case FIELD_NAME -> gen.writeFieldName(p.currentName());
+          case VALUE_STRING -> gen.writeString(p.getText());
+          // as written in the file, jackson would otherwise render it back from a double
+          case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> gen.writeNumber(p.getText());
+          case VALUE_TRUE -> gen.writeBoolean(true);
+          case VALUE_FALSE -> gen.writeBoolean(false);
+          case VALUE_NULL -> gen.writeNull();
+          default -> throw new IOException("Unexpected token in nested value: " + t);
+        }
+        if (depth == 0) {
+          break;
+        }
+      }
+    }
+    return out.toString();
   }
 }

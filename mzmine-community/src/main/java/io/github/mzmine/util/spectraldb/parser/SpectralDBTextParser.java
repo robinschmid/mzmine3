@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2025 The mzmine Development Team
+ * Copyright (c) 2004-2026 The mzmine Development Team
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -47,12 +47,24 @@ public abstract class SpectralDBTextParser extends SpectralDBParser {
   protected long totalLines = 0L;
   protected AtomicLong processedLines = new AtomicLong(0L);
 
+  /**
+   * Set by {@link #initByteProgress(File)} instead of {@link #totalLines}. Counting lines up front
+   * means reading the whole file a second time, which is a real cost for multi GB libraries, so
+   * parsers that stream the file report how far they got in bytes instead.
+   */
+  protected long totalBytes = 0L;
+  protected AtomicLong processedBytes = new AtomicLong(0L);
+
   public SpectralDBTextParser(int bufferEntries, LibraryEntryProcessor processor,
       boolean extensiveErrorLogging) {
     super(bufferEntries, processor);
     this.extensiveErrorLogging = extensiveErrorLogging;
   }
 
+  /**
+   * Counts the lines of the file to report progress. Prefer {@link #initByteProgress(File)} in new
+   * parsers, it does not need this extra pass over the file.
+   */
   @Override
   public boolean parse(@Nullable AbstractTask mainTask, @NotNull File dataBaseFile,
       @NotNull SpectralLibrary library) throws IOException {
@@ -70,8 +82,21 @@ public abstract class SpectralDBTextParser extends SpectralDBParser {
     return false;
   }
 
+  /**
+   * Progress from the bytes consumed so far, for parsers that stream the file in one pass. Call
+   * this instead of {@link #parse(AbstractTask, File, SpectralLibrary)} and keep
+   * {@link #processedBytes} up to date while reading.
+   */
+  protected void initByteProgress(@NotNull final File dataBaseFile) {
+    totalBytes = dataBaseFile.length();
+    processedBytes.set(0L);
+  }
+
   @Override
   public double getProgress() {
+    if (totalBytes > 0L) {
+      return processedBytes.get() / (double) totalBytes;
+    }
     return totalLines == 0 ? 0 : processedLines.get() / (double) totalLines;
   }
 
