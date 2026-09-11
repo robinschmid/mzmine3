@@ -29,15 +29,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.github.mzmine.datamodel.DataPoint;
 import io.github.mzmine.datamodel.impl.SimpleDataPoint;
 import io.github.mzmine.taskcontrol.AbstractTask;
+import io.github.mzmine.util.io.CountingInputStream;
 import io.github.mzmine.util.io.JsonUtils;
 import io.github.mzmine.util.spectraldb.entry.DBEntryField;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibrary;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntry;
 import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntryFactory;
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -62,6 +66,14 @@ public class MonaJsonParser extends SpectralDBTextParser {
 
   private static final Logger logger = Logger.getLogger(MonaJsonParser.class.getName());
 
+  private static final int READ_BUFFER = 1 << 16;
+
+  /**
+   * Lines parsed in parallel at a time. Keeps memory bounded on large libraries while still giving
+   * the worker threads enough to import.
+   */
+  private static final int PARALLEL_BATCH = 512;
+
   public MonaJsonParser(int bufferEntries, LibraryEntryProcessor processor,
       boolean extensiveErrorLogging) {
     super(bufferEntries, processor, extensiveErrorLogging);
@@ -70,7 +82,9 @@ public class MonaJsonParser extends SpectralDBTextParser {
   @Override
   public boolean parse(@Nullable AbstractTask mainTask, @NotNull File dataBaseFile,
       @NotNull SpectralLibrary library) throws IOException {
-    super.parse(mainTask, dataBaseFile, library);
+    // progress from the bytes consumed instead of the line counting pass of the super
+    // implementation, which would read the whole file a second time
+    initByteProgress(dataBaseFile);
     logger.info("Parsing MONA spectral json library " + dataBaseFile.getAbsolutePath());
 
     AtomicInteger correct = new AtomicInteger(0);
@@ -81,7 +95,10 @@ public class MonaJsonParser extends SpectralDBTextParser {
     final LibraryParsingErrors errors = new LibraryParsingErrors(library.getName());
 
     // create db
-    try (BufferedReader br = new BufferedReader(new FileReader(dataBaseFile))) {
+    try (CountingInputStream counting = new CountingInputStream(
+        new BufferedInputStream(new FileInputStream(dataBaseFile),
+            READ_BUFFER)); BufferedReader br = new BufferedReader(
+        new InputStreamReader(counting, StandardCharsets.UTF_8))) {
       // test on first ten if it is really a MoNA file
       String l = br.readLine();
       while (l != null) {
@@ -92,6 +109,7 @@ public class MonaJsonParser extends SpectralDBTextParser {
           }
         }
         processedLines.incrementAndGet();
+        processedBytes.set(counting.getCount());
 
         if ((correct.get() + error.get()) >= 4) {
           break;
@@ -107,26 +125,64 @@ public class MonaJsonParser extends SpectralDBTextParser {
         return false;
       }
 
-      // read the rest in parallel
-      final List<SpectralLibraryEntry> entries = br.lines().filter(line -> {
-            processedLines.incrementAndGet();
-            return line.length() > 2;
-          }).parallel().map(line -> parseLineToEntry(errors, library, correct, error, line))
-          .filter(Objects::nonNull).toList();
+      // the format check passed, hand over what it already parsed
+      for (final SpectralLibraryEntry entry : results) {
+        addLibraryEntry(library.getStorage(), errors, entry);
+      }
+
+      // read the rest in batches rather than parsing the whole multi GB library all in memory
+      // send entries to addLibraryEntry so zero intensity signals and profile spectra are filtered
+      final List<String> batch = new ArrayList<>(PARALLEL_BATCH);
+      for (String line = br.readLine(); line != null; line = br.readLine()) {
+        // main task was canceled?
+        if (mainTask != null && mainTask.isCanceled()) {
+          return false;
+        }
+        processedLines.incrementAndGet();
+        // counts what the reader pulled from the file, so it runs slightly ahead of the line
+        // being handled here. Good enough for a progress bar and capped at 1
+        processedBytes.set(counting.getCount());
+
+        if (line.length() > 2) {
+          batch.add(line);
+        }
+        if (batch.size() >= PARALLEL_BATCH) {
+          parseBatch(errors, library, correct, error, batch);
+          batch.clear();
+        }
+      }
+      parseBatch(errors, library, correct, error, batch);
 
       if (error.get() > 0) {
         logger.warning(
             String.format("MoNA spectral library %s was imported with %d entries failing.",
                 dataBaseFile.getName(), error.get()));
       }
-      // combine
-      results.addAll(entries);
-      processor.processNextEntries(results, 0);
+      finishByteProgress();
+      // finish and process last entries
+      finish();
 
       // log errors
       logger.info(isExtensiveErrorLogging() ? errors.toString() : errors.toStringShort());
 
       return true;
+    }
+  }
+
+  /**
+   * Parses a batch of lines in parallel and adds the entries in file order.
+   */
+  private void parseBatch(@NotNull final LibraryParsingErrors errors,
+      @NotNull final SpectralLibrary library, @NotNull final AtomicInteger correct,
+      @NotNull final AtomicInteger error, @NotNull final List<String> batch) {
+    if (batch.isEmpty()) {
+      return;
+    }
+    final List<SpectralLibraryEntry> entries = batch.parallelStream()
+        .map(line -> parseLineToEntry(errors, library, correct, error, line))
+        .filter(Objects::nonNull).toList();
+    for (final SpectralLibraryEntry entry : entries) {
+      addLibraryEntry(library.getStorage(), errors, entry);
     }
   }
 

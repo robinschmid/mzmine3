@@ -47,13 +47,6 @@ public abstract class SpectralDBTextParser extends SpectralDBParser {
   protected long totalLines = 0L;
   protected AtomicLong processedLines = new AtomicLong(0L);
 
-  /**
-   * Set by {@link #initByteProgress(File)} instead of {@link #totalLines}. Counting lines up front
-   * means reading the whole file a second time, which is a real cost for multi GB libraries, so
-   * parsers that stream the file report how far they got in bytes instead.
-   */
-  protected long totalBytes = 0L;
-  protected AtomicLong processedBytes = new AtomicLong(0L);
 
   public SpectralDBTextParser(int bufferEntries, LibraryEntryProcessor processor,
       boolean extensiveErrorLogging) {
@@ -82,20 +75,12 @@ public abstract class SpectralDBTextParser extends SpectralDBParser {
     return false;
   }
 
-  /**
-   * Progress from the bytes consumed so far, for parsers that stream the file in one pass. Call
-   * this instead of {@link #parse(AbstractTask, File, SpectralLibrary)} and keep
-   * {@link #processedBytes} up to date while reading.
-   */
-  protected void initByteProgress(@NotNull final File dataBaseFile) {
-    totalBytes = dataBaseFile.length();
-    processedBytes.set(0L);
-  }
-
   @Override
   public double getProgress() {
-    if (totalBytes > 0L) {
-      return processedBytes.get() / (double) totalBytes;
+    // byte progress when the parser streams the file, the line count otherwise
+    final double byteProgress = getByteProgress();
+    if (byteProgress >= 0) {
+      return byteProgress;
     }
     return totalLines == 0 ? 0 : processedLines.get() / (double) totalLines;
   }

@@ -119,6 +119,7 @@ public class MZmineJsonParser extends SpectralDBTextParser {
         processedBytes.set(p.currentLocation().getByteOffset());
       }
     }
+    finishByteProgress();
     // finish and process last entries
     finish();
 

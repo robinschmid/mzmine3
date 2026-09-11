@@ -268,6 +268,7 @@ public enum DBEntryField {
     addAlternativeKey("ms_dissociation_method",
         DBEntryField.FRAGMENTATION_METHOD); // matchms_cleaned mgf
     addAlternativeKey("spectrum_id", DBEntryField.ENTRY_ID); // matchms_cleaned mgf
+    addAlternativeKey("sys_name", DBEntryField.IUPAC_NAME); // GNPS2 json
     addAlternativeKey("retention_time", DBEntryField.RT); // GNPS cleaned mgf
     addAlternativeKey("raw_filename", DBEntryField.FILENAME); // GNPS cleaned mgf
 //    addAlternativeKey("", DBEntryField.);

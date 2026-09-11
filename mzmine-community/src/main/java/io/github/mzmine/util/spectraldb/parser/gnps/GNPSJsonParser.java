@@ -57,16 +57,30 @@ public class GNPSJsonParser extends SpectralDBParser {
   private final boolean extensiveErrorLogging;
   private boolean finished = false;
 
+  /**
+   * Which of the two GNPS entry shapes this file uses.
+   */
+  private final Class<? extends GnpsEntry> entryClass;
+
   public GNPSJsonParser(int bufferEntries, LibraryEntryProcessor processor,
       boolean extensiveErrorLogging) {
+    this(bufferEntries, processor, extensiveErrorLogging, GnpsJsonFlavor.CLASSIC);
+  }
+
+  public GNPSJsonParser(int bufferEntries, LibraryEntryProcessor processor,
+      boolean extensiveErrorLogging, @NotNull GnpsJsonFlavor flavor) {
     super(bufferEntries, processor);
     this.extensiveErrorLogging = extensiveErrorLogging;
+    this.entryClass = flavor.getEntryClass();
   }
 
   @Override
   public boolean parse(@Nullable AbstractTask mainTask, @NotNull File dataBaseFile,
       @NotNull SpectralLibrary library) throws IOException {
     logger.info("Parsing GNPS spectral json library " + dataBaseFile.getAbsolutePath());
+
+    // progress from the bytes consumed, the file is streamed once
+    initByteProgress(dataBaseFile);
 
     final LibraryParsingErrors errors = new LibraryParsingErrors(
         library != null ? library.getName() : dataBaseFile.getName());
@@ -85,7 +99,7 @@ public class GNPSJsonParser extends SpectralDBParser {
       // Iterate over the tokens until the end of the array
       while (jsonParser.nextToken() != JsonToken.END_ARRAY) {
         try {
-          SpectralLibraryEntry entry = mapper.readValue(jsonParser, GnpsLibraryEntry.class)
+          SpectralLibraryEntry entry = mapper.readValue(jsonParser, entryClass)
               .toSpectralLibraryEntry(library);
           addLibraryEntry(storage, errors, entry);
         } catch (Exception ex) {
@@ -96,9 +110,13 @@ public class GNPSJsonParser extends SpectralDBParser {
             logger.log(Level.WARNING, ex.getMessage(), ex);
           }
           error++;
+          // the entry may have failed part way through, drop the rest of it
+          jsonParser.skipChildren();
         }
+        processedBytes.set(jsonParser.currentLocation().getByteOffset());
       }
     }
+    finishByteProgress();
     finish();
 
     logger.info(String.format("GNPS library loaded with %d entries and %d failing entries",
@@ -114,6 +132,11 @@ public class GNPSJsonParser extends SpectralDBParser {
 
   @Override
   public double getProgress() {
-    return finished ? 1 : (getProcessedEntries() % 10000) / 10000.0;
+    if (finished) {
+      return 1;
+    }
+    final double byteProgress = getByteProgress();
+    // before parse() started there is nothing to report yet
+    return byteProgress >= 0 ? byteProgress : 0;
   }
 }
