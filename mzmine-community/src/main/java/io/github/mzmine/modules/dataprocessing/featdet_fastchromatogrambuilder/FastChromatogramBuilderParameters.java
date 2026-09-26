@@ -36,6 +36,9 @@ import io.github.mzmine.parameters.parametertypes.HiddenParameter;
 import io.github.mzmine.parameters.parametertypes.IntegerParameter;
 import io.github.mzmine.parameters.parametertypes.OptOutParameter;
 import io.github.mzmine.parameters.parametertypes.StringParameter;
+import io.github.mzmine.parameters.parametertypes.combowithinput.AutoOrCustomOption;
+import io.github.mzmine.parameters.parametertypes.combowithinput.MZToleranceOrAuto;
+import io.github.mzmine.parameters.parametertypes.combowithinput.MZToleranceOrAutoParameter;
 import io.github.mzmine.parameters.parametertypes.selectors.RawDataFilesParameter;
 import io.github.mzmine.parameters.parametertypes.selectors.RawDataFilesSelection;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
@@ -77,8 +80,13 @@ public class FastChromatogramBuilderParameters extends SimpleParameterSet {
       The consecutive scans need to reach this height. Signals below this intensity will not start a new chromatogram
       but can be added to an existing one.""", MZmineCore.getConfiguration().getIntensityFormat());
 
-  public static final MZToleranceParameter mzTolerance = new MZToleranceParameter(
-      ToleranceType.SCAN_TO_SCAN, 0.002, 10);
+  // decision: auto by default, the presets per instrument type are only rough guesses
+  public static final MZToleranceOrAutoParameter mzTolerance = new MZToleranceOrAutoParameter(
+      new MZToleranceParameter(ToleranceType.SCAN_TO_SCAN, """
+          Auto estimates the tolerance from a few data files: from the m/z scatter of the same \
+          signal in consecutive scans and from the m/z spread of the data points in a test build \
+          of the chromatograms. The estimate is logged and stored with the feature lists.
+          Custom uses the defined tolerance.""", 0.002, 10), AutoOrCustomOption.AUTO);
 
   public static final StringParameter suffix = new StringParameter("Suffix",
       "This string is added to filename as suffix", "chromatograms");
@@ -99,9 +107,21 @@ public class FastChromatogramBuilderParameters extends SimpleParameterSet {
         mzTolerance, suffix, clearRtCorrection, allowSingleScans);
   }
 
+  /**
+   * Parameters with a custom m/z tolerance.
+   */
   @NotNull
   public static FastChromatogramBuilderParameters create(@NotNull RawDataFilesSelection files,
       @NotNull ScanSelection scans, int minConsecutiveScans, @NotNull MZTolerance mzTolScans,
+      @NotNull String nameSuffix, double minGroupInt, double minHeight,
+      boolean clearRtCorrectionValue) {
+    return create(files, scans, minConsecutiveScans, MZToleranceOrAuto.custom(mzTolScans),
+        nameSuffix, minGroupInt, minHeight, clearRtCorrectionValue);
+  }
+
+  @NotNull
+  public static FastChromatogramBuilderParameters create(@NotNull RawDataFilesSelection files,
+      @NotNull ScanSelection scans, int minConsecutiveScans, @NotNull MZToleranceOrAuto mzTolScans,
       @NotNull String nameSuffix, double minGroupInt, double minHeight,
       boolean clearRtCorrectionValue) {
     final var param = new FastChromatogramBuilderParameters().cloneParameterSet();

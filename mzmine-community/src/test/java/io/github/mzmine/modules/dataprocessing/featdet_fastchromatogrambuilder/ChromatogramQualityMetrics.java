@@ -27,6 +27,7 @@ package io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder;
 
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
 import it.unimi.dsi.fastutil.ints.IntArrays;
+import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
@@ -86,6 +87,113 @@ final class ChromatogramQualityMetrics {
     double matchedFraction() {
       return reference == 0 ? 0 : (double) matched / reference;
     }
+  }
+
+  /**
+   * @param dips          runs of up to {@link #MAX_DIP_SCANS} scans between two data points of at
+   *                      least the flank intensity in which a chromatogram has no data point or
+   *                      only data points below the weaker flank by more than the intensity factor
+   * @param fillableDips  dips with a mass list data point in at least half of their scans that is
+   *                      within the window around the interpolated m/z and within the intensity
+   *                      factor of the log interpolated intensity of the flanks, e.g., a saturated
+   *                      apex with a shifted m/z
+   * @param fillableScans scans of the fillable dips with such a data point
+   */
+  record Dips(int dips, int fillableDips, long fillableScans, @NotNull List<String> examples) {
+
+  }
+
+  static final int MAX_DIP_SCANS = 50;
+
+  /**
+   * Intensity dips inside intense chromatograms, the peak drops to zero or noise for a few scans.
+   *
+   * @param minFlank        min intensity of the data points before and after a dip
+   * @param windowFactor    multiple of the tolerance around the interpolated m/z to look for data
+   *                        points that could fill the dip
+   * @param intensityFactor max ratio of a dip data point to the weaker flank and of a filling data
+   *                        point to the interpolated intensity
+   */
+  @NotNull
+  static Dips dips(@NotNull List<EvaluatedChromatogram> chromatograms,
+      @NotNull double[][] massListMzs, @NotNull double[][] massListIntensities,
+      @NotNull MZTolerance tolerance, double minFlank, double windowFactor,
+      double intensityFactor) {
+    final double logFactor = Math.log(intensityFactor);
+    int dips = 0;
+    int fillableDips = 0;
+    long fillableScans = 0;
+    final ChromatogramDataPointIndex owners = new ChromatogramDataPointIndex(chromatograms,
+        massListMzs.length);
+    final List<String> examples = new ArrayList<>();
+    for (int c = 0; c < chromatograms.size(); c++) {
+      final EvaluatedChromatogram chrom = chromatograms.get(c);
+      final int[] scans = chrom.scans();
+      final double[] mzs = chrom.mzs();
+      final double[] intensities = chrom.intensities();
+      int flank = -1;
+      for (int i = 0; i < scans.length; i++) {
+        if (intensities[i] < minFlank) {
+          continue;
+        }
+        final int length = flank < 0 ? 0 : scans[i] - scans[flank] - 1;
+        if (length >= 1 && length <= MAX_DIP_SCANS && isDip(intensities, flank, i,
+            intensityFactor)) {
+          dips++;
+          int fillable = 0;
+          final StringBuilder candidates = new StringBuilder();
+          final double logBefore = Math.log(intensities[flank]);
+          final double logAfter = Math.log(intensities[i]);
+          for (int s = scans[flank] + 1; s < scans[i]; s++) {
+            final double position = (double) (s - scans[flank]) / (length + 1);
+            final double mz = mzs[flank] + position * (mzs[i] - mzs[flank]);
+            final double logIntensity = logBefore + position * (logAfter - logBefore);
+            final double window = windowFactor * tolerance.getMzToleranceForMass(mz);
+            final double[] scanMzs = massListMzs[s];
+            for (int k = ChannelConsolidation.lowerBound(scanMzs, mz - window);
+                k < scanMzs.length && scanMzs[k] <= mz + window; k++) {
+              if (Math.abs(Math.log(massListIntensities[s][k]) - logIntensity) <= logFactor) {
+                fillable++;
+                if (candidates.length() < 300) {
+                  final int owner = owners.find(s, scanMzs[k]);
+                  candidates.append(
+                      " [scan %d %+.1f ppm %.3g %s]".formatted(s, (scanMzs[k] - mz) / mz * 1E6,
+                          massListIntensities[s][k], owner < 0 ? "unused"
+                              : "in %.5f".formatted(chromatograms.get(owner).weightedMz())));
+                }
+                break;
+              }
+            }
+          }
+          if (2 * fillable >= length) {
+            fillableDips++;
+            fillableScans += fillable;
+            if (examples.size() < 30) {
+              examples.add("mz %.5f scans %d-%d flanks %.3g / %.3g, %d of %d scans:%s".formatted(
+                  chrom.weightedMz(), scans[flank], scans[i], intensities[flank], intensities[i],
+                  fillable, length, candidates));
+            }
+          }
+        }
+        flank = i;
+      }
+    }
+    return new Dips(dips, fillableDips, fillableScans, examples);
+  }
+
+  /**
+   * @return true if all data points between both flanks are below the weaker flank by more than the
+   * intensity factor
+   */
+  private static boolean isDip(@NotNull double[] intensities, int before, int after,
+      double intensityFactor) {
+    final double weakerFlank = Math.min(intensities[before], intensities[after]);
+    for (int k = before + 1; k < after; k++) {
+      if (intensities[k] * intensityFactor >= weakerFlank) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @NotNull

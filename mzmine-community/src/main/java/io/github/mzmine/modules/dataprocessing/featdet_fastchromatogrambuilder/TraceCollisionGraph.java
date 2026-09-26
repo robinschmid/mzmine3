@@ -60,36 +60,48 @@ final class TraceCollisionGraph {
       @NotNull long[] sortedIds, @NotNull int[] byId) {
     final int n = sortedIds.length;
     final int events = traces.getNumCollisionEvents();
-    // pack the record indices of both traces into one long, lower index in the upper bits
+    // decision: count the events of each pair of traces first and find the records of the pairs
+    // only, co-eluting traces collide in many scans. Pack both trace ids into one long, the lower
+    // id in the upper bits.
     final long[] packed = new long[events];
-    int numPacked = 0;
-    for (int e = 0; e < events; e++) {
-      final int a = findRecord(sortedIds, byId, traces.collisionTraceA.getLong(e));
-      final int b = findRecord(sortedIds, byId, traces.collisionTraceB.getLong(e));
-      if (a < 0 || b < 0) {
-        // one of the traces was not recorded, e.g., too few data points
-        continue;
-      }
-      final long lo = Math.min(a, b);
-      final long hi = Math.max(a, b);
-      packed[numPacked++] = (lo << 32) | hi;
+    boolean idsFit = true;
+    for (int e = 0; e < events && idsFit; e++) {
+      final long a = traces.collisionTraceA.getLong(e);
+      final long b = traces.collisionTraceB.getLong(e);
+      idsFit = a <= Integer.MAX_VALUE && b <= Integer.MAX_VALUE;
+      packed[e] = Math.min(a, b) << 32 | Math.max(a, b);
     }
-    LongArrays.radixSort(packed, 0, numPacked);
-
-    // unique pairs with their number of collision events
-    final int[] pairA = new int[numPacked];
-    final int[] pairB = new int[numPacked];
-    final int[] pairCount = new int[numPacked];
-    int numPairs = 0;
-    for (int i = 0; i < numPacked; i++) {
-      if (numPairs > 0 && packed[i] == packed[i - 1]) {
-        pairCount[numPairs - 1]++;
-        continue;
+    if (!idsFit) {
+      // more than 2^31 traces, the record indices always fit
+      for (int e = 0; e < events; e++) {
+        final long a = findRecord(sortedIds, byId, traces.collisionTraceA.getLong(e));
+        final long b = findRecord(sortedIds, byId, traces.collisionTraceB.getLong(e));
+        packed[e] = a < 0 || b < 0 ? -1 : Math.min(a, b) << 32 | Math.max(a, b);
       }
-      pairA[numPairs] = (int) (packed[i] >>> 32);
-      pairB[numPairs] = (int) packed[i];
-      pairCount[numPairs] = 1;
-      numPairs++;
+    }
+    LongArrays.radixSort(packed, 0, events);
+
+    // unique pairs of recorded traces with their number of collision events
+    final int[] pairA = new int[events];
+    final int[] pairB = new int[events];
+    final int[] pairCount = new int[events];
+    int numPairs = 0;
+    for (int i = 0; i < events; ) {
+      final long pair = packed[i];
+      int j = i + 1;
+      while (j < events && packed[j] == pair) {
+        j++;
+      }
+      final int a = idsFit ? findRecord(sortedIds, byId, pair >>> 32) : (int) (pair >>> 32);
+      final int b = idsFit ? findRecord(sortedIds, byId, pair & 0xFFFFFFFFL) : (int) pair;
+      // one of the traces was not recorded, e.g., too few data points
+      if (pair >= 0 && a >= 0 && b >= 0) {
+        pairA[numPairs] = a;
+        pairB[numPairs] = b;
+        pairCount[numPairs] = j - i;
+        numPairs++;
+      }
+      i = j;
     }
 
     final int[] offsets = new int[n + 1];

@@ -30,6 +30,7 @@ import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.Arrays;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Streaming mass trace detection in a single loop over the scans. Scans are processed in retention
@@ -44,9 +45,12 @@ import org.jetbrains.annotations.NotNull;
  * start a new trace. Traces without a data point for more than {@link #getMaxGapScans()} scans are
  * closed, traces with a single data point already after one scan without data point.
  * <p>
+ * The sweeper can record the trace of every data point in {@link TraceAssignments}, the second pass
+ * of the {@link FastChromatogramBuilder} routes the data points with them instead of detecting the
+ * traces again.
+ * <p>
  * Contract: the sweeper is deterministic. Feeding the same scans to a new instance yields identical
- * traces, trace ids and listener events. {@link FastChromatogramBuilder} relies on this to replay
- * the detection in a second pass instead of storing all data points in memory.
+ * traces, trace ids and listener events.
  */
 final class MassTraceSweeper {
 
@@ -119,8 +123,13 @@ final class MassTraceSweeper {
 
   private long nextTraceId = 0;
   private int scanIndex = -1;
-  private long numDataPoints = 0;
   private int maxActiveTraces = 0;
+
+  private final ScanDataPoints points = new ScanDataPoints();
+  // the trace of each data point for the second pass, null if not recorded
+  private final @Nullable TraceAssignments assignments;
+  private int[] dpCode;
+  private int maxCode = 0;
 
   /**
    * @param tolerance m/z tolerance between a data point and the center of a trace
@@ -130,6 +139,15 @@ final class MassTraceSweeper {
    */
   MassTraceSweeper(@NotNull MZTolerance tolerance, @NotNull FastChromatogramBuilderOptions options,
       @NotNull MassTraceSweepListener listener) {
+    this(tolerance, options, listener, null);
+  }
+
+  /**
+   * @param assignments receives the trace of every data point, may be null
+   */
+  MassTraceSweeper(@NotNull MZTolerance tolerance, @NotNull FastChromatogramBuilderOptions options,
+      @NotNull MassTraceSweepListener listener, @Nullable TraceAssignments assignments) {
+    this.assignments = assignments;
     if (!(options.intensityJumpFactor() >= 1d)) {
       throw new IllegalArgumentException("intensityJumpFactor must be >= 1");
     }
@@ -159,13 +177,12 @@ final class MassTraceSweeper {
     activeExpiry = new int[INITIAL_CAPACITY];
     posDp = new int[INITIAL_CAPACITY];
 
-    mzs = new double[INITIAL_CAPACITY];
-    intensities = new double[INITIAL_CAPACITY];
     dpTolerance = new double[INITIAL_CAPACITY];
     dpLo = new int[INITIAL_CAPACITY];
     dpHi = new int[INITIAL_CAPACITY];
     dpPos = new int[INITIAL_CAPACITY];
     newSlots = new int[INITIAL_CAPACITY];
+    dpCode = new int[INITIAL_CAPACITY];
   }
 
   /**
@@ -179,9 +196,13 @@ final class MassTraceSweeper {
     if (trackCollisions) {
       reportCollisions();
     }
+    maxCode = 0;
     updateAssignedTraces();
     final int numNew = startNewTraces();
     rebuildActiveTraces(numNew);
+    if (assignments != null) {
+      assignments.addScan(dpCode, numDps, maxCode);
+    }
     listener.onScanFinished(this, scanIndex);
   }
 
@@ -203,50 +224,11 @@ final class MassTraceSweeper {
   }
 
   private void loadScan(@NotNull MzIntensityScans scans) {
-    final int n = scans.getNumberOfDataPoints();
-    ensureScanCapacity(n);
-    int valid = 0;
-    boolean sorted = true;
-    double lastMz = Double.NEGATIVE_INFINITY;
-    for (int i = 0; i < n; i++) {
-      final double mz = scans.getMz(i);
-      final double intensity = scans.getIntensity(i);
-      // decision: zero, negative and non finite values carry no signal and would break the
-      // intensity weighted center. A missing signal is represented by the absence of a data point.
-      if (!(intensity > 0d) || !Double.isFinite(intensity) || !Double.isFinite(mz)) {
-        continue;
-      }
-      if (mz < lastMz) {
-        sorted = false;
-      }
-      lastMz = mz;
-      mzs[valid] = mz;
-      intensities[valid] = intensity;
-      valid++;
-    }
-    numDps = valid;
-    numDataPoints += valid;
-    if (!sorted) {
-      // assumption: mass lists are sorted by m/z, this is only a safety net
-      sortScanByMz();
-    }
-  }
-
-  private void sortScanByMz() {
-    final int[] order = new int[numDps];
-    for (int i = 0; i < numDps; i++) {
-      order[i] = i;
-    }
-    final double[] unsortedMzs = Arrays.copyOf(mzs, numDps);
-    final double[] unsortedIntensities = Arrays.copyOf(intensities, numDps);
-    IntArrays.quickSort(order, 0, numDps, (a, b) -> {
-      final int result = Double.compare(unsortedMzs[a], unsortedMzs[b]);
-      return result != 0 ? result : Integer.compare(a, b);
-    });
-    for (int i = 0; i < numDps; i++) {
-      mzs[i] = unsortedMzs[order[i]];
-      intensities[i] = unsortedIntensities[order[i]];
-    }
+    points.load(scans);
+    numDps = points.size();
+    mzs = points.mzs();
+    intensities = points.intensities();
+    ensureScanCapacity(numDps);
   }
 
   /**
@@ -405,7 +387,16 @@ final class MassTraceSweeper {
       activeCenter[p] = slotCenter[slot];
       // the trace has at least two data points now
       activeExpiry[p] = scanIndex + maxGapScans;
+      setCode(d, slot, false);
       listener.onDataPointAssigned(this, slot, scanIndex, mzs[d], intensities[d]);
+    }
+  }
+
+  private void setCode(int d, int slot, boolean newTrace) {
+    final int code = TraceAssignments.code(slot, newTrace);
+    dpCode[d] = code;
+    if (code > maxCode) {
+      maxCode = code;
     }
   }
 
@@ -427,6 +418,7 @@ final class MassTraceSweeper {
       slotCount[slot] = 0;
       listener.onTraceCreated(this, slot);
       addDataPoint(slot, mzs[d], intensities[d]);
+      setCode(d, slot, true);
       listener.onDataPointAssigned(this, slot, scanIndex, mzs[d], intensities[d]);
       newSlots[numNew++] = slot;
     }
@@ -528,17 +520,16 @@ final class MassTraceSweeper {
   }
 
   private void ensureScanCapacity(int n) {
-    if (mzs.length >= n) {
+    if (dpPos.length >= n) {
       return;
     }
-    final int capacity = Math.max(n, grow(mzs.length));
-    mzs = new double[capacity];
-    intensities = new double[capacity];
+    final int capacity = Math.max(n, grow(dpPos.length));
     dpTolerance = new double[capacity];
     dpLo = new int[capacity];
     dpHi = new int[capacity];
     dpPos = new int[capacity];
     newSlots = new int[capacity];
+    dpCode = new int[capacity];
   }
 
   private void ensureActiveCapacity(int n) {
@@ -605,7 +596,14 @@ final class MassTraceSweeper {
   }
 
   long getNumDataPoints() {
-    return numDataPoints;
+    return points.getNumDataPoints();
+  }
+
+  /**
+   * @return the max intensity of all valid data points of the processed scans
+   */
+  double getMaxDataPointIntensity() {
+    return points.getMaxIntensity();
   }
 
   int getMaxActiveTraces() {

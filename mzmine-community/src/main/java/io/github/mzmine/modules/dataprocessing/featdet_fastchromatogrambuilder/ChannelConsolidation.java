@@ -28,6 +28,7 @@ package io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import it.unimi.dsi.fastutil.ints.IntArrays;
+import it.unimi.dsi.fastutil.longs.LongArrays;
 import java.util.Arrays;
 import java.util.BitSet;
 import org.jetbrains.annotations.NotNull;
@@ -49,6 +50,9 @@ import org.jetbrains.annotations.NotNull;
  * isobaric ions in complex samples.
  */
 final class ChannelConsolidation {
+
+  // decision: 1 mDa bins hold few trace centers even for a million traces
+  private static final double CENTER_LOOKUP_BIN_WIDTH = 0.001;
 
   private ChannelConsolidation() {
   }
@@ -79,9 +83,11 @@ final class ChannelConsolidation {
     final int[] firstScans = traces.firstScans.toIntArray();
     final int[] lastScans = traces.lastScans.toIntArray();
 
+    // decision: radix sorts of the double bits, the comparator sorts took 0.4 s for the 1 M traces
+    // of GC-QTOF data without noise filter
     // record indices sorted by trace id, used to map collisions and to write the members
     final int[] byId = identity(n);
-    IntArrays.quickSort(byId, 0, n, (a, b) -> Long.compare(ids[a], ids[b]));
+    LongArrays.radixSortIndirect(byId, ids, true);
     final long[] sortedIds = new long[n];
     for (int i = 0; i < n; i++) {
       sortedIds[i] = ids[byId[i]];
@@ -91,24 +97,27 @@ final class ChannelConsolidation {
         options.needsCollisions() ? TraceCollisionGraph.create(traces, sortedIds, byId) : null;
 
     // most intense traces first, ties by trace id
+    final long[] keys = new long[n];
+    for (int i = 0; i < n; i++) {
+      keys[i] = -sortableBits(maxIntensities[i]);
+    }
     final int[] byMax = identity(n);
-    IntArrays.quickSort(byMax, 0, n, (a, b) -> {
-      final int result = Double.compare(maxIntensities[b], maxIntensities[a]);
-      return result != 0 ? result : Long.compare(ids[a], ids[b]);
-    });
+    LongArrays.radixSortIndirect(byMax, keys, ids, true);
 
     // position of each trace in m/z order, seeds are marked in this order
+    for (int i = 0; i < n; i++) {
+      keys[i] = sortableBits(centers[i]);
+    }
     final int[] byCenter = identity(n);
-    IntArrays.quickSort(byCenter, 0, n, (a, b) -> {
-      final int result = Double.compare(centers[a], centers[b]);
-      return result != 0 ? result : Long.compare(ids[a], ids[b]);
-    });
+    LongArrays.radixSortIndirect(byCenter, keys, ids, true);
     final int[] rank = new int[n];
     final double[] sortedCenters = new double[n];
     for (int r = 0; r < n; r++) {
       rank[byCenter[r]] = r;
       sortedCenters[r] = centers[byCenter[r]];
     }
+    final BinnedLowerBound centerLookup = new BinnedLowerBound(sortedCenters,
+        CENTER_LOOKUP_BIN_WIDTH);
 
     final BitSet seedRanks = new BitSet(n);
     final int[] channelOf = new int[n];
@@ -119,8 +128,8 @@ final class ChannelConsolidation {
     for (final int k : byMax) {
       final double center = centers[k];
       final double tol = tolerance.getMzToleranceForMass(center);
-      final int lo = lowerBound(sortedCenters, center - tol);
-      final int hi = upperBound(sortedCenters, center + tol);
+      final int lo = centerLookup.lowerBound(center - tol);
+      final int hi = centerLookup.upperBound(center + tol);
 
       int bestChannel = -1;
       double bestDistance = Double.POSITIVE_INFINITY;
@@ -141,8 +150,8 @@ final class ChannelConsolidation {
         // scan with it is the same ion with a larger m/z scatter or a jump of the centroid. Two
         // co-eluting ions would share most scans.
         final double wideTol = complementaryFactor * tol;
-        final int wideLo = lowerBound(sortedCenters, center - wideTol);
-        final int wideHi = upperBound(sortedCenters, center + wideTol);
+        final int wideLo = centerLookup.lowerBound(center - wideTol);
+        final int wideHi = centerLookup.upperBound(center + wideTol);
         final int maxScanGap = options.maxGapScans() + 1;
         for (int r = seedRanks.nextSetBit(wideLo); r >= 0 && r < wideHi;
             r = seedRanks.nextSetBit(r + 1)) {
@@ -179,13 +188,13 @@ final class ChannelConsolidation {
       }
     }
 
-    return createPlan(n, sortedIds, byId, channelOf, channelSumIntensity, channelSumMzIntensity,
-        collisions == null ? 0 : collisions.numPairs());
+    return createPlan(n, sortedIds, byId, channelOf, counts, channelSumIntensity,
+        channelSumMzIntensity, collisions == null ? 0 : collisions.numPairs());
   }
 
   @NotNull
   private static ChannelPlan createPlan(int n, @NotNull long[] sortedIds, @NotNull int[] byId,
-      @NotNull int[] channelOf, @NotNull DoubleArrayList channelSumIntensity,
+      @NotNull int[] channelOf, @NotNull int[] counts, @NotNull DoubleArrayList channelSumIntensity,
       @NotNull DoubleArrayList channelSumMzIntensity, int numCollisionPairs) {
     final int numChannels = channelSumIntensity.size();
     final double[] channelCenters = new double[numChannels];
@@ -213,16 +222,28 @@ final class ChannelConsolidation {
     }
     final long[] memberIds = new long[numMembers];
     final int[] memberChannels = new int[numMembers];
+    final int[] memberDataPoints = new int[numChannels];
     int m = 0;
     for (int i = 0; i < n; i++) {
       final int k = byId[i];
       if (channelOf[k] >= 0) {
         memberIds[m] = sortedIds[i];
-        memberChannels[m] = newChannelIndex[channelOf[k]];
+        final int channel = newChannelIndex[channelOf[k]];
+        memberChannels[m] = channel;
+        memberDataPoints[channel] += counts[k];
         m++;
       }
     }
-    return new ChannelPlan(memberIds, memberChannels, sortedChannelCenters, n, numCollisionPairs);
+    return new ChannelPlan(memberIds, memberChannels, sortedChannelCenters, memberDataPoints, n,
+        numCollisionPairs);
+  }
+
+  /**
+   * @return the bits of the value as long with the same order as the doubles, -0.0 before 0.0
+   */
+  static long sortableBits(double value) {
+    final long bits = Double.doubleToLongBits(value);
+    return bits ^ (bits >> 63 & Long.MAX_VALUE);
   }
 
   @NotNull

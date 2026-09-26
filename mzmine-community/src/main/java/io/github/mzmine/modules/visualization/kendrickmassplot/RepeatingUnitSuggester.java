@@ -34,6 +34,7 @@ import io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder.F
 import io.github.mzmine.modules.dataprocessing.id_formulaprediction.restrictions.elements.ElementalHeuristicChecker;
 import io.github.mzmine.modules.dataprocessing.id_formulaprediction.restrictions.rdbe.RDBERestrictionChecker;
 import io.github.mzmine.parameters.ParameterUtils;
+import io.github.mzmine.parameters.parametertypes.combowithinput.MZToleranceOrAuto;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
 import io.github.mzmine.util.FormulaUtils;
 import io.github.mzmine.util.MathUtils;
@@ -265,7 +266,7 @@ public class RepeatingUnitSuggester extends Task<List<RepeatingUnit>> {
               ADAPChromatogramBuilderParameters.class, ADAPChromatogramBuilderParameters.mzTolerance)
           .or(() -> ParameterUtils.getValueFromAppliedMethods(appliedMethods,
               FastChromatogramBuilderParameters.class,
-              FastChromatogramBuilderParameters.mzTolerance))
+              FastChromatogramBuilderParameters.mzTolerance).map(MZToleranceOrAuto::tolerance))
           .orElse(new MZTolerance(0.005, 15));
     } catch (Exception e) {
       logger.log(Level.WARNING,

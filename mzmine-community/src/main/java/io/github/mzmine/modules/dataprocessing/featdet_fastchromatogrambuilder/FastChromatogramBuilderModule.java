@@ -79,10 +79,11 @@ public class FastChromatogramBuilderModule implements MZmineProcessingModule {
 
     final RawDataFile[] dataFiles = parameters.getValue(FastChromatogramBuilderParameters.dataFiles)
         .getMatchingRawDataFiles();
-    for (final RawDataFile file : dataFiles) {
-      tasks.add(new FastChromatogramBuilderTask(project, file, parameters.cloneParameterSet(true),
-          storage, moduleCallDate, FastChromatogramBuilderModule.class));
-    }
+    // decision: one main task for all files, it estimates the tolerance once and then processes
+    // the files in parallel
+    tasks.add(
+        new FastChromatogramBuilderTask(project, dataFiles, parameters.cloneParameterSet(true),
+            storage, moduleCallDate, FastChromatogramBuilderModule.class));
     return ExitCode.OK;
   }
 

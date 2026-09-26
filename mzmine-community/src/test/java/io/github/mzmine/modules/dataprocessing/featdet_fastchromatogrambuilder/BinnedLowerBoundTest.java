@@ -48,16 +48,24 @@ class BinnedLowerBoundTest {
         final double key = 90 + random.nextDouble() * 1000;
         Assertions.assertEquals(ChannelConsolidation.lowerBound(values, key),
             lookup.lowerBound(key), "key " + key);
+        Assertions.assertEquals(ChannelConsolidation.upperBound(values, key),
+            lookup.upperBound(key), "key " + key);
       }
       for (final double value : values) {
         Assertions.assertEquals(ChannelConsolidation.lowerBound(values, value),
             lookup.lowerBound(value));
+        Assertions.assertEquals(ChannelConsolidation.upperBound(values, value),
+            lookup.upperBound(value));
         final double below = Math.nextDown(value);
         Assertions.assertEquals(ChannelConsolidation.lowerBound(values, below),
             lookup.lowerBound(below));
+        Assertions.assertEquals(ChannelConsolidation.upperBound(values, below),
+            lookup.upperBound(below));
         final double above = Math.nextUp(value);
         Assertions.assertEquals(ChannelConsolidation.lowerBound(values, above),
             lookup.lowerBound(above));
+        Assertions.assertEquals(ChannelConsolidation.upperBound(values, above),
+            lookup.upperBound(above));
       }
     }
   }
@@ -69,5 +77,8 @@ class BinnedLowerBoundTest {
     Assertions.assertEquals(0, single.lowerBound(4));
     Assertions.assertEquals(0, single.lowerBound(5));
     Assertions.assertEquals(1, single.lowerBound(6));
+    Assertions.assertEquals(0, single.upperBound(4));
+    Assertions.assertEquals(1, single.upperBound(5));
+    Assertions.assertEquals(1, single.upperBound(6));
   }
 }

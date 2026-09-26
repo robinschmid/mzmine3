@@ -26,7 +26,6 @@
 package io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder;
 
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
@@ -41,15 +40,20 @@ import org.jetbrains.annotations.Nullable;
  *   scans to mass traces, locally in retention time. Only trace statistics are kept.</li>
  *   <li>{@link ChannelConsolidation} groups the traces into m/z channels. The traces of one ion
  *   form one channel, which avoids duplicate chromatograms.</li>
- *   <li>Second pass: the identical trace detection is replayed and each data point is routed into
- *   the channel of its trace by {@link ChannelDataCollector}. Remaining data points fill empty
- *   scans of the closest channel within the tolerance, which avoids holes.</li>
+ *   <li>Second pass: each data point is routed into the channel of its trace by
+ *   {@link ChannelDataCollector}, the first pass records the trace of each data point in
+ *   {@link TraceAssignments}. Remaining data points fill empty scans of the closest channel within
+ *   the tolerance, which avoids holes.</li>
+ *   <li>{@link ChannelFinalization} merges complementary channels of one ion, bridges dips of
+ *   intense chromatograms with shifted segments of other channels, e.g., a saturated apex, and
+ *   moves the data points of channels that fail the filters into the passing channels.</li>
  * </ol>
- * Finally, channels need a minimum number of consecutive scans above the group intensity and
- * within this segment a minimum height, the same filters as in the ADAP chromatogram builder.
+ * Channels need a minimum number of consecutive scans above the group intensity and within this
+ * segment a minimum height, the same filters as in the ADAP chromatogram builder.
  * <p>
- * Memory is proportional to the active traces and the detected chromatograms, not to all data
- * points, so there is no limit on the number of data points.
+ * Memory is proportional to the active traces and the detected chromatograms plus two bytes per data
+ * point for the trace assignments, the data points themselves are read from the scans in both
+ * passes.
  */
 public final class FastChromatogramBuilder {
 
@@ -105,7 +109,11 @@ public final class FastChromatogramBuilder {
     long start = System.nanoTime();
     final TraceSummaryCollector summaries = new TraceSummaryCollector(minTraceDataPoints,
         minTraceDataPointsWithoutHeight, minHeight, options.needsCollisions());
-    final MassTraceSweeper firstPass = createSweeper(summaries);
+    // decision: two bytes per data point instead of detecting the traces again in the second
+    // pass, which took as long as the first pass
+    final TraceAssignments assignments = new TraceAssignments();
+    final MassTraceSweeper firstPass = new MassTraceSweeper(tolerance, options, summaries,
+        assignments);
     if (!sweep(scans, firstPass, isCanceled, progress, 0d, 0.45d)) {
       return null;
     }
@@ -120,39 +128,68 @@ public final class FastChromatogramBuilder {
     }
 
     start = System.nanoTime();
-    final ChannelDataCollector channels = new ChannelDataCollector(plan, tolerance);
-    // replay: the second sweeper produces the identical traces and trace ids
-    if (!sweep(scans, createSweeper(channels), isCanceled, progress, 0.5d, 0.45d)) {
+    final ChannelDataCollector channels = new ChannelDataCollector(plan, tolerance, minHeight,
+        options);
+    if (!route(scans, assignments, channels, isCanceled, progress, 0.5d, 0.45d)) {
       return null;
     }
     final long secondPassNanos = System.nanoTime() - start;
 
     start = System.nanoTime();
-    final List<BuiltChromatogram> chromatograms = new ArrayList<>();
-    for (int c = 0; c < channels.numChannels(); c++) {
-      final ChannelBuffer buffer = channels.getBuffer(c);
-      if (buffer != null && passesFilters(buffer)) {
-        chromatograms.add(buffer.toChromatogram(channels.getChannelCenter(c)));
-      }
+    final ChannelBuffer[] buffers = new ChannelBuffer[channels.numChannels()];
+    for (int c = 0; c < buffers.length; c++) {
+      buffers[c] = channels.getBuffer(c);
     }
-    final long filterNanos = System.nanoTime() - start;
+    final ChannelFinalization finalization = new ChannelFinalization(tolerance, minConsecutiveScans,
+        minGroupIntensity, minHeight, options);
+    final List<BuiltChromatogram> chromatograms = finalization.process(buffers,
+        plan.channelCenters(), firstPass.getMaxDataPointIntensity());
+    final long finalizationNanos = System.nanoTime() - start;
     if (progress != null) {
       progress.accept(1d);
     }
 
     statistics = new FastChromatogramBuilderStatistics(scans.getNumberOfScans(),
-        firstPass.getNumDataPoints(), firstPass.getNumTracesCreated(),
+        firstPass.getNumDataPoints(), firstPass.getMaxDataPointIntensity(),
+        firstPass.getNumTracesCreated(),
         firstPass.getMaxActiveTraces(), plan.numRecordedTraces(), summaries.getNumCollisionEvents(),
         plan.numCollisionPairs(), plan.numChannels(), channels.getNumMemberDataPoints(),
         channels.getNumMemberConflicts(), channels.getNumLooseDataPoints(),
-        channels.getNumLooseAssigned(), chromatograms.size(), firstPassNanos, consolidationNanos,
-        secondPassNanos, filterNanos);
+        channels.getNumLooseAssigned(), channels.getNumHoleFills(),
+        finalization.getNumMergedChannels(), finalization.getNumBridgedSegments(),
+        finalization.getNumBridgedDataPoints(), finalization.getNumRecoveredDataPoints(),
+        chromatograms.size(), firstPassNanos, consolidationNanos, secondPassNanos,
+        finalizationNanos);
     return chromatograms;
   }
 
-  @NotNull
-  private MassTraceSweeper createSweeper(@NotNull MassTraceSweepListener listener) {
-    return new MassTraceSweeper(tolerance, options, listener);
+  /**
+   * Second pass: loads the scans again and routes their data points with the traces of the first
+   * pass.
+   *
+   * @return false if canceled
+   */
+  private static boolean route(@NotNull MzIntensityScans scans,
+      @NotNull TraceAssignments assignments, @NotNull ChannelDataCollector channels,
+      @Nullable BooleanSupplier isCanceled, @Nullable DoubleConsumer progress, double progressStart,
+      double progressRange) {
+    final int numScans = Math.max(1, scans.getNumberOfScans());
+    final ScanDataPoints points = new ScanDataPoints();
+    scans.reset();
+    int scanIndex = 0;
+    while (scans.nextScan()) {
+      if (isCanceled != null && isCanceled.getAsBoolean()) {
+        return false;
+      }
+      points.load(scans);
+      channels.routeScan(scanIndex, points, assignments.scan(scanIndex));
+      assignments.release(scanIndex);
+      scanIndex++;
+      if (progress != null && (scanIndex & 63) == 0) {
+        progress.accept(progressStart + progressRange * scanIndex / numScans);
+      }
+    }
+    return true;
   }
 
   private static boolean sweep(@NotNull MzIntensityScans scans, @NotNull MassTraceSweeper sweeper,
@@ -176,16 +213,14 @@ public final class FastChromatogramBuilder {
   }
 
   /**
-   * At least {@link #minConsecutiveScans} consecutive scans with an intensity of at least
-   * {@link #minGroupIntensity} and within this segment a data point of at least
-   * {@link #minHeight}.
+   * The filters of the chromatograms, also used to compare chromatogram lists.
+   *
+   * @param scanIndices ascending, consecutive values are consecutive scans
+   * @return true for at least minConsecutiveScans consecutive scans with an intensity of at least
+   * minGroupIntensity and within this segment a data point of at least minHeight
    */
-  private boolean passesFilters(@NotNull ChannelBuffer buffer) {
-    return passesFilters(buffer.scanIndices(), buffer.intensities(), buffer.size(),
-        minConsecutiveScans, minGroupIntensity, minHeight);
-  }
-
-  static boolean passesFilters(@NotNull int[] scanIndices, @NotNull double[] intensities, int size,
+  public static boolean passesFilters(@NotNull int[] scanIndices, @NotNull double[] intensities,
+      int size,
       int minConsecutiveScans, double minGroupIntensity, double minHeight) {
     if (minConsecutiveScans <= 1) {
       for (int i = 0; i < size; i++) {

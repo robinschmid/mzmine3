@@ -32,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * @param numScans            processed scans
  * @param numDataPoints       valid data points in all scans
+ * @param maxIntensity        intensity of the most intense data point
  * @param numTraces           traces detected in the first pass
  * @param maxActiveTraces     max number of traces that were active at the same time
  * @param numRecordedTraces   traces considered for channels (enough data points)
@@ -43,32 +44,47 @@ import org.jetbrains.annotations.NotNull;
  * @param numMemberConflicts  data points dropped because another trace of the same channel had a
  *                            more intense data point in the same scan
  * @param numLooseDataPoints  data points of traces without channel
- * @param numLooseAssigned    loose data points that filled an empty scan of a channel
+ * @param numLooseAssigned    loose data points that filled an empty scan of a channel, includes
+ *                            member data points dropped in a conflict
+ * @param numHoleFills        holes between intense data points filled with the wider tolerance
+ * @param numMergedChannels   channels merged into a passing channel, complementary channels of
+ *                            one ion and failed channels
+ * @param numBridgedSegments  segments of other channels that filled a dip of a channel, e.g., the
+ *                            shifted apex of a saturated ion
+ * @param numBridgedDataPoints data points of the bridged segments
+ * @param numRecoveredDataPoints data points of failed channels that filled a passing channel
  * @param numChromatograms    chromatograms passing the filters
  * @param firstPassNanos      duration of the first pass
  * @param consolidationNanos  duration of the channel consolidation
  * @param secondPassNanos     duration of the second pass
- * @param filterNanos         duration of the final filter
+ * @param finalizationNanos   duration of the merges, the recovery and the filters
  */
-public record FastChromatogramBuilderStatistics(int numScans, long numDataPoints, long numTraces,
+public record FastChromatogramBuilderStatistics(int numScans, long numDataPoints,
+                                                double maxIntensity, long numTraces,
                                                 int maxActiveTraces, int numRecordedTraces,
                                                 int numCollisionEvents, int numCollisionPairs,
                                                 int numChannels, long numMemberDataPoints,
                                                 long numMemberConflicts, long numLooseDataPoints,
-                                                long numLooseAssigned, int numChromatograms,
+                                                long numLooseAssigned, long numHoleFills,
+                                                int numMergedChannels, int numBridgedSegments,
+                                                long numBridgedDataPoints,
+                                                long numRecoveredDataPoints, int numChromatograms,
                                                 long firstPassNanos, long consolidationNanos,
-                                                long secondPassNanos, long filterNanos) {
+                                                long secondPassNanos, long finalizationNanos) {
 
   @Override
   public @NotNull String toString() {
     final String format = """
-        scans=%d, data points=%d, traces=%d (max active %d, recorded %d), \
+        scans=%d, data points=%d (max intensity %.3g), traces=%d (max active %d, recorded %d), \
         collisions=%d (pairs %d), channels=%d, member data points=%d (conflicts %d), \
-        loose data points=%d (assigned %d), chromatograms=%d, \
-        times [ms]: pass1=%.1f, consolidation=%.1f, pass2=%.1f, filter=%.1f""";
-    return format.formatted(numScans, numDataPoints, numTraces, maxActiveTraces, numRecordedTraces,
-        numCollisionEvents, numCollisionPairs, numChannels, numMemberDataPoints, numMemberConflicts,
-        numLooseDataPoints, numLooseAssigned, numChromatograms, firstPassNanos / 1e6,
-        consolidationNanos / 1e6, secondPassNanos / 1e6, filterNanos / 1e6);
+        loose data points=%d (assigned %d), hole fills=%d, merged channels=%d, \
+        bridged dips=%d (data points %d), recovered data points=%d, chromatograms=%d, \
+        times [ms]: pass1=%.1f, consolidation=%.1f, pass2=%.1f, finalization=%.1f""";
+    return format.formatted(numScans, numDataPoints, maxIntensity, numTraces, maxActiveTraces,
+        numRecordedTraces, numCollisionEvents, numCollisionPairs, numChannels, numMemberDataPoints,
+        numMemberConflicts, numLooseDataPoints, numLooseAssigned, numHoleFills, numMergedChannels,
+        numBridgedSegments, numBridgedDataPoints, numRecoveredDataPoints, numChromatograms,
+        firstPassNanos / 1e6, consolidationNanos / 1e6, secondPassNanos / 1e6,
+        finalizationNanos / 1e6);
   }
 }

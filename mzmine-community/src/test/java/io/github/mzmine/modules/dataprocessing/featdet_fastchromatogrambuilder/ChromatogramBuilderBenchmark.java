@@ -25,10 +25,14 @@
 
 package io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder;
 
+import static io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder.ChromatogramBenchmarkDatasets.PROPERTY;
+
 import com.google.common.collect.Range;
 import io.github.mzmine.datamodel.MZmineProject;
 import io.github.mzmine.datamodel.RawDataFile;
 import io.github.mzmine.datamodel.Scan;
+import io.github.mzmine.datamodel.data_access.EfficientDataAccess;
+import io.github.mzmine.datamodel.data_access.EfficientDataAccess.ScanDataType;
 import io.github.mzmine.datamodel.features.FeatureList;
 import io.github.mzmine.datamodel.features.ModularFeatureList;
 import io.github.mzmine.modules.dataprocessing.featdet_adapchromatogrambuilder.ADAPChromatogramBuilderParameters;
@@ -40,8 +44,6 @@ import io.github.mzmine.modules.dataprocessing.featdet_chromatogramdeconvolution
 import io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder.GroundTruthEvaluator.Summary;
 import io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder.SyntheticLcmsData.Ion;
 import io.github.mzmine.modules.dataprocessing.filter_groupms2.GroupMS2SubParameters;
-import io.github.mzmine.modules.io.import_rawdata_all.AdvancedSpectraImportParameters;
-import io.github.mzmine.modules.tools.batchwizard.subparameters.MassDetectorWizardOptions;
 import io.github.mzmine.parameters.ParameterSet;
 import io.github.mzmine.parameters.parametertypes.OriginalFeatureListHandlingParameter.OriginalFeatureListOption;
 import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelection;
@@ -52,7 +54,6 @@ import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
 import io.github.mzmine.project.ProjectService;
 import io.github.mzmine.taskcontrol.AbstractTask;
 import io.github.mzmine.taskcontrol.TaskStatus;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,6 +61,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
@@ -72,6 +74,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import testutils.MZmineTestUtil;
 import testutils.TaskResult;
 
@@ -81,9 +85,10 @@ import testutils.TaskResult;
  * <pre>
  * gradlew :mzmine-community:benchmark --tests "*ChromatogramBuilderBenchmark*"
  * </pre>
- * Options as system properties: {@code -Dmzmine.test.chrombench.data=<folder with mzML>},
- * {@code .files=<max files>}, {@code .repeats=<timing repeats>}, {@code .out=<report folder>}. The
- * real data test is skipped if the data folder does not exist. The report is written as markdown.
+ * The real data sets and their options are in {@link ChromatogramBenchmarkDatasets}, e.g.,
+ * {@code -Dmzmine.test.chrombench.only=GC-EI-QTOF}. More options as system properties:
+ * {@code .repeats=<timing repeats>}, {@code .out=<report folder>}. The report is written as
+ * markdown.
  */
 @Tag("benchmark")
 @TestInstance(Lifecycle.PER_CLASS)
@@ -92,8 +97,12 @@ class ChromatogramBuilderBenchmark {
   private static final Logger logger = Logger.getLogger(
       ChromatogramBuilderBenchmark.class.getName());
 
-  private static final String DEFAULT_DATA = "D:\\OneDrive - mzio GmbH\\Example data - Documents\\Thermo\\20 years mzmine";
-  private static final String PROPERTY = "mzmine.test.chrombench.";
+  // decision: features within the tolerance and 0.03 min are the same feature, ~2 scans
+  private static final float RT_TOLERANCE = 0.03f;
+  // quantile of the chromatogram intensities below which the resolver removes data points
+  private static final double CHROMATOGRAPHIC_THRESHOLD = 0.9;
+  // decision: dips count between data points of 10 x the min height, clearly above the noise
+  private static final double DIP_FLANK_FACTOR = 10;
 
   private final List<String> report = new ArrayList<>();
 
@@ -104,23 +113,34 @@ class ChromatogramBuilderBenchmark {
 
   /**
    * Builder settings of one benchmark.
+   *
+   * @param scanSelection the scans of both builders
    */
   record Settings(@NotNull MZTolerance tolerance, int minConsecutive, double minGroupIntensity,
-                  double minHeight) {
+                  double minHeight, @NotNull ScanSelection scanSelection) {
 
+    @NotNull
+    static Settings of(@NotNull ChromatogramBenchmarkDataset dataset) {
+      return new Settings(dataset.preset(), dataset.minConsecutive(), dataset.minGroup(),
+          dataset.minHeight(), dataset.scanSelection());
+    }
   }
 
   /**
    * Result of one run of a builder on one file.
+   *
+   * @param statistics of the fast builder, null for other builders
    */
   record Run(@NotNull String method, long nanos, long allocatedBytes, @Nullable FeatureList flist,
-             @NotNull List<EvaluatedChromatogram> chromatograms) {
+             @NotNull List<EvaluatedChromatogram> chromatograms,
+             @Nullable FastChromatogramBuilderStatistics statistics) {
 
   }
 
   @Test
   void syntheticGroundTruth() throws IOException {
-    final Settings settings = new Settings(new MZTolerance(0.002, 10), 5, 1E3, 1E4);
+    final Settings settings = new Settings(new MZTolerance(0.002, 10), 5, 1E3, 1E4,
+        new ScanSelection(1));
     report.add("## Synthetic data with ground truth\n");
     report.add("""
         tolerance %s, min consecutive %d, min group intensity %.0f, min height %.0f
@@ -157,6 +177,8 @@ class ChromatogramBuilderBenchmark {
           builder(settings, defaults.withComplementaryToleranceFactor(1d))));
       runs.add(runFastBuilder("fast, single point gap 1", data, settings,
           builder(settings, defaults.withMaxGapScans(3, 1))));
+      runs.add(runFastBuilder("fast, no wide hole fill", data, settings,
+          builder(settings, defaults.withHoleFillToleranceFactor(0d))));
       Assertions.assertEquals(scans.length, data.numScans());
 
       for (final Run run : runs) {
@@ -173,67 +195,50 @@ class ChromatogramBuilderBenchmark {
     }
   }
 
-  @Test
-  void realData() throws Exception {
-    final File folder = new File(System.getProperty(PROPERTY + "data", DEFAULT_DATA));
-    Assumptions.assumeTrue(folder.isDirectory(), "No data folder " + folder);
-    final int maxFiles = Integer.getInteger(PROPERTY + "files", 4);
-    final int repeats = Integer.getInteger(PROPERTY + "repeats", 3);
-    final File[] files = folder.listFiles((_, name) -> name.toLowerCase().endsWith(".mzml"));
-    Assumptions.assumeTrue(files != null && files.length > 0, "No mzML files in " + folder);
-    Arrays.sort(files);
-    final List<String> paths = Arrays.stream(files).limit(maxFiles).map(File::getAbsolutePath)
-        .toList();
-
-    // settings of the workshop batch for Orbitrap data and a more sensitive setting with more data
-    final MZTolerance tolerance = new MZTolerance(0.002, 10);
-    runRealData(folder.getName(), paths, repeats, "workshop",
-        MassDetectorWizardOptions.FACTOR_OF_LOWEST_SIGNAL, 5d,
-        new Settings(tolerance, 6, 1E5, 5E5));
-    runRealData(folder.getName(), paths, repeats, "sensitive",
-        MassDetectorWizardOptions.FACTOR_OF_LOWEST_SIGNAL, 2d,
-        new Settings(tolerance, 4, 1E4, 5E4));
+  @NotNull List<ChromatogramBenchmarkDataset> datasets() {
+    return ChromatogramBenchmarkDatasets.selected();
   }
 
   /**
-   * GC-EI-TOF data of the integration tests with the settings of its batch, low resolution with
-   * many data points per scan.
+   * Real data with the settings of the batch wizard, with the tolerance of the wizard preset for
+   * both builders.
    */
-  @Test
-  void gcTofData() throws Exception {
-    final int repeats = Integer.getInteger(PROPERTY + "repeats", 3);
-    runRealData("GC-EI-TOF",
-        List.of("rawdatafiles/integration_tests/gc_tof_ms/019_KR8_20220715.mzML"), repeats,
-        "gc_tof batch", MassDetectorWizardOptions.ABSOLUTE_NOISE_LEVEL, 500d,
-        new Settings(new MZTolerance(0.005, 20), 4, 1E3, 1E3));
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("datasets")
+  void realData(@NotNull ChromatogramBenchmarkDataset dataset) throws Exception {
+    final String unavailable = ChromatogramBenchmarkDatasets.unavailableReason(dataset);
+    if (unavailable != null) {
+      report.add("## Real data: %s\n\nSkipped: %s\n".formatted(dataset.name(), unavailable));
+      writeReport();
+    }
+    Assumptions.assumeTrue(unavailable == null, unavailable);
+    runRealData(dataset, Integer.getInteger(PROPERTY + "repeats", 3));
   }
 
-  private void runRealData(@NotNull String dataName, @NotNull List<String> paths, int repeats,
-      @NotNull String profile, @NotNull MassDetectorWizardOptions detector, double noise,
-      @NotNull Settings settings) throws Exception {
+  private void runRealData(@NotNull ChromatogramBenchmarkDataset dataset, int repeats)
+      throws Exception {
     MZmineTestUtil.clearProjectAndLibraries();
-    final AdvancedSpectraImportParameters advanced = AdvancedSpectraImportParameters.create(
-        detector, noise,
-        detector == MassDetectorWizardOptions.FACTOR_OF_LOWEST_SIGNAL ? 2.5d : noise, null,
-        ScanSelection.ALL_SCANS, false);
-    final TaskResult imported = MZmineTestUtil.importFiles(paths, 3600, advanced);
+    final TaskResult imported = MZmineTestUtil.importFiles(dataset.paths(), 3600,
+        dataset.importParameters());
     Assertions.assertInstanceOf(TaskResult.FINISHED.class, imported, imported.description());
+    final Settings settings = Settings.of(dataset);
 
-    report.add("## Real data: %s, %s\n".formatted(dataName, profile));
-    report.add("""
-        %d files, MS1 mass detection %s %.1f, tolerance %s, min consecutive %d, \
-        min group intensity %.0f, min height %.0f, median of %d runs
-        """.formatted(paths.size(), detector, noise, settings.tolerance(),
-        settings.minConsecutive(), settings.minGroupIntensity(), settings.minHeight(), repeats));
+    report.add("## Real data: %s\n".formatted(dataset.name()));
+    report.add(
+        "%s, tolerance %s, median of %d runs\n".formatted(dataset.describe(), settings.tolerance(),
+            repeats));
     report.add("""
         | file | MS1 scans | data points | method | time ms | alloc MB | chromatograms | chrom. data points | short gap scans | fillable holes | stolen holes | chrom. with fillable holes | split pairs | co-eluting pairs | split pairs 1-2 tol | co-eluting pairs 1-2 tol | apex found in other | overlap | unmatched failing segment height |
         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|""");
 
     final MZmineProject project = ProjectService.getProject();
     boolean warmedUp = false;
+    final List<String> fastStatistics = new ArrayList<>();
+    final List<String> dipRows = new ArrayList<>();
     for (final RawDataFile file : project.getCurrentRawDataFiles()) {
-      final Scan[] scans = new ScanSelection(1).getMatchingScans(file);
+      final Scan[] scans = settings.scanSelection().getMatchingScans(file);
       final double[][] massListMzs = ChromatogramBenchmarkUtils.massListMzs(scans);
+      final double[][] massListIntensities = ChromatogramBenchmarkUtils.massListIntensities(scans);
       final long numDataPoints = Arrays.stream(massListMzs).mapToLong(m -> m.length).sum();
       if (!warmedUp) {
         runAdap(file, settings);
@@ -259,8 +264,43 @@ class ChromatogramBuilderBenchmark {
                 metrics.coelutingPairs(), metrics.wideSplitPairs(), metrics.wideCoelutingPairs(),
                 cross.matchedFraction(), cross.meanOverlap(), cross.unmatchedFailSegment()));
       }
+      fastStatistics.add("- %s: %s".formatted(file.getName(), fast.statistics()));
+
+      // the fast builder without dip bridge shows the dips that the bridge fills
+      final List<BuiltChromatogram> withoutBridge = builder(settings,
+          FastChromatogramBuilderOptions.DEFAULT.withDipBridgeToleranceFactor(0d)).build(
+          new ScanDataAccessScans(
+              EfficientDataAccess.of(file, ScanDataType.MASS_LIST, Arrays.asList(scans))), null,
+          null);
+      for (final Run run : List.of(adap, fast, new Run("fast, no dip bridge", 0, 0, null,
+          EvaluatedChromatogram.of(Objects.requireNonNull(withoutBridge)), null))) {
+        final var dips = ChromatogramQualityMetrics.dips(run.chromatograms(), massListMzs,
+            massListIntensities, settings.tolerance(), DIP_FLANK_FACTOR * settings.minHeight(),
+            FastChromatogramBuilderOptions.DEFAULT.dipBridgeToleranceFactor(),
+            FastChromatogramBuilderOptions.DEFAULT.intensityJumpFactor());
+        dipRows.add(
+            "| %s | %s | %d | %d | %d |".formatted(file.getName(), run.method(), dips.dips(),
+                dips.fillableDips(), dips.fillableScans()));
+      }
       writeReport();
     }
+    report.add(
+        "\nFast builder of the median run, the rest of the task time creates the features:\n");
+    report.addAll(fastStatistics);
+    report.add("""
+        
+        Dips: up to %d scans without data point or with only data points below the weaker flank \
+        / %.0f between two data points of at least %.0f x the min height. Fillable if at least \
+        half of the dip scans have a mass list data point within %.0f x the tolerance of the \
+        interpolated m/z and within %.0f x of the log interpolated intensity, e.g., a saturated \
+        apex with a shifted m/z.
+        
+        | file | method | dips | fillable dips | fillable dip scans |
+        |---|---|---|---|---|""".formatted(ChromatogramQualityMetrics.MAX_DIP_SCANS,
+        FastChromatogramBuilderOptions.DEFAULT.intensityJumpFactor(), DIP_FLANK_FACTOR,
+        FastChromatogramBuilderOptions.DEFAULT.dipBridgeToleranceFactor(),
+        FastChromatogramBuilderOptions.DEFAULT.intensityJumpFactor()));
+    report.addAll(dipRows);
 
     report.add("""
         
@@ -274,10 +314,31 @@ class ChromatogramBuilderBenchmark {
         
         | file | method | features | duplicate pairs | found in other | unmatched | other lacks signal | other more holes | other resolved apart | median height unmatched | median height all |
         |---|---|---|---|---|---|---|---|---|---|---|""");
+    final List<String> joinRows = new ArrayList<>();
     for (final RawDataFile file : project.getCurrentRawDataFiles()) {
-      compareResolved(file, settings);
+      joinRows.add(compareResolved(file, settings));
+      writeReport();
     }
+    report.add("""
+        
+        Complementary joins of the fast builder (traces 1 to 2 times the tolerance from the seed \
+        of their channel) whose trace apex is more than the gap allowance (%d scans) outside the \
+        seed trace, i.e., possibly a separate peak in a neighboring chromatogram. A peak is \
+        resolved in a list if a feature is within the tolerance of the trace center and %.2f min \
+        of the trace apex.
+        
+        | file | complementary joins | apex away | >= min height | resolved in both | only adap | only fast | neither |
+        |---|---|---|---|---|---|---|---|""".formatted(maxJoinScanDistance(), RT_TOLERANCE));
+    report.addAll(joinRows);
+    report.add("");
     writeReport();
+  }
+
+  /**
+   * @return the gap allowance of the consolidation, see {@link ChannelConsolidation}
+   */
+  private static int maxJoinScanDistance() {
+    return FastChromatogramBuilderOptions.DEFAULT.maxGapScans() + 1;
   }
 
   @NotNull
@@ -311,13 +372,13 @@ class ChromatogramBuilderBenchmark {
   @NotNull
   private static Run runAdap(@NotNull RawDataFile file, @NotNull Settings settings, boolean keep) {
     final ADAPChromatogramBuilderParameters parameters = ADAPChromatogramBuilderParameters.create(
-        new RawDataFilesSelection(RawDataFilesSelectionType.ALL_FILES), new ScanSelection(1),
+        new RawDataFilesSelection(RawDataFilesSelectionType.ALL_FILES), settings.scanSelection(),
         settings.minConsecutive(), settings.tolerance(), "adap", settings.minGroupIntensity(),
         settings.minHeight(), false);
     final ModularADAPChromatogramBuilderTask task = ModularADAPChromatogramBuilderTask.forChromatography(
         ProjectService.getProject(), file, parameters, null, Instant.now(),
         ModularADAPChromatogramBuilderModule.class);
-    return runTask("adap", task, file, file.getName() + " adap", keep);
+    return runTask("adap", task, file, file.getName() + " adap", settings, keep);
   }
 
   @NotNull
@@ -329,13 +390,13 @@ class ChromatogramBuilderBenchmark {
   private static Run runFastTask(@NotNull RawDataFile file, @NotNull Settings settings,
       boolean keep) {
     final ParameterSet parameters = FastChromatogramBuilderParameters.create(
-        new RawDataFilesSelection(RawDataFilesSelectionType.ALL_FILES), new ScanSelection(1),
+        new RawDataFilesSelection(RawDataFilesSelectionType.ALL_FILES), settings.scanSelection(),
         settings.minConsecutive(), settings.tolerance(), "fast", settings.minGroupIntensity(),
         settings.minHeight(), false);
     final FastChromatogramBuilderTask task = new FastChromatogramBuilderTask(
-        ProjectService.getProject(), file, parameters, null, Instant.now(),
+        ProjectService.getProject(), new RawDataFile[]{file}, parameters, null, Instant.now(),
         FastChromatogramBuilderModule.class);
-    return runTask("fast", task, file, file.getName() + " fast", keep);
+    return runTask("fast", task, file, file.getName() + " fast", settings, keep);
   }
 
   /**
@@ -344,7 +405,8 @@ class ChromatogramBuilderBenchmark {
    */
   @NotNull
   private static Run runTask(@NotNull String method, @NotNull AbstractTask task,
-      @NotNull RawDataFile file, @NotNull String flistName, boolean keep) {
+      @NotNull RawDataFile file, @NotNull String flistName, @NotNull Settings settings,
+      boolean keep) {
     final long allocatedBefore = ChromatogramBenchmarkUtils.allocatedBytes();
     final long start = System.nanoTime();
     task.run();
@@ -355,19 +417,25 @@ class ChromatogramBuilderBenchmark {
     final MZmineProject project = ProjectService.getProject();
     final FeatureList flist = findFeatureList(project, flistName);
     Assertions.assertNotNull(flist, "No feature list " + flistName);
-    final Scan[] scans = new ScanSelection(1).getMatchingScans(file);
+    final Scan[] scans = settings.scanSelection().getMatchingScans(file);
     final List<EvaluatedChromatogram> chromatograms = ChromatogramBenchmarkUtils.toChromatograms(
         flist, scans);
     if (!keep) {
       project.removeFeatureList(flist);
     }
-    return new Run(method, nanos, allocated, keep ? flist : null, chromatograms);
+    final FastChromatogramBuilderStatistics statistics =
+        task instanceof FastChromatogramBuilderTask fastTask ? fastTask.getStatistics().getFirst()
+            : null;
+    return new Run(method, nanos, allocated, keep ? flist : null, chromatograms, statistics);
   }
 
   /**
    * Resolves both chromatogram lists with the local minimum resolver and compares the features.
+   *
+   * @return the row of the complementary join table of this file
    */
-  private void compareResolved(@NotNull RawDataFile file, @NotNull Settings settings)
+  @NotNull
+  private String compareResolved(@NotNull RawDataFile file, @NotNull Settings settings)
       throws InterruptedException {
     final Run adap = runAdap(file, settings, true);
     final Run fast = runFastTask(file, settings, true);
@@ -375,7 +443,8 @@ class ChromatogramBuilderBenchmark {
     final MinimumSearchFeatureResolverParameters parameters = MinimumSearchFeatureResolverParameters.create(
         new FeatureListsSelection((ModularFeatureList) adap.flist(),
             (ModularFeatureList) fast.flist()), suffix, OriginalFeatureListOption.KEEP, false,
-        GroupMS2SubParameters.createDefault(), ResolvingDimension.RETENTION_TIME, 0.9, 0.04, 0d,
+        GroupMS2SubParameters.createDefault(), ResolvingDimension.RETENTION_TIME,
+        CHROMATOGRAPHIC_THRESHOLD, 0.04, 0d,
         settings.minHeight(), 2d, Range.closed(0d, 1.2d), settings.minConsecutive());
     final TaskResult resolved = MZmineTestUtil.callModuleWithTimeout(1200,
         MinimumSearchFeatureResolverModule.class, parameters);
@@ -388,17 +457,15 @@ class ChromatogramBuilderBenchmark {
         fast.flist().getName() + " " + suffix);
     Assertions.assertNotNull(adapResolved);
     Assertions.assertNotNull(fastResolved);
-    // decision: features within the tolerance and 0.03 min are the same feature, ~2 scans
-    final float rtTolerance = 0.03f;
-    final Scan[] scans = new ScanSelection(1).getMatchingScans(file);
+    final Scan[] scans = settings.scanSelection().getMatchingScans(file);
     for (final FeatureList flist : List.of(adapResolved, fastResolved)) {
       final boolean isAdap = flist == adapResolved;
       final FeatureList other = isAdap ? fastResolved : adapResolved;
       final var metrics = ResolvedFeatureMetrics.evaluate(flist, other, settings.tolerance(),
-          rtTolerance);
+          RT_TOLERANCE);
       final var differences = ResolvedFeatureDifferences.explain(flist, other,
           isAdap ? fast.chromatograms() : adap.chromatograms(), scans, settings.tolerance(),
-          rtTolerance);
+          RT_TOLERANCE);
       report.add(
           "| %s | %s | %d | %d | %.4f | %d | %d | %d | %d | %.3g | %.3g |".formatted(file.getName(),
               isAdap ? "adap" : "fast", metrics.features(), metrics.duplicatePairs(),
@@ -408,7 +475,23 @@ class ChromatogramBuilderBenchmark {
       logger.info(() -> "Unmatched %s features of %s:\n%s".formatted(isAdap ? "adap" : "fast",
           file.getName(), String.join("\n", differences.examples())));
     }
+
+    // the fast task uses the default options
+    final List<ComplementaryJoinMetrics.Join> joins = ComplementaryJoinMetrics.findJoins(
+        new ScanDataAccessScans(
+            EfficientDataAccess.of(file, ScanDataType.MASS_LIST, Arrays.asList(scans))),
+        settings.tolerance(), settings.minConsecutive(), settings.minHeight(),
+        FastChromatogramBuilderOptions.DEFAULT);
+    final var joinResult = ComplementaryJoinMetrics.classify(joins, scans, adapResolved,
+        fastResolved, Objects.requireNonNull(fast.flist()), fast.chromatograms(),
+        settings.tolerance(), RT_TOLERANCE, settings.minHeight(), maxJoinScanDistance(),
+        CHROMATOGRAPHIC_THRESHOLD);
+    logger.info(() -> "Complementary joins with the apex away from the seed in %s:\n%s".formatted(
+        file.getName(), String.join("\n", joinResult.examples())));
     project.removeFeatureList(adap.flist(), fast.flist(), adapResolved, fastResolved);
+    return "| %s | %d | %d | %d | %d | %d | %d | %d |".formatted(file.getName(), joinResult.joins(),
+        joinResult.apexAway(), joinResult.aboveMinHeight(), joinResult.resolvedInBoth(),
+        joinResult.onlyAdap(), joinResult.onlyFast(), joinResult.neither());
   }
 
   @NotNull
@@ -423,7 +506,8 @@ class ChromatogramBuilderBenchmark {
     final long allocated = ChromatogramBenchmarkUtils.allocatedBytes() - allocatedBefore;
     Assertions.assertNotNull(chromatograms);
     logger.info(() -> method + ": " + builder.getStatistics());
-    return new Run(method, nanos, allocated, null, EvaluatedChromatogram.of(chromatograms));
+    return new Run(method, nanos, allocated, null, EvaluatedChromatogram.of(chromatograms),
+        builder.getStatistics());
   }
 
   @Nullable

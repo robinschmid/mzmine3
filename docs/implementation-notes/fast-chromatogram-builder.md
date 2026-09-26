@@ -9,21 +9,73 @@ point of an ion falls into the range of a neighbor seeded at another retention t
 chromatograms (the scatter of one ion spills into an adjacent, clipped range). The fast
 chromatogram builder produces the same kind of result, one extracted ion chromatogram per m/z
 channel across all selected scans, without a global sort, with memory proportional to the output
-and without these holes and duplicates.
+plus two bytes per data point, and without these holes and duplicates. Users usually tune the m/z
+tolerance to their resolution, so the builder estimates it from the data by default. Ions that
+saturate the detector shift their m/z at the apex, the builder keeps them in one chromatogram.
 
 ## Decisions
 
 - The parameter names, including the legacy names ADAP maps on load, equal the ADAP builder
-  parameters so a batch step can switch modules. The image builder still uses the ADAP task,
-  imaging is not supported here. The batch wizard still uses the ADAP builder.
+  parameters so a batch step can switch modules. A plain m/z tolerance saved by ADAP loads as custom
+  tolerance. The image builder still uses the ADAP task, imaging is not supported here. The batch
+  wizard still uses the ADAP builder.
+- One main task processes all files: it checks all files first, resolves the tolerance once and
+  then runs one file task per file on the task controller (`addTasks` and
+  `TaskUtils.waitForTasksToFinish`, the pattern of the multithreaded gap filling). A single file
+  runs directly on the main task thread. Feature lists are added in the order of the files. Not
+  `ThreadPoolTask`: it checks the licenses of its sub tasks again with a new auth service on the
+  worker thread, which fails for tasks that are not in the free list of the task controller.
+  Contract: neither task class is in that free list (the ADAP task is), so the module needs a
+  logged in user unless the free list of the task controller library is extended.
+- The m/z tolerance is auto or custom, auto by default. The applied method stores the used
+  tolerance for both options, so later modules that read the chromatogram builder tolerance get the
+  actual value, and a rerun with auto estimates again with the same result (deterministic).
+- Auto estimates from the 3 files with the most data points in the selected scans (ties by name),
+  all files are assumed to share instrument properties. Two steps, each fitted with
+  `MzScatterModel`, a gaussian plus uniform background per cell of m/z bins and intensity bins:
+    1. Mutual nearest neighbors of consecutive scans give the scan to scan scatter (the pair scatter
+       over sqrt(2) is the scatter of a data point around its trace center).
+    2. A test build with twice this tolerance gives the deviations of data points from their
+       chromatogram center, which also contain drift and ions sharing a chromatogram. The test
+       tolerance is the fit window, loose noise data points are uniform within it.
+       The requirement of each m/z bin covers 99.5% of the signal of all its cells, which keeps the
+       heavy tail of weak signals. The tolerance is 1.5 times the envelope of both requirements
+       (absolute and relative part fitted to the bins), rounded up to 0.1 mDa and 0.1 ppm.
+- The factor 1.5 is calibrated with `ToleranceEstimationBenchmark` (features after resolving over a
+  tolerance sweep, Orbitrap QE with two settings, GC-EI-TOF, LC-QTOF MSe, GC-Orbitrap, DOM
+  Orbitrap). Tolerances below the plateau lose features quickly, above it slowly. The gaussian
+  model misses rare larger shifts of intense signals, e.g., in the injection front of Orbitrap
+  data. Without the factor, one data set lost 3% of the features.
+- A cell counts only if its peak density is at least 3 times the background density and the
+  gaussian is narrower than a quarter of the window, e.g., sparse noise at high m/z does not count.
+  A clear signal needs a pair scatter at least 10 times below the median spacing of neighboring
+  data points in a scan. Without one, both steps are repeated with the data points of at least half
+  the min group intensity, then of at least the min group intensity. If none gives a clear signal,
+  there is no estimate: auto falls back to the custom value with a warning in the log.
+- The intensity floor is for data without noise filter in the mass detection. Noise dominates the
+  pairs and the spacing, and the nearest neighbors of noise look like a broad gaussian that the
+  cells accept: GC-QTOF data with absolute noise level 0 (36 M instead of 2 M data points) had a
+  pair scatter of 23.6 ppm at a spacing of 92 ppm, and without the clear signal check the estimate
+  was 252 ppm. The fallback of 10 ppm lost 7.7% of the features. The builder counts data points
+  below the min group intensity as noise, and half of it is the noise level of the batch wizard for
+  absolute noise levels (min group intensity = 2 x noise), so the floor gives the estimate of the
+  filtered data (23.3 ppm on both). All data points come first, data with a noise filter keep their
+  estimate. Rejected: always estimating from the data points above the min group intensity, it
+  lowered the filtered GC-QTOF estimate from 23.3 to 16 ppm, at the lower end of the plateau, and
+  would change the estimates the factor 1.5 was calibrated on.
 - Pass 1 loops once over the scans. Each m/z sorted mass list is merged against the active traces,
   which are sorted by their intensity weighted center. A data point joins the trace with the lowest
   cost within the tolerance, a trace takes at most one data point per scan, conflicts are resolved
   by a greedy matching so a losing data point can join its next best trace. The cost is the squared
   relative m/z distance plus a penalty for intensity jumps beyond 5x between neighboring scans; the
   penalty keeps noise close to the center from replacing the signal of a trace.
-- Only statistics of closed traces are kept. Pass 2 replays pass 1 and routes the data points.
-  Contract: `MassTraceSweeper` must stay deterministic, the replay relies on identical trace ids.
+- Only statistics of closed traces are kept. Pass 1 records the trace of every data point in
+  `TraceAssignments`, the slot of the trace in the sweeper and whether the data point started it (2
+  bytes per data point, 4 if a scan needs more than 32767 slots). Pass 2 reads the scans again and
+  routes the data points without detecting the traces again. Replaced: replaying pass 1 in pass 2,
+  which took as long as pass 1 (pass 2 of GC-QTOF data without noise filter 3.5 s → 2.0 s, 72 MB
+  for its 36 M data points). Contract: both passes load a scan with `ScanDataPoints`, the data
+  point indices must match.
 - Channel consolidation visits recorded traces by decreasing maximum intensity. A trace joins the
   closest channel seed within the tolerance, otherwise it starts a channel if it reaches the
   minimum height (only intense signals start chromatograms, like ADAP). Traces that repeatedly
@@ -32,17 +84,94 @@ and without these holes and duplicates.
 - Complementary traces up to 2x the tolerance join a channel if they overlap in time with its seed
   or continue it within the gap allowance and never share a scan. One ion yields one data point per
   scan, so this is one ion with more scatter than the tolerance or a centroid jump, not a second
-  ion.
+  ion. Parts further away from the seed are merged after pass 2, see below.
+- The complementary join also puts a separate peak that ends right before an intense seed 1 to 2
+  tolerances away into the channel of the seed, e.g., 668.414 at -12 ppm before 668.423 on QE
+  data. Kept: the resolver separates both peaks again and each feature takes its m/z from its own
+  data points. `ChromatogramBuilderBenchmark` counts joins whose trace apex is more than the gap
+  allowance outside the seed trace and looks for their peaks in both resolved lists. Over all 24
+  file runs of the data sets (with and without noise filter): 8 peaks were resolved only from the
+  ADAP chromatograms (4 peaks in both noise variants, at most 2 per file, all QE with sensitive
+  settings, 7E4-2E5 next to seeds of 1.5E6-7E8) and 109 only from the fast ones. All 8 are below
+  the chromatographic threshold of the merged chromatogram, the 90% intensity quantile that the
+  intense seed sets. Rejected: accepting a complementary trace only with its apex next to the
+  seed. It would split ions under a global m/z shift the way ADAP does, e.g., ~10 ions of a QE
+  file shifted by +13 ppm for 15 scans. The comparison tool shows such peaks as "taken".
 - Traces with a single data point, and short traces that cannot start a channel, are not recorded.
   Their data points are loose: in pass 2 a loose data point fills the closest channel within the
   tolerance that has no data point in this scan. This fills holes and keeps the low level signals of
-  the full chromatogram, which the resolvers use for their chromatographic threshold.
-- One data point per channel and scan: two member traces keep the more intense data point, member
-  data points win over loose ones, among loose data points the closest to the center wins.
+  the full chromatogram, which the resolvers use for their chromatographic threshold. A closer loose
+  data point replaces a farther one, which then tries the next channel.
+- One data point per channel and scan: two member traces keep the more intense data point, the
+  other one becomes loose; member data points win over loose ones, among loose data points the
+  closest to the center wins.
+- Holes of up to 3 scans between two data points of at least the minimum height are filled with
+  data points that no channel used, within 2x the tolerance around the interpolated m/z, if the
+  intensity is within 5x of the log-interpolated intensity. An intense signal does not vanish for a
+  scan, its centroid is shifted, e.g., by a coalescing neighbor or a split peak. The unused data
+  points of the last scans are kept in a ring buffer, so this needs no extra pass. Only unused data
+  points within 5x the tolerance of a channel center are kept (flanks at most the complementary
+  tolerance plus the tolerance from the center, plus the hole fill tolerance): without noise filter
+  most data points are far from all channels, and sorting them per scan took a third of pass 2.
+  They arrive in a few sorted runs, a natural merge sort sorts them.
+- After pass 2, `ChannelFinalization` merges complementary channels: up to 2x the tolerance apart,
+  never sharing a scan, and the target has a data point within the gap allowance of the apex of the
+  merging channel that is at least its apex intensity / 5. Passing channels merge into a more
+  intense one, failed channels into any passing one. The consolidation checks the time overlap only
+  against the seed trace, which split intense ions with a shifted m/z at the apex from their tails.
+  Rejected alternative: merging on "never share a scan and touch in time" alone. With sensitive
+  settings (noise factor 2, min height 5E4) it merged ~940 channels, e.g., a peak eluting while the
+  baseline of an intense channel 18 ppm away is missing, and 1.3-1.6% fewer ADAP features had a
+  matching resolved fast feature. A peak with its own apex is no part of the other channel.
+- Ions that saturate the detector shift their m/z at the apex. On the Agilent GC-EI-QTOF series
+  (6 local files), intensities stop at ~7.4E6 and the apex of m/z 204.10 drifts by up to +67 ppm
+  over a plateau of ~20 scans, 1.8-2.5x the tolerance (preset 5 mDa/20 ppm and Auto 23.3 ppm) and
+  beyond the complementary tolerance. The plateau formed a channel of its own (e.g., 204.111 with
+  42 data points from all saturated peaks) and left a dip to zero in the channel of the ion, two
+  to three per file in 5 of 6 files. `ChannelFinalization` therefore bridges dips: a segment of
+  another channel (data points with gaps of at most the max gap scans) moves into a passing channel
+  if all its data points are within 4x the tolerance of the channel center, the channel has a data
+  point of at least the min height within the gap allowance before and after the segment, both
+  within 5x of the most intense segment data points at that edge, the segment stays within 5x of
+  both flanks (no valley, no larger peak), the channel has no data point above segment / 5 in the
+  scans of the segment (those are replaced and recovered like failed data points), and the
+  channel has at least half as many data points as the segment within the length of the segment
+  before and after it. The valley and the last rule keep the long segment of the ion, between two
+  saturated apexes, from moving into the channel of the plateaus. Segments are bridged only if
+  they reach half the most intense data point of all scans, the detector limit. Rejected: bridging
+  all segments above the min height. On QE data (sensitive settings) it moved ~400 segments per
+  file between neighboring channels 1-3 tolerances apart, and ADAP features found in fast dropped
+  by 0.2 percentage points (98.40% → 98.18%). With the limit, only the saturated plateaus of the
+  GC-QTOF data are bridged, all other data sets are unchanged. The 4x window has margin over the
+  largest observed shift (2.5x), and the dip rules keep it from joining other ions.
+- Channels that fail the filters would take their member data points with them, e.g., the apex of
+  an intense ion taken by the trace of a co-eluting side signal in its apex scan. Their remaining
+  data points fill free scans of passing channels with the rules of pass 2 (closest channel within
+  the tolerance, then holes between intense data points within 2x the tolerance), the most intense
+  first. On a QE QC file (workshop settings, Auto 9.5 ppm): 28 merges, 348 recovered data points,
+  ADAP signals missing in the fast chromatograms 56 → 42 groups in the comparison tool. Failed
+  channels without a passing channel within the hole fill window are skipped (most noise channels
+  of data without noise filter), the data points are sorted by a radix sort of the intensity bits,
+  ties by scan and channel (before: scan and m/z, the same except for data points of equal
+  intensity in one scan).
 - Traces are closed after 3 scans without data point, traces with a single data point after 1 scan.
   The early close keeps the number of active noise traces low. It cannot connect an ion whose m/z
   alternates every scan by more than the tolerance, `singleDataPointMaxGapScans = 1` can, at ~50%
   more runtime on noisy data.
+- Without noise filter in the mass detection, both passes sweep mostly noise: GC-EI-TOF with
+  absolute noise level 0 has 23x the data points, 1.6 M traces, 333 k collision events and 3.1 M
+  loose data points of which 22 k fill a channel. Speed work on this worst case (GC-EI-QTOF without
+  noise filter, 36 M data points, 17 M traces, 1 M recorded, 3 M collision events), builder time
+  8.8 s → 4.9 s, the results are identical: pass 2 without replay; the consolidation sorts the
+  traces with radix sorts of the double bits and finds windows with `BinnedLowerBound` (1.6 s →
+  0.7 s); `TraceCollisionGraph` counts the events of each trace pair before it looks up the
+  records, 0.5 M pairs instead of 3 M events; the recovery skips unreachable failed channels
+  (1.6 s → 0.7 s); channel buffers are sized to their member traces. The fast task is now
+  1.4-4x faster than ADAP on TOF data without noise filter (before 0.6-2.1x, the small MSe file
+  was slower) and 1.6-14x on the filtered data sets, the small files gain least. The remaining
+  task time of filtered data is mostly the feature creation of mzmine, shared with ADAP: the
+  quality parameters (FWHM, tailing, asymmetry) of each chromatogram are ~40% of it. They are kept,
+  the chromatogram list shows them like the ADAP list.
 - The height filter is applied within the consecutive segment, which the ADAP code comment
   describes but its implementation does not do (it never resets the maximum). ADAP therefore keeps
   chromatograms whose only consecutive segment stays below the minimum height, the fast builder
@@ -52,5 +181,80 @@ and without these holes and duplicates.
 - MS2 scans are found with a precursor m/z sorted index and return the same scans in the same order
   as `ScanUtils.streamAllMS2FragmentScans`.
 - Internal tuning values are grouped in `FastChromatogramBuilderOptions` and are not user
-  parameters. `ChromatogramBuilderBenchmark` (tag `benchmark`, run with `gradlew benchmark`)
-  compares both builders on synthetic data with ground truth and on real data.
+  parameters. `ChromatogramBuilderBenchmark` compares both builders on synthetic data with ground
+  truth and on real data, `ToleranceEstimationBenchmark` compares the estimate with the presets
+  and a tolerance sweep (tag `benchmark`, run with `gradlew benchmark`). Both use the data sets of
+  `ChromatogramBenchmarkDatasets` with the settings of the batch wizard next to the data (noise
+  level, builder parameters, crop and polarity of the builder scans, preset tolerance), each once
+  more without noise filter in the mass detection (factor 1 of the lowest signal, absolute level
+    0) and the same builder settings. A data set with missing files or OneDrive placeholders is
+       skipped with the reason, reading a placeholder downloads it. The ZenoTOF data set is the NIST
+       SRM
+       1950 plasma file `1_Srm1950_DDA/Pos/20230407_plasma_6_POS.mzML` (the feces file was a
+       placeholder). `ChromatogramBuilderBenchmark` also counts dips of both builders: up to 50
+       scans
+       without data point, or with data points below the weaker flank / 5, between two data points
+       of
+       at least 10x the min height; fillable if at least half of the dip scans have a mass list data
+       point within 4x the tolerance and 5x of the interpolated intensity.
+       `ChromatogramBuilderProfile`
+       times the builder or the file task on one file and records a JFR profile.
+- Remaining fillable dips of the fast builder are mostly two neighboring chromatograms 1-4
+  tolerances apart that take turns in the same scans (two close ions whose centroids coalesce, or
+  one ion that switches between two m/z states), e.g., 212.089/212.095 on QE data. ADAP splits them
+  the same way. The fast builder has 7x fewer fillable dips than ADAP on QE data (sensitive: 56 vs
+  408). Short holes whose signal is in another chromatogram ("stolen") are more frequent than with
+  ADAP only on GC-QTOF data with the preset tolerance, at low m/z: 5 mDa is 71 ppm at m/z 70, and
+  two centroid populations 40 ppm apart end up in two channels with the same center that take the
+  data points of each other. With Auto (23.3 ppm) they are separate channels and the stolen holes
+  halve (2012 → 1084).
+
+## Benchmark baseline
+
+2026-09-26, both builders with the preset tolerance of the wizard. ADAP / fast: median task time,
+summed over the files of a data set, fast before the speed work of 2026-09-26 in brackets (same
+machine, same day; timings vary by ~10% between runs). Found: resolved features of one list with
+a feature of the other within the tolerance and 0.03 min. Dips: fillable dips of ADAP / fast.
+Auto: estimate and its features relative to the best tolerance of the sweep (preset in brackets).
+
+| data set                     | MS1 data points  | ADAP / fast ms       | ADAP found in fast | fast found in ADAP | dips     | Auto                           | best of sweep |
+|------------------------------|------------------|----------------------|--------------------|--------------------|----------|--------------------------------|---------------|
+| Orbitrap QE, sensitive       | 1.7 M            | 3443 / 353 (447)     | 98.40%             | 88.50%             | 408 / 56 | 14.5 ppm, 99.3% (99.9%)        | 10 ppm        |
+| ... no noise filter          | 1.9 M            | 4205 / 377 (489)     | 98.32%             | 88.45%             | 408 / 56 | 13.8 ppm, 99.4% (99.9%)        | 10 ppm        |
+| Orbitrap QE, workshop        | 0.82 M           | 1057 / 124 (183)     | 99.62%             | 95.25%             | 1 / 0    | 10.7 ppm, 99.8% (99.5%)        | 12 ppm        |
+| ... no noise filter          | 1.9 M            | 1932 / 240 (393)     | 99.01%             | 93.75%             | 1 / 0    | 13.8 ppm, 100% (98.7%)         | 15 ppm        |
+| Orbitrap QE media, sensitive | 0.95 M           | 1786 / 158 (220)     | 98.21%             | 84.79%             | 501 / 91 | 13.4 ppm, 99.6% (100%)         | 10 ppm        |
+| ... no noise filter          | 1.0 M            | 1966 / 173 (246)     | 98.12%             | 84.70%             | 507 / 95 | 13.2 ppm, 99.6% (100%)         | 10 ppm        |
+| Orbitrap QE media, workshop  | 0.46 M           | 479 / 63 (90)        | 99.43%             | 92.16%             | 25 / 5   | 9.9 ppm, 98.2% (98.2%)         | 30 ppm        |
+| ... no noise filter          | 1.0 M            | 1002 / 125 (204)     | 99.23%             | 90.73%             | 25 / 5   | 12.8 ppm, 99.2% (98.3%)        | 20 ppm        |
+| GC-EI-TOF                    | 0.15 M           | 81 / 20 (26)         | 100%               | 100%               | 0 / 0    | 21.1 ppm, 99.6% (99.4%)        | 15 ppm        |
+| ... no noise filter          | 3.5 M            | 917 / 381 (931)      | 100%               | 100%               | 0 / 0    | 21.1 ppm, 99.8% (99.1%)        | 15 ppm        |
+| GC-EI-QTOF                   | 2.0 M            | 3586 / 259 (327)     | 99.64%             | 97.93%             | 70 / 36  | 23.3 ppm, 99.7% (99.4%)        | 60 ppm        |
+| ... no noise filter          | 36 M             | 19937 / 5419 (10701) | 99.24%             | 97.10%             | 70 / 36  | 23.3 ppm, 98.7% (98.6%)        | 60 ppm        |
+| LC-QTOF ZenoTOF DDA          | 0.03 M           | 35 / 10 (10)         | 100%               | 97.04%             | 0 / 0    | 0.9 mDa/9.4 ppm, 96.7% (99.2%) | 60 ppm        |
+| ... no noise filter          | 4.5 M, 1.5 M > 0 | 717 / 175 (382)      | 99.61%             | 96.25%             | 0 / 0    | 0.9 mDa/9.4 ppm, 93.7% (96.5%) | 60 ppm        |
+| LC-QTOF MSe                  | 0.02 M           | 8 / 5 (5)            | 98.62%             | 94.70%             | 0 / 0    | 50.9 ppm, 100% (95.0%)         | 50.9 ppm      |
+| ... no noise filter          | 0.30 M           | 32 / 23 (50)         | 98.05%             | 94.38%             | 0 / 0    | 50.9 ppm, 100% (92.5%)         | 50.9 ppm      |
+| GC-Orbitrap                  | 2.7 M            | 2409 / 243 (389)     | 100%               | 100%               | 0 / 0    | 4.0 ppm, 100% (100%)           | 10 ppm        |
+| ... no noise filter          | 4.5 M            | 3393 / 406 (718)     | 100%               | 100%               | 0 / 0    | 5.2 ppm, 100% (100%)           | 10 ppm        |
+| DOM Orbitrap                 | 0.33 M           | 177 / 48 (65)        | 99.38%             | 99.69%             | 0 / 0    | 9.0 ppm, 99.4% (99.4%)         | 6 ppm         |
+| ... no noise filter          | 0.36 M           | 180 / 51 (73)        | 99.39%             | 100%               | 0 / 0    | 9.0 ppm, 99.1% (99.1%)         | 6 ppm         |
+
+- The fast lists have more features than the ADAP lists on the QE data, most unmatched fast
+  features are peaks that ADAP has with more holes.
+- Auto misses the plateau on the ZenoTOF DDA file: 0.9 mDa or 9.4 ppm reach 96.7% of the features
+  of 60 ppm, the preset 20 ppm 99.2%, and the features grow up to the end of the sweep. At the
+  estimate, 99% of the data points are within 8.2 ppm of their neighbors in the chromatogram, also
+  below 1000 counts. Larger tolerances add mostly weak data points (below 2000 counts) that deviate
+  by more than 9.4 ppm, 3% of those below 1000 counts by more than 20 ppm, likely noise neighbors
+  that close the gaps of weak peaks in these sparse data (36 data points per scan above the noise
+  level 500). The same happens on QE data at 60 ppm. The feature plateau may overrate large
+  tolerances on sparse data, the calibration is unchanged until a ground truth decides it.
+- Auto misses the plateau (99% of the best) on the QE media file with workshop settings: 9.9 ppm
+  and the preset 10 ppm reach 98.2%, the features grow slowly up to 30 ppm while fewer of them
+  match the preset features. The calibration is unchanged. On unfiltered GC-EI-QTOF data 20 to 40
+  ppm give 98.6-99.1%, only 60 ppm is higher.
+- Without noise filter, the QE workshop lists lose 0.6 percentage points of the ADAP features at
+  the preset 10 ppm: short peaks at the min consecutive scans whose m/z scatters by about 10 ppm
+  between scans are in no fast chromatogram. Auto raises the tolerance on these data (13.9 instead
+  of 10.8 ppm), which reaches 100% of the best tolerance of the sweep.

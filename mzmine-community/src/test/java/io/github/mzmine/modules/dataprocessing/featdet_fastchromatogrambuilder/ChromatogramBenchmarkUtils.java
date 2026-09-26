@@ -124,6 +124,21 @@ final class ChromatogramBenchmarkUtils {
   }
 
   /**
+   * @return intensities of all mass lists, index is the scan index, same order as
+   * {@link #massListMzs(Scan[])}
+   */
+  @NotNull
+  static double[][] massListIntensities(@NotNull Scan[] scans) {
+    final double[][] intensities = new double[scans.length][];
+    for (int i = 0; i < scans.length; i++) {
+      final MassList masses = scans[i].getMassList();
+      intensities[i] = masses == null ? new double[0]
+          : masses.getIntensityValues(new double[masses.getNumberOfDataPoints()]);
+    }
+    return intensities;
+  }
+
+  /**
    * @return allocated bytes of the current thread, includes garbage
    */
   static long allocatedBytes() {

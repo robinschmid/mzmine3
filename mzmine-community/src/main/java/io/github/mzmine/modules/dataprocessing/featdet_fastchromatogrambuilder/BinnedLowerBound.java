@@ -69,6 +69,14 @@ final class BinnedLowerBound {
   }
 
   /**
+   * @return first index with values[index] > key, values.length if there is none
+   */
+  int upperBound(double key) {
+    // the next larger double: values >= it are exactly the values > key
+    return lowerBound(Math.nextUp(key));
+  }
+
+  /**
    * @return first index with values[index] >= key, values.length if there is none
    */
   int lowerBound(double key) {

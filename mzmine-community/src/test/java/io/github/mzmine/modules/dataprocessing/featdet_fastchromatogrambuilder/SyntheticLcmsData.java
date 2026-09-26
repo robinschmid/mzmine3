@@ -122,6 +122,9 @@ final class SyntheticLcmsData {
     private double noiseMaxMz = 1000;
     private double noiseMinIntensity = 1E2;
     private double noiseMaxIntensity = 1E4;
+    private int additionalNoisePerScan = 0;
+    private double additionalNoiseMinIntensity = 1E1;
+    private double additionalNoiseMaxIntensity = 1E2;
     private double detectionThreshold = 0;
     private double intensityNoise = 0.05;
     private double maxErrorFactor = 5;
@@ -156,6 +159,17 @@ final class SyntheticLcmsData {
       noiseMaxMz = maxMz;
       noiseMinIntensity = minIntensity;
       noiseMaxIntensity = maxIntensity;
+      return this;
+    }
+
+    /**
+     * A second noise band in the m/z range of {@link #noise}, e.g., the dense weak noise of data
+     * without noise filter in the mass detection.
+     */
+    @NotNull Builder additionalNoise(int perScan, double minIntensity, double maxIntensity) {
+      additionalNoisePerScan = perScan;
+      additionalNoiseMinIntensity = minIntensity;
+      additionalNoiseMaxIntensity = maxIntensity;
       return this;
     }
 
@@ -217,6 +231,13 @@ final class SyntheticLcmsData {
           final double mz = noiseMinMz + random.nextDouble() * (noiseMaxMz - noiseMinMz);
           final double intensity = Math.exp(
               logNoiseMin + random.nextDouble() * (logNoiseMax - logNoiseMin));
+          points.add(new double[]{mz, intensity, NOISE});
+        }
+        for (int i = 0; i < additionalNoisePerScan; i++) {
+          final double mz = noiseMinMz + random.nextDouble() * (noiseMaxMz - noiseMinMz);
+          final double intensity = Math.exp(
+              Math.log(additionalNoiseMinIntensity) + random.nextDouble() * Math.log(
+                  additionalNoiseMaxIntensity / additionalNoiseMinIntensity));
           points.add(new double[]{mz, intensity, NOISE});
         }
         for (final double[] explicit : explicitPoints) {

@@ -36,6 +36,8 @@ import io.github.mzmine.datamodel.features.FeatureListRow;
 import io.github.mzmine.modules.io.import_rawdata_all.AdvancedSpectraImportParameters;
 import io.github.mzmine.modules.tools.batchwizard.subparameters.MassDetectorWizardOptions;
 import io.github.mzmine.parameters.ParameterSet;
+import io.github.mzmine.parameters.ParameterUtils;
+import io.github.mzmine.parameters.parametertypes.combowithinput.MZToleranceOrAuto;
 import io.github.mzmine.parameters.parametertypes.selectors.RawDataFilesSelection;
 import io.github.mzmine.parameters.parametertypes.selectors.RawDataFilesSelectionType;
 import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
@@ -112,6 +114,40 @@ class FastChromatogramBuilderModuleTest {
         Assertions.assertEquals(expected, feature.getAllMS2FragmentScans());
       }
     }
+  }
+
+  @Test
+  void autoToleranceIsEstimatedOnceAndStoredWithTheFeatureLists() throws InterruptedException {
+    final String suffix = "fastauto";
+    final ParameterSet parameters = FastChromatogramBuilderParameters.create(
+        new RawDataFilesSelection(RawDataFilesSelectionType.ALL_FILES), new ScanSelection(1), 4,
+        MZToleranceOrAuto.auto(TOLERANCE), suffix, 1E5, 3E5, false);
+    final TaskResult finished = MZmineTestUtil.callModuleWithTimeout(60,
+        FastChromatogramBuilderModule.class, parameters);
+    Assertions.assertInstanceOf(TaskResult.FINISHED.class, finished, finished.description());
+
+    final MZmineProject project = ProjectService.getProject();
+    MZTolerance used = null;
+    for (final RawDataFile raw : project.getCurrentRawDataFiles()) {
+      final FeatureList flist = project.getFeatureList(raw.getName() + " " + suffix);
+      Assertions.assertNotNull(flist, "No chromatograms for " + raw.getName());
+      Assertions.assertTrue(flist.getNumberOfRows() > 500, "rows " + flist.getNumberOfRows());
+      final MZToleranceOrAuto stored = ParameterUtils.getValueFromAppliedMethods(
+          flist.getAppliedMethods(), FastChromatogramBuilderParameters.class,
+          FastChromatogramBuilderParameters.mzTolerance).orElseThrow();
+      Assertions.assertTrue(stored.isAuto());
+      final MZTolerance tolerance = stored.tolerance();
+      Assertions.assertNotNull(tolerance);
+      // the files are Orbitrap data, one estimate for all files
+      Assertions.assertTrue(tolerance.getPpmTolerance() > 1 && tolerance.getPpmTolerance() < 30,
+          tolerance.toString());
+      Assertions.assertTrue(tolerance.getMzTolerance() < 0.01, tolerance.toString());
+      if (used != null) {
+        Assertions.assertEquals(used, tolerance);
+      }
+      used = tolerance;
+    }
+    Assertions.assertNotNull(used);
   }
 
   /**

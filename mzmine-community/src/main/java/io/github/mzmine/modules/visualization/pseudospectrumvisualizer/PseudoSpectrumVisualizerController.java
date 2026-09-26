@@ -40,6 +40,7 @@ import io.github.mzmine.modules.dataprocessing.featdet_fastchromatogrambuilder.F
 import io.github.mzmine.modules.dataprocessing.filter_diams2.DiaMs2CorrParameters;
 import io.github.mzmine.modules.dataprocessing.filter_diams2.rt_corr.DiaMs2RtCorrParameters;
 import io.github.mzmine.parameters.ParameterUtils;
+import io.github.mzmine.parameters.parametertypes.combowithinput.MZToleranceOrAuto;
 import io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnumComboParameter;
 import io.github.mzmine.parameters.parametertypes.submodules.ValueWithParameters;
 import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
@@ -89,7 +90,7 @@ public class PseudoSpectrumVisualizerController extends
               ADAPChromatogramBuilderParameters.mzTolerance)
           .or(() -> ParameterUtils.getValueFromAppliedMethods(appliedMethods,
               FastChromatogramBuilderParameters.class,
-              FastChromatogramBuilderParameters.mzTolerance));
+              FastChromatogramBuilderParameters.mzTolerance).map(MZToleranceOrAuto::tolerance));
       if (chromatogramTolerance.isPresent()) {
         return chromatogramTolerance.get();
       }
