@@ -142,9 +142,13 @@ final class MzToleranceEstimation {
     final FloatArrayList deviations = new FloatArrayList();
     final FloatArrayList mzs = new FloatArrayList();
     final FloatArrayList intensities = new FloatArrayList();
+    // decision: without the coalesced fills, a shared centroid of two ions is no scatter of one ion
+    // and changed the estimate of GC-EI-QTOF data by 2 ppm
+    final FastChromatogramBuilderOptions options = FastChromatogramBuilderOptions.DEFAULT.withCoalescedMaxHoleScans(
+        0);
     for (final MzIntensityScans scans : signals) {
       final FastChromatogramBuilder builder = new FastChromatogramBuilder(testTolerance,
-          minConsecutiveScans, minGroupIntensity, minHeight);
+          minConsecutiveScans, minGroupIntensity, minHeight, options);
       final List<BuiltChromatogram> chromatograms = builder.build(scans, isCanceled, null);
       if (chromatograms == null) {
         return null;

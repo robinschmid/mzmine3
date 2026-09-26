@@ -154,6 +154,36 @@ saturate the detector shift their m/z at the apex, the builder keeps them in one
   of data without noise filter), the data points are sorted by a radix sort of the intensity bits,
   ties by scan and channel (before: scan and m/z, the same except for data points of equal
   intensity in one scan).
+- Two ions that the instrument does not resolve give one centroid between both m/z when both are
+  intense, which only the closer channel takes. E.g., GC-EI-QTOF 022 with Auto (25 ppm): 262.120
+  and 262.133 (+48 ppm) give one centroid at +23 to +32 ppm in 8 apex scans of 262.120, 5 of them
+  consecutive. The hole fill of pass 2 cannot fill these holes, it uses only unused data points
+  and holes of up to 3 scans. Last step of `ChannelFinalization`: a hole between two data points
+  of at least the min height is filled with the data point of another passing channel in the same
+  scan that lies between the m/z interpolated in the hole and the median m/z of its channel, is
+  shifted from this median toward the hole by at least half the tolerance, within 2x the tolerance
+  of the interpolated m/z and within 5x of the interpolated intensity. The data point stays in its
+  channel, it is the only case of one data point in two chromatograms. Holes up to 3 scans are
+  filled scan by scan, longer holes up to 8 scans only if every scan is filled (a partly filled
+  long hole is a hole of the ion). The fills are applied after the search, a shared data point is
+  not shared again. The median and not the intensity weighted center: the shared apex centroids
+  pull the center of their channel toward the hole (262.1327 instead of ~262.1333), which made the
+  shift check fail on synthetic data. The median needs a sort per channel, it is computed only for
+  donors that passed the m/z and intensity checks (all channels with a hole: +30% builder time on
+  GC-EI-QTOF, now 178 → 187 ms). The tolerance estimation builds without this step: a shared
+  centroid is no scatter of one ion, it lowered the estimate on 022 from 25.0 to 23.2 ppm.
+- Results of the coalesced fill: GC-EI-QTOF 021 (preset) 800 filled runs, 959 data points (671
+  runs of 1 scan), fillable dips 36 → 25, ADAP found in fast 99.64% → 99.69%, fast found in ADAP
+  97.93% → 97.43% (72 more fast features, 59 more where the ADAP chromatogram has more holes: a
+  hole is a zero between the flanking zeros, the filled peak reaches the min scans). QE sensitive
+  fillable dips 56 → 49, all other data sets unchanged. 22 runs on 021 and 40 on 022 exceed both
+  flanks by more than 1.5x (none 3x), weak data points (1E3-1E4), several in the artifact channels
+  around m/z 204.5-204.75. Open, decision of the user: the shared data point keeps its m/z, which
+  moves the weighted m/z of the receiving chromatogram toward the neighbor: within 10 scans of a
+  fill median 4 ppm, p90 11 ppm, max 34 ppm on 022; the peak of 262.120 moves from +2.7 to +16.0
+  ppm (feature m/z is intensity weighted, `FeatureDataUtils.DEFAULT_CENTER_MEASURE`). The neighbor
+  262.133 already had this bias (+38 ppm instead of ~+50). Alternative: the copy gets the
+  interpolated m/z of the hole, no m/z shift, but an m/z that is not in the mass list.
 - Traces are closed after 3 scans without data point, traces with a single data point after 1 scan.
   The early close keeps the number of active noise traces low. It cannot connect an ion whose m/z
   alternates every scan by more than the tolerance, `singleDataPointMaxGapScans = 1` can, at ~50%
@@ -202,7 +232,8 @@ saturate the detector shift their m/z at the apex, the builder keeps them in one
 - Remaining fillable dips of the fast builder are mostly two neighboring chromatograms 1-4
   tolerances apart that take turns in the same scans (two close ions whose centroids coalesce, or
   one ion that switches between two m/z states), e.g., 212.089/212.095 on QE data. ADAP splits them
-  the same way. The fast builder has 7x fewer fillable dips than ADAP on QE data (sensitive: 56 vs
+  the same way, the coalesced fill fills the holes of such pairs if the shared centroid lies
+  between them. The fast builder has 8x fewer fillable dips than ADAP on QE data (sensitive: 49 vs
   408). Short holes whose signal is in another chromatogram ("stolen") are more frequent than with
   ADAP only on GC-QTOF data with the preset tolerance, at low m/z: 5 mDa is 71 ppm at m/z 70, and
   two centroid populations 40 ppm apart end up in two channels with the same center that take the
@@ -216,21 +247,23 @@ summed over the files of a data set, fast before the speed work of 2026-09-26 in
 machine, same day; timings vary by ~10% between runs). Found: resolved features of one list with
 a feature of the other within the tolerance and 0.03 min. Dips: fillable dips of ADAP / fast.
 Auto: estimate and its features relative to the best tolerance of the sweep (preset in brackets).
+Found and dips include the coalesced fill (same day), found changed only for GC-EI-QTOF, on the
+other data sets by less than 0.05 percentage points, times are from before it.
 
 | data set                     | MS1 data points  | ADAP / fast ms       | ADAP found in fast | fast found in ADAP | dips     | Auto                           | best of sweep |
 |------------------------------|------------------|----------------------|--------------------|--------------------|----------|--------------------------------|---------------|
-| Orbitrap QE, sensitive       | 1.7 M            | 3443 / 353 (447)     | 98.40%             | 88.50%             | 408 / 56 | 14.5 ppm, 99.3% (99.9%)        | 10 ppm        |
-| ... no noise filter          | 1.9 M            | 4205 / 377 (489)     | 98.32%             | 88.45%             | 408 / 56 | 13.8 ppm, 99.4% (99.9%)        | 10 ppm        |
+| Orbitrap QE, sensitive       | 1.7 M            | 3443 / 353 (447)     | 98.40%             | 88.50%             | 408 / 49 | 14.5 ppm, 99.3% (99.9%)        | 10 ppm        |
+| ... no noise filter          | 1.9 M            | 4205 / 377 (489)     | 98.32%             | 88.45%             | 408 / 48 | 13.8 ppm, 99.4% (99.9%)        | 10 ppm        |
 | Orbitrap QE, workshop        | 0.82 M           | 1057 / 124 (183)     | 99.62%             | 95.25%             | 1 / 0    | 10.7 ppm, 99.8% (99.5%)        | 12 ppm        |
 | ... no noise filter          | 1.9 M            | 1932 / 240 (393)     | 99.01%             | 93.75%             | 1 / 0    | 13.8 ppm, 100% (98.7%)         | 15 ppm        |
-| Orbitrap QE media, sensitive | 0.95 M           | 1786 / 158 (220)     | 98.21%             | 84.79%             | 501 / 91 | 13.4 ppm, 99.6% (100%)         | 10 ppm        |
-| ... no noise filter          | 1.0 M            | 1966 / 173 (246)     | 98.12%             | 84.70%             | 507 / 95 | 13.2 ppm, 99.6% (100%)         | 10 ppm        |
+| Orbitrap QE media, sensitive | 0.95 M           | 1786 / 158 (220)     | 98.21%             | 84.79%             | 501 / 88 | 13.4 ppm, 99.6% (100%)         | 10 ppm        |
+| ... no noise filter          | 1.0 M            | 1966 / 173 (246)     | 98.12%             | 84.70%             | 507 / 92 | 13.2 ppm, 99.6% (100%)         | 10 ppm        |
 | Orbitrap QE media, workshop  | 0.46 M           | 479 / 63 (90)        | 99.43%             | 92.16%             | 25 / 5   | 9.9 ppm, 98.2% (98.2%)         | 30 ppm        |
 | ... no noise filter          | 1.0 M            | 1002 / 125 (204)     | 99.23%             | 90.73%             | 25 / 5   | 12.8 ppm, 99.2% (98.3%)        | 20 ppm        |
 | GC-EI-TOF                    | 0.15 M           | 81 / 20 (26)         | 100%               | 100%               | 0 / 0    | 21.1 ppm, 99.6% (99.4%)        | 15 ppm        |
 | ... no noise filter          | 3.5 M            | 917 / 381 (931)      | 100%               | 100%               | 0 / 0    | 21.1 ppm, 99.8% (99.1%)        | 15 ppm        |
-| GC-EI-QTOF                   | 2.0 M            | 3586 / 259 (327)     | 99.64%             | 97.93%             | 70 / 36  | 23.3 ppm, 99.7% (99.4%)        | 60 ppm        |
-| ... no noise filter          | 36 M             | 19937 / 5419 (10701) | 99.24%             | 97.10%             | 70 / 36  | 23.3 ppm, 98.7% (98.6%)        | 60 ppm        |
+| GC-EI-QTOF                   | 2.0 M            | 3586 / 259 (327)     | 99.69%             | 97.43%             | 70 / 25  | 23.3 ppm, 99.7% (99.4%)        | 60 ppm        |
+| ... no noise filter          | 36 M             | 19937 / 5419 (10701) | 99.28%             | 96.72%             | 70 / 24  | 23.3 ppm, 98.7% (98.6%)        | 60 ppm        |
 | LC-QTOF ZenoTOF DDA          | 0.03 M           | 35 / 10 (10)         | 100%               | 97.04%             | 0 / 0    | 0.9 mDa/9.4 ppm, 96.7% (99.2%) | 60 ppm        |
 | ... no noise filter          | 4.5 M, 1.5 M > 0 | 717 / 175 (382)      | 99.61%             | 96.25%             | 0 / 0    | 0.9 mDa/9.4 ppm, 93.7% (96.5%) | 60 ppm        |
 | LC-QTOF MSe                  | 0.02 M           | 8 / 5 (5)            | 98.62%             | 94.70%             | 0 / 0    | 50.9 ppm, 100% (95.0%)         | 50.9 ppm      |

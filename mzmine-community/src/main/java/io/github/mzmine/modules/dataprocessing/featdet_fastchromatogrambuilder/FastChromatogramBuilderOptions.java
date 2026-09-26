@@ -70,6 +70,13 @@ import org.jetbrains.annotations.NotNull;
  *                                     the most intense data point of all scans are bridged, the
  *                                     high data points close to the detector limit whose m/z
  *                                     shifts
+ * @param coalescedMaxHoleScans        holes between intense data points of a channel are filled
+ *                                     with the data point of a neighboring channel in the same scan
+ *                                     that lies between both centers, one centroid of two ions that
+ *                                     the instrument did not resolve, see
+ *                                     {@link ChannelFinalization}. Holes up to the max gap scans are
+ *                                     filled scan by scan, longer holes up to this length only if
+ *                                     every scan is filled. Values <= 0 disable this.
  */
 record FastChromatogramBuilderOptions(int maxGapScans, int singleDataPointMaxGapScans,
                                       double intensityJumpFactor, double intensityJumpWeight,
@@ -77,10 +84,11 @@ record FastChromatogramBuilderOptions(int maxGapScans, int singleDataPointMaxGap
                                       double complementaryToleranceFactor,
                                       double holeFillToleranceFactor,
                                       double dipBridgeToleranceFactor,
-                                      double dipBridgeIntensityFraction) {
+                                      double dipBridgeIntensityFraction,
+                                      int coalescedMaxHoleScans) {
 
   static final FastChromatogramBuilderOptions DEFAULT = new FastChromatogramBuilderOptions(3, 0, 5d,
-      0.25d, true, 0.1d, 2d, 2d, 4d, 0.5d);
+      0.25d, true, 0.1d, 2d, 2d, 4d, 0.5d, 8);
 
   FastChromatogramBuilderOptions {
     if (maxGapScans < 0 || singleDataPointMaxGapScans < 0) {
@@ -95,20 +103,21 @@ record FastChromatogramBuilderOptions(int maxGapScans, int singleDataPointMaxGap
     return new FastChromatogramBuilderOptions(maxGapScans, singleDataPointMaxGapScans,
         intensityJumpFactor, weight, separateCollidingTraces, maxCollisionFraction,
         complementaryToleranceFactor, holeFillToleranceFactor, dipBridgeToleranceFactor,
-        dipBridgeIntensityFraction);
+        dipBridgeIntensityFraction, coalescedMaxHoleScans);
   }
 
   @NotNull FastChromatogramBuilderOptions withSeparateCollidingTraces(boolean separate) {
     return new FastChromatogramBuilderOptions(maxGapScans, singleDataPointMaxGapScans,
         intensityJumpFactor, intensityJumpWeight, separate, maxCollisionFraction,
         complementaryToleranceFactor, holeFillToleranceFactor, dipBridgeToleranceFactor,
-        dipBridgeIntensityFraction);
+        dipBridgeIntensityFraction, coalescedMaxHoleScans);
   }
 
   @NotNull FastChromatogramBuilderOptions withComplementaryToleranceFactor(double factor) {
     return new FastChromatogramBuilderOptions(maxGapScans, singleDataPointMaxGapScans,
         intensityJumpFactor, intensityJumpWeight, separateCollidingTraces, maxCollisionFraction,
-        factor, holeFillToleranceFactor, dipBridgeToleranceFactor, dipBridgeIntensityFraction);
+        factor, holeFillToleranceFactor, dipBridgeToleranceFactor, dipBridgeIntensityFraction,
+        coalescedMaxHoleScans);
   }
 
   @NotNull FastChromatogramBuilderOptions withMaxGapScans(int gapScans,
@@ -116,19 +125,28 @@ record FastChromatogramBuilderOptions(int maxGapScans, int singleDataPointMaxGap
     return new FastChromatogramBuilderOptions(gapScans, singleDataPointGapScans,
         intensityJumpFactor, intensityJumpWeight, separateCollidingTraces, maxCollisionFraction,
         complementaryToleranceFactor, holeFillToleranceFactor, dipBridgeToleranceFactor,
-        dipBridgeIntensityFraction);
+        dipBridgeIntensityFraction, coalescedMaxHoleScans);
   }
 
   @NotNull FastChromatogramBuilderOptions withHoleFillToleranceFactor(double factor) {
     return new FastChromatogramBuilderOptions(maxGapScans, singleDataPointMaxGapScans,
         intensityJumpFactor, intensityJumpWeight, separateCollidingTraces, maxCollisionFraction,
-        complementaryToleranceFactor, factor, dipBridgeToleranceFactor, dipBridgeIntensityFraction);
+        complementaryToleranceFactor, factor, dipBridgeToleranceFactor, dipBridgeIntensityFraction,
+        coalescedMaxHoleScans);
   }
 
   @NotNull FastChromatogramBuilderOptions withDipBridgeToleranceFactor(double factor) {
     return new FastChromatogramBuilderOptions(maxGapScans, singleDataPointMaxGapScans,
         intensityJumpFactor, intensityJumpWeight, separateCollidingTraces, maxCollisionFraction,
-        complementaryToleranceFactor, holeFillToleranceFactor, factor, dipBridgeIntensityFraction);
+        complementaryToleranceFactor, holeFillToleranceFactor, factor, dipBridgeIntensityFraction,
+        coalescedMaxHoleScans);
+  }
+
+  @NotNull FastChromatogramBuilderOptions withCoalescedMaxHoleScans(int scans) {
+    return new FastChromatogramBuilderOptions(maxGapScans, singleDataPointMaxGapScans,
+        intensityJumpFactor, intensityJumpWeight, separateCollidingTraces, maxCollisionFraction,
+        complementaryToleranceFactor, holeFillToleranceFactor, dipBridgeToleranceFactor,
+        dipBridgeIntensityFraction, scans);
   }
 
   /**

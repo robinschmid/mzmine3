@@ -498,6 +498,58 @@ class FastChromatogramBuilderTest {
         build(withoutHoleFill, data).getFirst().getNumberOfDataPoints(), "Hole without filling");
   }
 
+  /**
+   * Two co-eluting ions 20 ppm apart, twice the tolerance. In the apex scans 5 to 9 the instrument
+   * does not resolve them and yields one centroid at +13 ppm, within the tolerance of the second
+   * ion only, like m/z 262.120 and 262.133 on GC-EI-QTOF data.
+   *
+   * @param coalescedMz m/z of the coalesced centroids
+   */
+  @NotNull
+  private static SyntheticLcmsData coalescedIons(double coalescedMz) {
+    final double mz = 500;
+    final double[] profile = {5E3, 2E4, 5E4, 1E5, 2E5, 3E5, 4E5, 4.5E5, 4E5, 3E5, 2E5, 1E5, 5E4,
+        2E4, 5E3};
+    final SyntheticLcmsData.Builder builder = SyntheticLcmsData.builder(40);
+    for (int s = 0; s < profile.length; s++) {
+      if (s >= 5 && s <= 9) {
+        builder.dataPoint(10 + s, coalescedMz, profile[s], 1);
+      } else {
+        builder.dataPoint(10 + s, ppm(mz, s % 2 == 0 ? 1 : -1), profile[s], 0);
+        builder.dataPoint(10 + s, ppm(mz, s % 2 == 0 ? 19 : 21), 0.8 * profile[s], 1);
+      }
+    }
+    return builder.ion(new Ion(mz, 17, 3, 0)).ion(new Ion(ppm(mz, 20), 17, 3, 0)).build();
+  }
+
+  @Test
+  void coalescedCentroidOfTwoIonsFillsBothChromatograms() {
+    final SyntheticLcmsData data = coalescedIons(ppm(500, 13));
+    final List<BuiltChromatogram> chromatograms = build(data);
+    Assertions.assertEquals(2, chromatograms.size());
+    for (final BuiltChromatogram chromatogram : chromatograms) {
+      Assertions.assertEquals(15, chromatogram.getNumberOfDataPoints(), "No hole in the apex");
+    }
+    // the shared centroid keeps its m/z in both chromatograms
+    Assertions.assertEquals(ppm(500, 13), chromatograms.getFirst().getMz(7), 1E-9);
+    Assertions.assertEquals(ppm(500, 13), chromatograms.getLast().getMz(7), 1E-9);
+
+    final FastChromatogramBuilder withoutCoalescedFill = new FastChromatogramBuilder(TOLERANCE,
+        MIN_CONSECUTIVE, MIN_GROUP_INTENSITY, MIN_HEIGHT,
+        FastChromatogramBuilderOptions.DEFAULT.withCoalescedMaxHoleScans(0));
+    Assertions.assertEquals(10,
+        build(withoutCoalescedFill, data).getFirst().getNumberOfDataPoints(),
+        "Without the fill, the first ion misses the apex scans");
+  }
+
+  @Test
+  void centroidCloseToItsChannelDoesNotFillTheHoleOfTheNeighbor() {
+    // +18 ppm is regular scatter of the second ion, shifted by less than half the tolerance
+    final List<BuiltChromatogram> chromatograms = build(coalescedIons(ppm(500, 18)));
+    Assertions.assertEquals(2, chromatograms.size());
+    Assertions.assertEquals(10, chromatograms.getFirst().getNumberOfDataPoints());
+  }
+
   @Test
   void holeFillRejectsDataPointsWithImplausibleIntensity() {
     // the apex is missing, a weak noise signal 15 ppm off must not fill the hole

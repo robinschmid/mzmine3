@@ -31,6 +31,7 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.longs.LongArrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -65,13 +66,20 @@ import org.jetbrains.annotations.Nullable;
  *   fill tolerance, the rules of the second pass. Without this, a failed channel would take its
  *   data points with it, e.g., the apex data points of an intense ion that a short trace of a
  *   co-eluting side signal took.</li>
+ *   <li>Holes between intense data points are filled with the data point of a neighboring channel
+ *   in the same scan that lies between both centers, one centroid of two ions that the instrument
+ *   did not resolve. The data point stays in the neighboring channel as well.</li>
  * </ol>
  * Merged and filled data points never replace a data point, one data point per channel and scan.
- * Only a bridged segment replaces the weak data points of a dip.
+ * Only a bridged segment replaces the weak data points of a dip. Only a coalesced fill puts one
+ * data point into two chromatograms.
  */
 final class ChannelFinalization {
 
   private static final int NONE = -1;
+  // decision: the regular data points of a channel scatter within a fraction of the tolerance, a
+  // centroid of two ions is pulled toward the weaker one by its share of the distance
+  private static final double COALESCED_MIN_SHIFT = 0.5d;
 
   private final @NotNull MZTolerance tolerance;
   private final int minConsecutiveScans;
@@ -83,6 +91,7 @@ final class ChannelFinalization {
   private final double holeFillFactor;
   private final double dipBridgeFactor;
   private final double dipBridgeIntensityFraction;
+  private final int coalescedMaxHoleScans;
   private final double intensityFactor;
   private final double logIntensityFactor;
 
@@ -90,6 +99,7 @@ final class ChannelFinalization {
   private int numBridgedSegments = 0;
   private long numBridgedDataPoints = 0;
   private long numRecoveredDataPoints = 0;
+  private long numCoalescedFills = 0;
 
   /**
    * @param tolerance max m/z distance of a data point to the center of a channel it fills
@@ -107,6 +117,7 @@ final class ChannelFinalization {
     holeFillFactor = options.holeFillToleranceFactor();
     dipBridgeFactor = options.dipBridgeToleranceFactor();
     dipBridgeIntensityFraction = options.dipBridgeIntensityFraction();
+    coalescedMaxHoleScans = options.coalescedMaxHoleScans();
     intensityFactor = options.intensityJumpFactor();
     logIntensityFactor = Math.log(intensityFactor);
   }
@@ -172,6 +183,9 @@ final class ChannelFinalization {
           Math.max(minHeight, dipBridgeIntensityFraction * maxDataPointIntensity), replaced);
     }
     recoverDataPoints(buffers, centers, passes, merged, targets, replaced);
+    if (coalescedMaxHoleScans > 0 && holeFillFactor > 0d) {
+      fillCoalescedHoles(buffers, centers, targets);
+    }
 
     final List<BuiltChromatogram> chromatograms = new ArrayList<>();
     for (int c = 0; c < n; c++) {
@@ -687,6 +701,138 @@ final class ChannelFinalization {
   }
 
   /**
+   * Holes between two data points of at least the min height of a passing channel are filled with
+   * the data point of a neighboring passing channel in the same scan, if it lies between the m/z
+   * interpolated in the hole and the median m/z of its channel, is shifted from this median toward
+   * the hole by at least the min shift and fits the hole like a hole fill. The data point stays in
+   * its channel. Two ions that the instrument does not resolve yield one centroid between both m/z
+   * when both are intense, e.g., m/z 262.120 and 262.133 on GC-EI-QTOF data give one centroid at
+   * +23 to +32 ppm in 8 apex scans, which the closer channel takes. Holes up to the max gap scans
+   * are filled scan by scan, longer holes only if every scan is filled. The fills are found first
+   * and applied after all channels, so a shared data point is not shared again. Decision: the
+   * median, not the intensity weighted center, the coalesced apex centroids pull the center of
+   * their channel toward the hole, e.g., 262.1327 instead of 262.1333.
+   */
+  private void fillCoalescedHoles(@Nullable ChannelBuffer @NotNull [] buffers,
+      @NotNull double[] centers, @NotNull boolean[] targets) {
+    final Targets reachable = new Targets(centers, targets);
+    final double[] medianMzs = new double[centers.length];
+    Arrays.fill(medianMzs, Double.NaN);
+    final IntArrayList fillChannels = new IntArrayList();
+    final DataPoints fills = new DataPoints();
+    for (int c = 0; c < centers.length; c++) {
+      if (!targets[c]) {
+        continue;
+      }
+      final ChannelBuffer buffer = buffers[c];
+      final int[] scans = buffer.scanIndices();
+      final double[] mzs = buffer.mzs();
+      final double[] intensities = buffer.intensities();
+      for (int i = 0; i + 1 < buffer.size(); i++) {
+        final int holeScans = scans[i + 1] - scans[i] - 1;
+        if (holeScans < 1 || holeScans > coalescedMaxHoleScans || intensities[i] < minHeight
+            || intensities[i + 1] < minHeight) {
+          continue;
+        }
+        final int holeStart = fills.size();
+        final double logBefore = Math.log(intensities[i]);
+        final double logAfter = Math.log(intensities[i + 1]);
+        for (int scan = scans[i] + 1; scan < scans[i + 1]; scan++) {
+          final double position = (double) (scan - scans[i]) / (holeScans + 1);
+          final double expectedMz = mzs[i] + position * (mzs[i + 1] - mzs[i]);
+          final double expectedLogIntensity = logBefore + position * (logAfter - logBefore);
+          final int donor = findCoalescedDonor(c, scan, expectedMz, expectedLogIntensity, buffers,
+              medianMzs, reachable);
+          if (donor != NONE) {
+            final ChannelBuffer source = buffers[donor];
+            final int k = source.indexOfScan(scan);
+            fills.add(scan, source.mzs()[k], source.intensities()[k]);
+            fillChannels.add(c);
+          }
+        }
+        // decision: a long hole is one coalescence over the apex of both ions, a partly filled
+        // long hole is a hole of the ion
+        if (holeScans >= maxScanDistance && fills.size() - holeStart < holeScans) {
+          fills.truncate(holeStart);
+          fillChannels.size(holeStart);
+        }
+      }
+    }
+    for (int k = 0; k < fills.size(); k++) {
+      buffers[fillChannels.getInt(k)].insert(fills.scans.getInt(k), fills.mzs.getDouble(k),
+          fills.intensities.getDouble(k));
+    }
+    numCoalescedFills += fills.size();
+  }
+
+  /**
+   * @param channel              the channel with the hole
+   * @param expectedMz           m/z interpolated between the flanks of the hole
+   * @param expectedLogIntensity log intensity interpolated between the flanks of the hole
+   * @return the passing channel whose data point in the scan fills the hole, the data point closest
+   * to the expected m/z, or NONE
+   */
+  private int findCoalescedDonor(int channel, int scan, double expectedMz,
+      double expectedLogIntensity, @Nullable ChannelBuffer @NotNull [] buffers,
+      @NotNull double[] medianMzs, @NotNull Targets reachable) {
+    final double fillWindow = holeFillFactor * tolerance.getMzToleranceForMass(expectedMz);
+    // the data point is within the fill window of the hole and of the donor median
+    final double window = 2d * fillWindow;
+    int best = NONE;
+    double bestDistance = Double.POSITIVE_INFINITY;
+    for (int t = reachable.lookup.lowerBound(expectedMz - window);
+        t < reachable.centers.length && reachable.centers[t] <= expectedMz + window; t++) {
+      final int donor = reachable.channels[t];
+      final ChannelBuffer source = buffers[donor];
+      final int k = donor == channel ? -1 : source.indexOfScan(scan);
+      if (k < 0) {
+        continue;
+      }
+      final double mz = source.mzs()[k];
+      final double distance = Math.abs(mz - expectedMz);
+      if (distance > fillWindow || distance >= bestDistance
+          || Math.abs(Math.log(source.intensities()[k]) - expectedLogIntensity)
+          > logIntensityFactor) {
+        continue;
+      }
+      // the median needs a sort, only for the few candidates
+      final double donorMedian = medianMz(donor, buffers, medianMzs);
+      final double shift = Math.abs(mz - donorMedian);
+      // between the hole and the donor median, shifted toward the hole
+      if ((mz - expectedMz) * (donorMedian - mz) <= 0d || shift > fillWindow
+          || shift < COALESCED_MIN_SHIFT * tolerance.getMzToleranceForMass(donorMedian)) {
+        continue;
+      }
+      best = donor;
+      bestDistance = distance;
+    }
+    return best;
+  }
+
+  /**
+   * @param medianMzs computed medians, NaN if not computed yet
+   * @return the unweighted median m/z of the data points of the channel
+   */
+  private static double medianMz(int channel, @Nullable ChannelBuffer @NotNull [] buffers,
+      @NotNull double[] medianMzs) {
+    if (Double.isNaN(medianMzs[channel])) {
+      final ChannelBuffer buffer = buffers[channel];
+      final double[] mzs = Arrays.copyOf(buffer.mzs(), buffer.size());
+      Arrays.sort(mzs);
+      final int half = mzs.length / 2;
+      medianMzs[channel] = mzs.length % 2 == 1 ? mzs[half] : 0.5d * (mzs[half - 1] + mzs[half]);
+    }
+    return medianMzs[channel];
+  }
+
+  /**
+   * @return data points of neighboring channels that filled a hole, see {@link #fillCoalescedHoles}
+   */
+  long getNumCoalescedFills() {
+    return numCoalescedFills;
+  }
+
+  /**
    * @return channels merged into another channel, complementary or failed
    */
   int getNumMergedChannels() {
@@ -724,6 +870,12 @@ final class ChannelFinalization {
 
     int size() {
       return scans.size();
+    }
+
+    void truncate(int size) {
+      scans.size(size);
+      mzs.size(size);
+      intensities.size(size);
     }
   }
 

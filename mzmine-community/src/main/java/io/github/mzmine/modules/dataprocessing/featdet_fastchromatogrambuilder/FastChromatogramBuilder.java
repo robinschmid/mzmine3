@@ -46,7 +46,8 @@ import org.jetbrains.annotations.Nullable;
  *   the tolerance, which avoids holes.</li>
  *   <li>{@link ChannelFinalization} merges complementary channels of one ion, bridges dips of
  *   intense chromatograms with shifted segments of other channels, e.g., a saturated apex, and
- *   moves the data points of channels that fail the filters into the passing channels.</li>
+ *   moves the data points of channels that fail the filters into the passing channels. Holes
+ *   left by one centroid of two unresolved ions are filled with this centroid.</li>
  * </ol>
  * Channels need a minimum number of consecutive scans above the group intensity and within this
  * segment a minimum height, the same filters as in the ADAP chromatogram builder.
@@ -158,6 +159,7 @@ public final class FastChromatogramBuilder {
         channels.getNumLooseAssigned(), channels.getNumHoleFills(),
         finalization.getNumMergedChannels(), finalization.getNumBridgedSegments(),
         finalization.getNumBridgedDataPoints(), finalization.getNumRecoveredDataPoints(),
+        finalization.getNumCoalescedFills(),
         chromatograms.size(), firstPassNanos, consolidationNanos, secondPassNanos,
         finalizationNanos);
     return chromatograms;

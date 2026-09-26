@@ -53,6 +53,8 @@ import org.jetbrains.annotations.NotNull;
  *                            shifted apex of a saturated ion
  * @param numBridgedDataPoints data points of the bridged segments
  * @param numRecoveredDataPoints data points of failed channels that filled a passing channel
+ * @param numCoalescedFills   data points of neighboring channels that also filled a hole, one
+ *                            centroid of two unresolved ions
  * @param numChromatograms    chromatograms passing the filters
  * @param firstPassNanos      duration of the first pass
  * @param consolidationNanos  duration of the channel consolidation
@@ -68,7 +70,8 @@ public record FastChromatogramBuilderStatistics(int numScans, long numDataPoints
                                                 long numLooseAssigned, long numHoleFills,
                                                 int numMergedChannels, int numBridgedSegments,
                                                 long numBridgedDataPoints,
-                                                long numRecoveredDataPoints, int numChromatograms,
+                                                long numRecoveredDataPoints, long numCoalescedFills,
+                                                int numChromatograms,
                                                 long firstPassNanos, long consolidationNanos,
                                                 long secondPassNanos, long finalizationNanos) {
 
@@ -78,13 +81,14 @@ public record FastChromatogramBuilderStatistics(int numScans, long numDataPoints
         scans=%d, data points=%d (max intensity %.3g), traces=%d (max active %d, recorded %d), \
         collisions=%d (pairs %d), channels=%d, member data points=%d (conflicts %d), \
         loose data points=%d (assigned %d), hole fills=%d, merged channels=%d, \
-        bridged dips=%d (data points %d), recovered data points=%d, chromatograms=%d, \
+        bridged dips=%d (data points %d), recovered data points=%d, coalesced fills=%d, \
+        chromatograms=%d, \
         times [ms]: pass1=%.1f, consolidation=%.1f, pass2=%.1f, finalization=%.1f""";
     return format.formatted(numScans, numDataPoints, maxIntensity, numTraces, maxActiveTraces,
         numRecordedTraces, numCollisionEvents, numCollisionPairs, numChannels, numMemberDataPoints,
         numMemberConflicts, numLooseDataPoints, numLooseAssigned, numHoleFills, numMergedChannels,
-        numBridgedSegments, numBridgedDataPoints, numRecoveredDataPoints, numChromatograms,
-        firstPassNanos / 1e6, consolidationNanos / 1e6, secondPassNanos / 1e6,
+        numBridgedSegments, numBridgedDataPoints, numRecoveredDataPoints, numCoalescedFills,
+        numChromatograms, firstPassNanos / 1e6, consolidationNanos / 1e6, secondPassNanos / 1e6,
         finalizationNanos / 1e6);
   }
 }
