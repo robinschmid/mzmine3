@@ -245,7 +245,7 @@ dependencies {
     implementation 'io.gsonfire:gson-fire:1.8.5'
     implementation "org.threeten:threetenbp:1.3.8"
     implementation 'org.json:json:20211205'
-    implementation "com.github.oshi:oshi-core:4.5.2"
+    implementation "com.github.oshi:oshi-core-ffm:7.7.2"
     // because the version that is pulled by SIRIUS crashes
     implementation "de.isas.mztab:jmztabm-io:$jmzTabmVersion"
 
